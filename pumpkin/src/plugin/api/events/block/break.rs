@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use pumpkin_world::block::block_registry::Block;
 
 use crate::{
@@ -8,16 +10,28 @@ use crate::{
 use super::{BlockBreakEvent, BlockEvent, BlockExpEvent};
 
 pub struct BlockBreakEventImpl {
-    player: Player,
+    player: Option<Arc<Player>>,
     block: Block,
     exp: u32,
     drop: bool,
     is_cancelled: bool,
 }
 
+impl BlockBreakEventImpl {
+    pub fn new(player: Option<Arc<Player>>, block: Block, exp: u32, drop: bool) -> Self {
+        Self {
+            player,
+            block,
+            exp,
+            drop,
+            is_cancelled: false,
+        }
+    }
+}
+
 impl BlockBreakEvent for BlockBreakEventImpl {
-    fn get_player(&self) -> &Player {
-        &self.player
+    fn get_player(&self) -> Option<Arc<Player>> {
+        self.player.clone()
     }
 
     fn will_drop(&self) -> bool {

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use pumpkin_world::block::block_registry::Block;
 
 use crate::entity::player::Player;
@@ -19,7 +21,7 @@ pub trait BlockExpEvent: BlockEvent {
 }
 
 pub trait BlockBreakEvent: BlockExpEvent {
-    fn get_player(&self) -> &Player;
+    fn get_player(&self) -> Option<Arc<Player>>;
     fn will_drop(&self) -> bool;
     fn set_drop(&mut self, drop: bool);
 }

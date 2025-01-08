@@ -689,7 +689,7 @@ impl Player {
         }
     }
 
-    pub async fn handle_player_action(&self, player_action: SPlayerAction, server: &Server) {
+    pub async fn handle_player_action(self: Arc<Self>, player_action: SPlayerAction, server: &Server) {
         match Status::try_from(player_action.status.0) {
             Ok(status) => match status {
                 Status::StartedDigging => {
@@ -710,12 +710,12 @@ impl Player {
                         let world = &entity.world;
                         let block = world.get_block(location).await;
 
-                        world.break_block(location, Some(self)).await;
+                        world.break_block(location, Some(self.clone())).await;
 
                         if let Ok(block) = block {
                             server
                                 .block_manager
-                                .on_broken(block, self, location, server)
+                                .on_broken(block, &self, location, server)
                                 .await;
                         }
                     }
@@ -748,12 +748,12 @@ impl Player {
                     let world = &entity.world;
                     let block = world.get_block(location).await;
 
-                    world.break_block(location, Some(self)).await;
+                    world.break_block(location, Some(self.clone())).await;
 
                     if let Ok(block) = block {
                         server
                             .block_manager
-                            .on_broken(block, self, location, server)
+                            .on_broken(block, &self, location, server)
                             .await;
                     }
                 }

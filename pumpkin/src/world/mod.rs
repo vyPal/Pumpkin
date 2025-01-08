@@ -8,11 +8,10 @@ use crate::{
     entity::{living::LivingEntity, mob::MobEntity, player::Player, Entity},
     error::PumpkinError,
     plugin::{
-        player::{
+        block::r#break::BlockBreakEventImpl, player::{
             join::PlayerJoinEventImpl, leave::PlayerLeaveEventImpl, PlayerJoinEvent,
             PlayerLeaveEvent,
-        },
-        CancellableEvent,
+        }, CancellableEvent
     },
     server::Server,
     PLUGIN_MANAGER,
@@ -945,18 +944,29 @@ impl World {
         chunk
     }
 
-    pub async fn break_block(&self, position: WorldPosition, cause: Option<&Player>) {
-        let broken_block_state_id = self.set_block_state(position, 0).await;
+    pub async fn break_block(&self, position: WorldPosition, cause: Option<Arc<Player>>) {
+        let block = self.get_block(position).await.unwrap();
+        let event = BlockBreakEventImpl::new(cause.clone(), block.clone(), 0, false);
 
-        let particles_packet =
-            CWorldEvent::new(2001, &position, broken_block_state_id.into(), false);
+        let event = PLUGIN_MANAGER
+            .lock()
+            .await
+            .fire::<BlockBreakEventImpl>(event)
+            .await;
 
-        match cause {
-            Some(player) => {
-                self.broadcast_packet_except(&[player.gameprofile.id], &particles_packet)
-                    .await;
+        if !event.is_cancelled() {
+            let broken_block_state_id = self.set_block_state(position, 0).await;
+
+            let particles_packet =
+                CWorldEvent::new(2001, &position, broken_block_state_id.into(), false);
+
+            match cause {
+                Some(player) => {
+                    self.broadcast_packet_except(&[player.gameprofile.id], &particles_packet)
+                        .await;
+                }
+                None => self.broadcast_packet_all(&particles_packet).await,
             }
-            None => self.broadcast_packet_all(&particles_packet).await,
         }
     }
 
