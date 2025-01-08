@@ -7,7 +7,13 @@ use crate::{
     command::client_cmd_suggestions,
     entity::{living::LivingEntity, player::Player, Entity},
     error::PumpkinError,
-    plugin::types::player::{PlayerEvent, PlayerEventAction},
+    plugin::{
+        player::{
+            join::PlayerJoinEventImpl, leave::PlayerLeaveEventImpl, PlayerJoinEvent,
+            PlayerLeaveEvent,
+        },
+        CancellableEvent,
+    },
     server::Server,
     PLUGIN_MANAGER,
 };
@@ -718,72 +724,33 @@ impl World {
     /// * `uuid`: The unique UUID of the player to add.
     /// * `player`: An `Arc<Player>` reference to the player object.
     pub async fn add_player(&self, uuid: uuid::Uuid, player: Arc<Player>) {
-        let mut current_players = self.current_players.lock().await;
-        current_players.insert(uuid, player.clone());
+        {
+            let mut current_players = self.current_players.lock().await;
+            current_players.insert(uuid, player.clone())
+        };
 
         let current_players = self.current_players.clone();
         tokio::spawn(async move {
-            let (send, mut recv) = mpsc::channel(1);
-            let player_event = PlayerEvent::new(player.clone(), send);
-            let players_copy = current_players.lock().await.clone();
-            tokio::spawn(async move {
-                while let Some(action) = recv.recv().await {
-                    match action {
-                        PlayerEventAction::SendMessage {
-                            message,
-                            player_id,
-                            response,
-                        } => {
-                            if let Some(player) = players_copy.get(&player_id) {
-                                player.send_system_message(&message).await;
-                            }
-                            response.send(()).unwrap();
-                        }
-                        PlayerEventAction::Kick {
-                            reason,
-                            player_id,
-                            response,
-                        } => {
-                            if let Some(player) = players_copy.get(&player_id) {
-                                player.kick(reason).await;
-                            }
-                            response.send(()).unwrap();
-                        }
-                        PlayerEventAction::SetHealth {
-                            health,
-                            food,
-                            saturation,
-                            player_id,
-                            response,
-                        } => {
-                            if let Some(player) = players_copy.get(&player_id) {
-                                player.set_health(health, food, saturation).await;
-                            }
-                            response.send(()).unwrap();
-                        }
-                        PlayerEventAction::Kill {
-                            player_id,
-                            response,
-                        } => {
-                            if let Some(player) = players_copy.get(&player_id) {
-                                player.kill().await;
-                            }
-                            response.send(()).unwrap();
-                        }
-                        PlayerEventAction::SetGameMode {
-                            game_mode,
-                            player_id,
-                            response,
-                        } => {
-                            if let Some(player) = players_copy.get(&player_id) {
-                                player.set_gamemode(game_mode).await;
-                            }
-                            response.send(()).unwrap();
-                        }
-                    }
+            let msg_txt = format!("{} joined the game.", player.gameprofile.name.as_str());
+            let msg_comp = TextComponent::text(msg_txt).color_named(NamedColor::Yellow);
+            let event = PlayerJoinEventImpl::new(player.clone(), msg_comp);
+
+            let event = PLUGIN_MANAGER
+                .lock()
+                .await
+                .fire::<PlayerJoinEventImpl>(event)
+                .await;
+
+            if !event.is_cancelled() {
+                let current_players = current_players.clone();
+                let players = current_players.lock().await;
+                for player in players.values() {
+                    player.send_system_message(&event.get_join_message()).await;
                 }
-            });
-            if !PLUGIN_MANAGER
+                log::info!("{}", event.get_join_message().to_pretty_console());
+            }
+
+            /* if !PLUGIN_MANAGER
                 .lock()
                 .await
                 .emit::<crate::plugin::api::types::player::PlayerEvent>(
@@ -801,7 +768,7 @@ impl World {
                     player.send_system_message(&msg_comp).await;
                 }
                 log::info!("{}", msg_comp.to_pretty_console());
-            }
+            } */
         });
     }
 
@@ -836,67 +803,25 @@ impl World {
         )
         .await;
         self.remove_entity(&player.living_entity.entity).await;
-        let (send, mut recv) = mpsc::channel(1);
-        let player_event = PlayerEvent::new(player.clone(), send);
-        let players_copy = self.current_players.lock().await.clone();
-        tokio::spawn(async move {
-            while let Some(action) = recv.recv().await {
-                match action {
-                    PlayerEventAction::SendMessage {
-                        message,
-                        player_id,
-                        response,
-                    } => {
-                        if let Some(player) = players_copy.get(&player_id) {
-                            player.send_system_message(&message).await;
-                        }
-                        response.send(()).unwrap();
-                    }
-                    PlayerEventAction::Kick {
-                        reason,
-                        player_id,
-                        response,
-                    } => {
-                        if let Some(player) = players_copy.get(&player_id) {
-                            player.kick(reason).await;
-                        }
-                        response.send(()).unwrap();
-                    }
-                    PlayerEventAction::SetHealth {
-                        health,
-                        food,
-                        saturation,
-                        player_id,
-                        response,
-                    } => {
-                        if let Some(player) = players_copy.get(&player_id) {
-                            player.set_health(health, food, saturation).await;
-                        }
-                        response.send(()).unwrap();
-                    }
-                    PlayerEventAction::Kill {
-                        player_id,
-                        response,
-                    } => {
-                        if let Some(player) = players_copy.get(&player_id) {
-                            player.kill().await;
-                        }
-                        response.send(()).unwrap();
-                    }
-                    PlayerEventAction::SetGameMode {
-                        game_mode,
-                        player_id,
-                        response,
-                    } => {
-                        if let Some(player) = players_copy.get(&player_id) {
-                            player.set_gamemode(game_mode).await;
-                        }
-                        response.send(()).unwrap();
-                    }
-                }
+
+        let msg_txt = format!("{} left the game.", player.gameprofile.name.as_str());
+        let msg_comp = TextComponent::text(msg_txt).color_named(NamedColor::Yellow);
+        let event = PlayerLeaveEventImpl::new(player.clone(), msg_comp);
+
+        let event = PLUGIN_MANAGER
+            .lock()
+            .await
+            .fire::<PlayerLeaveEventImpl>(event)
+            .await;
+
+        if !event.is_cancelled() {
+            let players = self.current_players.lock().await;
+            for player in players.values() {
+                player.send_system_message(&event.get_leave_message()).await;
             }
-        });
-        if !PLUGIN_MANAGER
+            log::info!("{}", event.get_leave_message().to_pretty_console());
+        }
+        /* if !PLUGIN_MANAGER
             .lock()
             .await
             .emit::<PlayerEvent>("player_leave", &player_event)
@@ -911,7 +836,7 @@ impl World {
                 player.send_system_message(&disconn_msg_cmp).await;
             }
             log::info!("{}", disconn_msg_cmp.to_pretty_console());
-        }
+        } */
     }
 
     /// Adds a living entity to the world.

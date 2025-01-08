@@ -1,7 +1,9 @@
 pub mod api;
 
 pub use api::*;
-use std::{any::Any, fs, future::Future, path::Path, pin::Pin, sync::Arc};
+use async_trait::async_trait;
+use std::{collections::HashMap, fs, path::Path, sync::Arc};
+use tokio::sync::RwLock;
 
 use crate::server::Server;
 
@@ -12,56 +14,54 @@ type PluginData = (
     bool,
 );
 
+#[async_trait]
+pub trait DynEventHandler: Send + Sync {
+    async fn handle_dyn(&self, _event: &mut (dyn Event + Send + Sync));
+}
+
+#[async_trait]
+pub trait EventHandler<E: Event>: Send + Sync {
+    async fn handle(&self, event: &mut E);
+}
+
+struct TypedEventHandler<E, H>
+where
+    E: Event + Send + Sync + 'static,
+    H: EventHandler<E> + Send + Sync,
+{
+    handler: H,
+    _phantom: std::marker::PhantomData<E>,
+}
+
+#[async_trait]
+impl<E, H> DynEventHandler for TypedEventHandler<E, H>
+where
+    E: Event + Send + Sync + 'static,
+    H: EventHandler<E> + Send + Sync,
+{
+    async fn handle_dyn(&self, event: &mut (dyn Event + Send + Sync)) {
+        // Check if the event is the same type as E. We can not use the type_id because it is
+        // different in the plugin and the main program
+        if E::get_name_static() == event.get_name() {
+            // This is fully safe as long as the event's get_name() and get_name_static()
+            // functions are correctly implemented and don't conflict with other events
+            let event = unsafe { &mut *std::ptr::from_mut::<dyn std::any::Any>(event.as_any()).cast::<E>() };
+            self.handler.handle(event).await;
+        }
+    }
+}
+
+pub type HandlerMap = HashMap<&'static str, Vec<Box<dyn DynEventHandler>>>;
+
 pub struct PluginManager {
     plugins: Vec<PluginData>,
     server: Option<Arc<Server>>,
+    handlers: Arc<RwLock<HandlerMap>>,
 }
 
 impl Default for PluginManager {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-const EVENT_PLAYER_JOIN: &str = "player_join";
-const EVENT_PLAYER_LEAVE: &str = "player_leave";
-
-type EventResult = Result<bool, String>;
-type EventFuture<'a> = Pin<Box<dyn Future<Output = EventResult> + Send + 'a>>;
-
-fn create_default_handler() -> EventFuture<'static> {
-    Box::pin(async { Ok(false) })
-}
-
-fn handle_player_event<'a>(
-    hooks: &'a mut Box<dyn Plugin>,
-    context: &'a Context,
-    event: &'a (dyn Any + Send + Sync),
-    handler: impl Fn(
-        &'a mut Box<dyn Plugin>,
-        &'a Context,
-        &'a types::player::PlayerEvent,
-    ) -> EventFuture<'a>,
-) -> EventFuture<'a> {
-    event
-        .downcast_ref::<types::player::PlayerEvent>()
-        .map_or_else(|| create_default_handler(), |e| handler(hooks, context, e))
-}
-
-fn match_event<'a>(
-    event_name: &str,
-    hooks: &'a mut Box<dyn Plugin>,
-    context: &'a Context,
-    event: &'a (dyn Any + Send + Sync),
-) -> EventFuture<'a> {
-    match event_name {
-        EVENT_PLAYER_JOIN => {
-            handle_player_event(hooks, context, event, |h, c, e| h.on_player_join(c, e))
-        }
-        EVENT_PLAYER_LEAVE => {
-            handle_player_event(hooks, context, event, |h, c, e| h.on_player_leave(c, e))
-        }
-        _ => create_default_handler(),
     }
 }
 
@@ -71,6 +71,7 @@ impl PluginManager {
         Self {
             plugins: vec![],
             server: None,
+            handlers: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -101,9 +102,10 @@ impl PluginManager {
             unsafe { &**library.get::<*const PluginMetadata>(b"METADATA").unwrap() };
 
         // The chance that this will panic is non-existent, but just in case
-        let context = handle_context(
-            metadata.clone(), /* , dispatcher */
-            &self.server.clone().expect("Server not set"),
+        let context = Context::new(
+            metadata.clone(),
+            self.server.clone().expect("Server not set"),
+            self.handlers.clone(),
         );
         let mut plugin_box = plugin_fn();
         let res = plugin_box.on_load(&context).await;
@@ -135,9 +137,10 @@ impl PluginManager {
                 return Err(format!("Plugin {name} is already loaded"));
             }
 
-            let context = handle_context(
-                metadata.clone(), /* , dispatcher */
-                &self.server.clone().expect("Server not set"),
+            let context = Context::new(
+                metadata.clone(),
+                self.server.clone().expect("Server not set"),
+                self.handlers.clone(),
             );
             let res = plugin.on_load(&context).await;
             res?;
@@ -155,9 +158,10 @@ impl PluginManager {
             .find(|(metadata, _, _, _)| metadata.name == name);
 
         if let Some((metadata, plugin, _, loaded)) = plugin {
-            let context = handle_context(
-                metadata.clone(), /* , dispatcher */
-                &self.server.clone().expect("Server not set"),
+            let context = Context::new(
+                metadata.clone(),
+                self.server.clone().expect("Server not set"),
+                self.handlers.clone(),
             );
             let res = plugin.on_unload(&context).await;
             res?;
@@ -176,7 +180,46 @@ impl PluginManager {
             .collect()
     }
 
-    pub async fn emit<T: Any + Send + Sync>(&mut self, event_name: &str, event: &T) -> bool {
+    pub async fn register<E: Event + 'static, H>(&self, handler: H)
+    where
+        H: EventHandler<E> + 'static,
+    {
+        let mut handlers = self.handlers.write().await;
+
+        let handlers_vec = handlers
+            .entry(E::get_name_static())
+            .or_insert_with(Vec::new);
+
+        let typed_handler = TypedEventHandler {
+            handler,
+            _phantom: std::marker::PhantomData,
+        };
+
+        handlers_vec.push(Box::new(typed_handler));
+    }
+
+    pub async fn fire<E: Event + Send + Sync + 'static>(&self, mut event: E) -> E {
+        let handlers = self.handlers.read().await;
+
+        log::debug!("Firing event: {}", E::get_name_static());
+
+        if let Some(handlers_vec) = handlers.get(&E::get_name_static()) {
+            log::debug!(
+                "Found {} handlers for event: {}",
+                handlers_vec.len(),
+                E::get_name_static()
+            );
+            for handler in handlers_vec {
+                handler.handle_dyn(&mut event).await;
+            }
+        } else {
+            log::debug!("No handlers found for event: {}", E::get_name_static());
+        }
+
+        event
+    }
+
+    /* pub async fn emit<T: Any + Send + Sync>(&mut self, event_name: &str, event: &T) -> bool {
         let mut blocking_hooks = Vec::new();
         let mut non_blocking_hooks = Vec::new();
 
@@ -250,5 +293,5 @@ impl PluginManager {
         }
 
         false
-    }
+    } */
 }

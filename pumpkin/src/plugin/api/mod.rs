@@ -1,6 +1,5 @@
 pub mod context;
 pub mod events;
-pub mod types;
 
 use async_trait::async_trait;
 pub use context::*;
@@ -19,7 +18,7 @@ pub struct PluginMetadata<'s> {
 }
 
 #[async_trait]
-pub trait PluginMethods: Send + Sync + 'static {
+pub trait Plugin: Send + Sync + 'static {
     /// Called when the plugin is loaded.
     async fn on_load(&mut self, _server: &Context) -> Result<(), String> {
         Ok(())
@@ -30,5 +29,3 @@ pub trait PluginMethods: Send + Sync + 'static {
         Ok(())
     }
 }
-
-pub trait Plugin: PluginMethods + Hooks {}

@@ -10,10 +10,12 @@ use pumpkin::command::tree_builder::literal;
 use pumpkin::command::tree_builder::require;
 use pumpkin::command::CommandExecutor;
 use pumpkin::command::CommandSender;
-use pumpkin::plugin::api::types::player::PlayerEvent;
+use pumpkin::plugin::player::join::PlayerJoinEventImpl;
+use pumpkin::plugin::player::PlayerEvent;
+use pumpkin::plugin::player::PlayerJoinEvent;
 use pumpkin::plugin::*;
 use pumpkin::server::Server;
-use pumpkin_api_macros::{plugin_event, plugin_impl, plugin_method, with_runtime};
+use pumpkin_api_macros::{plugin_impl, plugin_method, with_runtime};
 use pumpkin_core::text::color::NamedColor;
 use pumpkin_core::text::TextComponent;
 use pumpkin_core::PermissionLvl;
@@ -116,12 +118,26 @@ pub fn init_command_tree() -> CommandTree {
     )
 }
 
+struct MyJoinHandler;
+
+#[async_trait]
+impl EventHandler<PlayerJoinEventImpl> for MyJoinHandler {
+    async fn handle(&self, event: &mut PlayerJoinEventImpl) {
+        event.set_join_message(
+            TextComponent::text(format!("Welcome, {}!", event.get_player().gameprofile.name))
+                .color_named(NamedColor::Green),
+        );
+    }
+}
+
 #[plugin_method]
 async fn on_load(&mut self, server: &Context) -> Result<(), String> {
     env_logger::init();
     server
         .register_command(init_command_tree(), PermissionLvl::Two)
         .await;
+    server.register_event(MyJoinHandler).await;
+
     let data_folder = server.get_data_folder();
     if !fs::exists(format!("{}/data.toml", data_folder)).unwrap() {
         let cfg = toml::to_string(&self.config).unwrap();
@@ -149,47 +165,6 @@ async fn on_unload(&mut self, server: &Context) -> Result<(), String> {
 
     server.get_logger().info("Plugin unloaded!");
     Ok(())
-}
-
-#[plugin_event(blocking = true, priority = Highest)]
-async fn on_player_join(&mut self, server: &Context, player: &PlayerEvent) -> Result<bool, String> {
-    server.get_logger().info(
-        format!(
-            "Player {} joined the game. Config is {:#?}",
-            player.gameprofile.name, self.config
-        )
-        .as_str(),
-    );
-
-    if self.config.bans.players.contains(&player.gameprofile.name) {
-        let _ = player
-            .kick(TextComponent::text("You are banned from the server"))
-            .await;
-        return Ok(true);
-    }
-
-    let _ = player
-        .send_message(
-            TextComponent::text(format!(
-                "Hello {}, welocme to the server",
-                player.gameprofile.name
-            ))
-            .color_named(NamedColor::Green),
-        )
-        .await;
-    Ok(true)
-}
-
-#[plugin_event]
-async fn on_player_leave(
-    &mut self,
-    server: &Context,
-    player: &PlayerEvent,
-) -> Result<bool, String> {
-    server
-        .get_logger()
-        .info(format!("Player {} left the game", player.gameprofile.name).as_str());
-    Ok(false)
 }
 
 #[plugin_impl]

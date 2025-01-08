@@ -1,23 +1,33 @@
 use std::{fs, path::Path, sync::Arc};
 
 use pumpkin_core::PermissionLvl;
-use tokio::sync::mpsc::{self, Sender};
+use tokio::sync::RwLock;
 
-use crate::server::Server;
-
-use super::{
-    types::player::{player_event_handler, PlayerEvent},
-    PluginMetadata,
+use crate::{
+    entity::player::Player,
+    plugin::{EventHandler, HandlerMap, TypedEventHandler},
+    server::Server,
 };
+
+use super::{Event, PluginMetadata};
 
 pub struct Context {
     metadata: PluginMetadata<'static>,
-    channel: Sender<ContextAction>,
+    server: Arc<Server>,
+    handlers: Arc<RwLock<HandlerMap>>,
 }
 impl Context {
     #[must_use]
-    pub fn new(metadata: PluginMetadata<'static>, channel: Sender<ContextAction>) -> Self {
-        Self { metadata, channel }
+    pub fn new(
+        metadata: PluginMetadata<'static>,
+        server: Arc<Server>,
+        handlers: Arc<RwLock<HandlerMap>>,
+    ) -> Self {
+        Self {
+            metadata,
+            server,
+            handlers,
+        }
     }
 
     #[must_use]
@@ -36,16 +46,8 @@ impl Context {
         path
     }
 
-    pub async fn get_player_by_name(&self, player_name: String) -> Result<PlayerEvent, String> {
-        let (send, recv) = oneshot::channel();
-        let _ = self
-            .channel
-            .send(ContextAction::GetPlayerByName {
-                player_name,
-                response: send,
-            })
-            .await;
-        recv.await.unwrap()
+    pub async fn get_player_by_name(&self, player_name: String) -> Option<Arc<Player>> {
+        self.server.get_player_by_name(&player_name).await
     }
 
     pub async fn register_command(
@@ -53,60 +55,26 @@ impl Context {
         tree: crate::command::tree::CommandTree,
         permission: PermissionLvl,
     ) {
-        let _ = self
-            .channel
-            .send(ContextAction::RegisterCommand(tree, permission))
-            .await;
+        let mut dispatcher_lock = self.server.command_dispatcher.write().await;
+        dispatcher_lock.register(tree, permission);
     }
-}
 
-pub enum ContextAction {
-    // TODO: Implement when dispatcher is mutable
-    GetPlayerByName {
-        player_name: String,
-        response: oneshot::Sender<Result<PlayerEvent, String>>,
-    },
-    RegisterCommand(
-        crate::command::tree::CommandTree,
-        pumpkin_core::PermissionLvl,
-    ),
-}
+    pub async fn register_event<E: Event + 'static, H>(&self, handler: H)
+    where
+        H: EventHandler<E> + 'static,
+    {
+        let mut handlers = self.handlers.write().await;
 
-pub fn handle_context(
-    metadata: PluginMetadata<'static>, /* , dispatcher: Arc<CommandDispatcher<'static>> */
-    server: &Arc<Server>,
-) -> Context {
-    let (send, mut recv) = mpsc::channel(1);
-    let server = server.clone();
-    tokio::spawn(async move {
-        while let Some(action) = recv.recv().await {
-            match action {
-                /* ContextAction::RegisterCommand(_tree) => {
-                    // TODO: Implement when dispatcher is mutable
-                } */
-                ContextAction::GetPlayerByName {
-                    player_name,
-                    response,
-                } => {
-                    let player = server.get_player_by_name(&player_name).await;
-                    if let Some(player) = player {
-                        response
-                            .send(Ok(
-                                player_event_handler(server.clone(), player.clone()).await
-                            ))
-                            .unwrap();
-                    } else {
-                        response.send(Err("Player not found".to_string())).unwrap();
-                    }
-                }
-                ContextAction::RegisterCommand(tree, permission) => {
-                    let mut dispatcher_lock = server.command_dispatcher.write().await;
-                    dispatcher_lock.register(tree, permission);
-                }
-            }
-        }
-    });
-    Context::new(metadata, send)
+        let handlers_vec = handlers
+            .entry(E::get_name_static())
+            .or_insert_with(Vec::new);
+
+        let typed_handler = TypedEventHandler {
+            handler,
+            _phantom: std::marker::PhantomData,
+        };
+        handlers_vec.push(Box::new(typed_handler));
+    }
 }
 
 pub struct Logger {
