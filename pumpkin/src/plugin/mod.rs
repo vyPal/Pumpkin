@@ -45,7 +45,9 @@ where
         if E::get_name_static() == event.get_name() {
             // This is fully safe as long as the event's get_name() and get_name_static()
             // functions are correctly implemented and don't conflict with other events
-            let event = unsafe { &mut *std::ptr::from_mut::<dyn std::any::Any>(event.as_any()).cast::<E>() };
+            let event = unsafe {
+                &mut *std::ptr::from_mut::<dyn std::any::Any>(event.as_any()).cast::<E>()
+            };
             self.handler.handle(event).await;
         }
     }
