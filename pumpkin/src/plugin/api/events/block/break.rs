@@ -18,6 +18,7 @@ pub struct BlockBreakEventImpl {
 }
 
 impl BlockBreakEventImpl {
+    #[must_use]
     pub fn new(player: Option<Arc<Player>>, block: Block, exp: u32, drop: bool) -> Self {
         Self {
             player,

@@ -689,7 +689,11 @@ impl Player {
         }
     }
 
-    pub async fn handle_player_action(self: Arc<Self>, player_action: SPlayerAction, server: &Server) {
+    pub async fn handle_player_action(
+        self: Arc<Self>,
+        player_action: SPlayerAction,
+        server: &Server,
+    ) {
         match Status::try_from(player_action.status.0) {
             Ok(status) => match status {
                 Status::StartedDigging => {

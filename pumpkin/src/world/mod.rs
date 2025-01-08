@@ -8,10 +8,12 @@ use crate::{
     entity::{living::LivingEntity, mob::MobEntity, player::Player, Entity},
     error::PumpkinError,
     plugin::{
-        block::r#break::BlockBreakEventImpl, player::{
+        block::r#break::BlockBreakEventImpl,
+        player::{
             join::PlayerJoinEventImpl, leave::PlayerLeaveEventImpl, PlayerJoinEvent,
             PlayerLeaveEvent,
-        }, CancellableEvent
+        },
+        CancellableEvent,
     },
     server::Server,
     PLUGIN_MANAGER,
