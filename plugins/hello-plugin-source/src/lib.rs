@@ -122,7 +122,7 @@ struct MyJoinHandler;
 
 #[async_trait]
 impl EventHandler<PlayerJoinEventImpl> for MyJoinHandler {
-    async fn handle(&self, event: &mut PlayerJoinEventImpl) {
+    async fn handle_blocking(&self, event: &mut PlayerJoinEventImpl) {
         event.set_join_message(
             TextComponent::text(format!("Welcome, {}!", event.get_player().gameprofile.name))
                 .color_named(NamedColor::Green),
@@ -136,24 +136,22 @@ async fn on_load(&mut self, server: &Context) -> Result<(), String> {
     server
         .register_command(init_command_tree(), PermissionLvl::Two)
         .await;
-    server.register_event(MyJoinHandler).await;
+    server
+        .register_event(MyJoinHandler, EventPriority::Lowest, true)
+        .await;
 
     let data_folder = server.get_data_folder();
     if !fs::exists(format!("{}/data.toml", data_folder)).unwrap() {
         let cfg = toml::to_string(&self.config).unwrap();
         fs::write(format!("{}/data.toml", data_folder), cfg).unwrap();
-        server
-            .get_logger()
-            .info(format!("Created config in {} with {:#?}", data_folder, self.config).as_str());
+        log::info!("Created config in {} with {:#?}", data_folder, self.config);
     } else {
         let data = fs::read_to_string(format!("{}/data.toml", data_folder)).unwrap();
         self.config = toml::from_str(data.as_str()).unwrap();
-        server
-            .get_logger()
-            .info(format!("Loaded config from {} with {:#?}", data_folder, self.config).as_str());
+        log::info!("Loaded config from {} with {:#?}", data_folder, self.config);
     }
 
-    server.get_logger().info("Plugin loaded!");
+    log::info!("Plugin loaded!");
     Ok(())
 }
 
@@ -163,7 +161,7 @@ async fn on_unload(&mut self, server: &Context) -> Result<(), String> {
     let cfg = toml::to_string(&self.config).unwrap();
     fs::write(format!("{}/data.toml", data_folder), cfg).unwrap();
 
-    server.get_logger().info("Plugin unloaded!");
+    log::info!("Plugin unloaded!");
     Ok(())
 }
 

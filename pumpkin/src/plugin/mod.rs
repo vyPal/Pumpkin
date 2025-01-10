@@ -24,8 +24,12 @@ pub trait DynEventHandler: Send + Sync {
 
 #[async_trait]
 pub trait EventHandler<E: Event>: Send + Sync {
-    async fn handle(&self, event: &E);
-    async fn handle_blocking(&self, event: &mut E);
+    async fn handle(&self, _event: &E) {
+        unimplemented!();
+    }
+    async fn handle_blocking(&self, _event: &mut E) {
+        unimplemented!();
+    }
 }
 
 struct TypedEventHandler<E, H>
@@ -64,9 +68,8 @@ where
         if E::get_name_static() == event.get_name() {
             // This is fully safe as long as the event's get_name() and get_name_static()
             // functions are correctly implemented and don't conflict with other events
-            let event = unsafe {
-                &*std::ptr::from_ref::<dyn std::any::Any>(event.as_any()).cast::<E>()
-            };
+            let event =
+                unsafe { &*std::ptr::from_ref::<dyn std::any::Any>(event.as_any()).cast::<E>() };
             self.handler.handle(event).await;
         }
     }
@@ -209,8 +212,12 @@ impl PluginManager {
             .collect()
     }
 
-    pub async fn register<E: Event + 'static, H>(&self, handler: H, priority: EventPriority, blocking: bool)
-    where
+    pub async fn register<E: Event + 'static, H>(
+        &self,
+        handler: H,
+        priority: EventPriority,
+        blocking: bool,
+    ) where
         H: EventHandler<E> + 'static,
     {
         let mut handlers = self.handlers.write().await;
@@ -232,29 +239,30 @@ impl PluginManager {
     pub async fn fire<E: Event + Send + Sync + 'static>(&self, mut event: E) -> E {
         // Take a snapshot of handlers to avoid lifetime issues
         let handlers = self.handlers.read().await;
-        
+
         log::debug!("Firing event: {}", E::get_name_static());
-    
+
         if let Some(handlers_vec) = handlers.get(&E::get_name_static()) {
             log::debug!(
                 "Found {} handlers for event: {}",
                 handlers_vec.len(),
                 E::get_name_static()
             );
-    
-            let (blocking_handlers, non_blocking_handlers): (Vec<_>, Vec<_>) = 
-                handlers_vec.iter().partition(|handler| handler.is_blocking());
-    
+
+            let (blocking_handlers, non_blocking_handlers): (Vec<_>, Vec<_>) = handlers_vec
+                .iter()
+                .partition(|handler| handler.is_blocking());
+
             for handler in blocking_handlers {
                 handler.handle_blocking_dyn(&mut event).await;
             }
-            
+
             // TODO: Run non-blocking handlers in parallel
             for handler in non_blocking_handlers {
                 handler.handle_dyn(&event).await;
             }
         }
-    
+
         event
     }
 }

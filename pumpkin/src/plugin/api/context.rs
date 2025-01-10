@@ -52,8 +52,12 @@ impl Context {
         dispatcher_lock.register(tree, permission);
     }
 
-    pub async fn register_event<E: Event + 'static, H>(&self, handler: H, priority: EventPriority, blocking: bool)
-    where
+    pub async fn register_event<E: Event + 'static, H>(
+        &self,
+        handler: H,
+        priority: EventPriority,
+        blocking: bool,
+    ) where
         H: EventHandler<E> + 'static,
     {
         let mut handlers = self.handlers.write().await;
