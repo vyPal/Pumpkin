@@ -31,13 +31,6 @@ impl Context {
     }
 
     #[must_use]
-    pub fn get_logger(&self) -> Logger {
-        Logger {
-            plugin_name: self.metadata.name.to_string(),
-        }
-    }
-
-    #[must_use]
     pub fn get_data_folder(&self) -> String {
         let path = format!("./plugins/{}", self.metadata.name);
         if !Path::new(&path).exists() {
@@ -74,23 +67,5 @@ impl Context {
             _phantom: std::marker::PhantomData,
         };
         handlers_vec.push(Box::new(typed_handler));
-    }
-}
-
-pub struct Logger {
-    plugin_name: String,
-}
-
-impl Logger {
-    pub fn info(&self, message: &str) {
-        log::info!("[{}] {}", self.plugin_name, message);
-    }
-
-    pub fn warn(&self, message: &str) {
-        log::warn!("[{}] {}", self.plugin_name, message);
-    }
-
-    pub fn error(&self, message: &str) {
-        log::error!("[{}] {}", self.plugin_name, message);
     }
 }

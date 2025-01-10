@@ -771,26 +771,6 @@ impl World {
                 }
                 log::info!("{}", event.get_join_message().to_pretty_console());
             }
-
-            /* if !PLUGIN_MANAGER
-                .lock()
-                .await
-                .emit::<crate::plugin::api::types::player::PlayerEvent>(
-                    "player_join",
-                    &player_event,
-                )
-                .await
-            {
-                // Handle join message
-                // TODO: Config
-                let msg_txt = format!("{} joined the game.", player.gameprofile.name.as_str());
-                let msg_comp = TextComponent::text(msg_txt).color_named(NamedColor::Yellow);
-                let players = current_players.lock().await;
-                for player in players.values() {
-                    player.send_system_message(&msg_comp).await;
-                }
-                log::info!("{}", msg_comp.to_pretty_console());
-            } */
         });
     }
 
@@ -843,22 +823,6 @@ impl World {
             }
             log::info!("{}", event.get_leave_message().to_pretty_console());
         }
-        /* if !PLUGIN_MANAGER
-            .lock()
-            .await
-            .emit::<PlayerEvent>("player_leave", &player_event)
-            .await
-        {
-            // Send disconnect message / quit message to players in the same world
-            // TODO: Config
-            let disconn_msg_txt = format!("{} left the game.", player.gameprofile.name.as_str());
-            let disconn_msg_cmp =
-                TextComponent::text(disconn_msg_txt).color_named(NamedColor::Yellow);
-            for player in self.current_players.lock().await.values() {
-                player.send_system_message(&disconn_msg_cmp).await;
-            }
-            log::info!("{}", disconn_msg_cmp.to_pretty_console());
-        } */
     }
 
     /// Adds a living entity to the world.
