@@ -16,9 +16,9 @@ use pumpkin::plugin::player::PlayerJoinEvent;
 use pumpkin::plugin::*;
 use pumpkin::server::Server;
 use pumpkin_api_macros::{plugin_impl, plugin_method, with_runtime};
-use pumpkin_core::text::color::NamedColor;
-use pumpkin_core::text::TextComponent;
-use pumpkin_core::PermissionLvl;
+use pumpkin_util::text::color::NamedColor;
+use pumpkin_util::text::TextComponent;
+use pumpkin_util::PermissionLvl;
 use serde::{Deserialize, Serialize};
 use std::fs;
 

@@ -12,7 +12,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pumpkin = { path = "../../pumpkin" }
-pumpkin-core = { path = "../../pumpkin-core" }
+pumpkin-util = { path = "../../pumpkin-util" }
 pumpkin-protocol = { path = "../../pumpkin-protocol" }
 pumpkin-api-macros = { path = "../../pumpkin-api-macros" }
 serde = { version = "1.0", features = ["derive"] }
