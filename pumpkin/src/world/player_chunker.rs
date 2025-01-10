@@ -1,11 +1,11 @@
 use std::{num::NonZeroU8, sync::Arc};
 
 use pumpkin_config::BASIC_CONFIG;
-use pumpkin_core::{
+use pumpkin_protocol::client::play::{CCenterChunk, CUnloadChunk};
+use pumpkin_util::{
     math::{get_section_cord, position::WorldPosition, vector3::Vector3},
     GameMode,
 };
-use pumpkin_protocol::client::play::{CCenterChunk, CUnloadChunk};
 use pumpkin_world::cylindrical_chunk_iterator::Cylindrical;
 
 use crate::entity::player::Player;

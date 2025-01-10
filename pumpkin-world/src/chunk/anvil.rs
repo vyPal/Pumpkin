@@ -2,7 +2,7 @@ use bytes::*;
 use fastnbt::LongArray;
 use flate2::bufread::{GzDecoder, GzEncoder, ZlibDecoder, ZlibEncoder};
 use indexmap::IndexMap;
-use pumpkin_core::math::ceil_log2;
+use pumpkin_util::math::ceil_log2;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{
     collections::HashSet,
@@ -135,7 +135,7 @@ impl ChunkReader for AnvilChunkFormat {
     fn read_chunk(
         &self,
         save_file: &LevelFolder,
-        at: &pumpkin_core::math::vector2::Vector2<i32>,
+        at: &pumpkin_util::math::vector2::Vector2<i32>,
     ) -> Result<super::ChunkData, ChunkReadingError> {
         let region = (at.x >> 5, at.z >> 5);
 
@@ -219,7 +219,7 @@ impl ChunkWriter for AnvilChunkFormat {
         &self,
         chunk_data: &ChunkData,
         level_folder: &LevelFolder,
-        at: &pumpkin_core::math::vector2::Vector2<i32>,
+        at: &pumpkin_util::math::vector2::Vector2<i32>,
     ) -> Result<(), super::ChunkWritingError> {
         let region = (at.x >> 5, at.z >> 5);
 
@@ -357,7 +357,7 @@ impl AnvilChunkFormat {
     pub fn to_bytes(&self, chunk_data: &ChunkData) -> Result<Vec<u8>, ChunkSerializingError> {
         let mut sections = Vec::new();
 
-        for (i, blocks) in chunk_data.blocks.iter_subchunks().enumerate() {
+        for (i, blocks) in chunk_data.subchunks.array_iter().enumerate() {
             // get unique blocks
             let unique_blocks: HashSet<_> = blocks.iter().collect();
 
@@ -384,7 +384,7 @@ impl AnvilChunkFormat {
             // Empty data if the palette only contains one index https://minecraft.fandom.com/wiki/Chunk_format
             // if palette.len() > 1 {}
             // TODO: Update to write empty data. Rn or read does not handle this elegantly
-            for block in blocks {
+            for block in blocks.iter() {
                 // Push if next bit does not fit
                 if bits_used_in_pack + block_bit_size as u32 > 64 {
                     section_longs.push(current_pack_long);
@@ -430,7 +430,7 @@ impl AnvilChunkFormat {
             x_pos: chunk_data.position.x,
             z_pos: chunk_data.position.z,
             status: super::ChunkStatus::Full,
-            heightmaps: chunk_data.blocks.heightmap.clone(),
+            heightmaps: chunk_data.heightmap.clone(),
             sections,
         };
 
@@ -477,7 +477,7 @@ impl AnvilChunkFormat {
 
 #[cfg(test)]
 mod tests {
-    use pumpkin_core::math::vector2::Vector2;
+    use pumpkin_util::math::vector2::Vector2;
     use std::fs;
     use std::path::PathBuf;
 
@@ -545,10 +545,7 @@ mod tests {
                     .iter()
                     .find(|chunk| chunk.position == *at)
                     .expect("Missing chunk");
-                assert_eq!(
-                    chunk.blocks.blocks, read_chunk.blocks.blocks,
-                    "Chunks don't match"
-                );
+                assert_eq!(chunk.subchunks, read_chunk.subchunks, "Chunks don't match");
             }
         }
 

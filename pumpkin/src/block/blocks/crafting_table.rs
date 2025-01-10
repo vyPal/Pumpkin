@@ -3,9 +3,10 @@ use crate::block::pumpkin_block::PumpkinBlock;
 use crate::entity::player::Player;
 use crate::server::Server;
 use async_trait::async_trait;
-use pumpkin_core::math::position::WorldPosition;
-use pumpkin_inventory::{CraftingTable, OpenContainer, WindowType};
+use pumpkin_data::screen::WindowType;
+use pumpkin_inventory::{CraftingTable, OpenContainer};
 use pumpkin_macros::pumpkin_block;
+use pumpkin_util::math::position::WorldPosition;
 use pumpkin_world::{block::block_registry::Block, item::item_registry::Item};
 
 #[pumpkin_block("minecraft:crafting_table")]
@@ -83,7 +84,7 @@ impl CraftingTableBlock {
             player,
             location,
             server,
-            WindowType::CraftingTable,
+            WindowType::Crafting,
         )
         .await;
     }

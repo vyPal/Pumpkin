@@ -1,10 +1,11 @@
+use pumpkin_data::packet::clientbound::PLAY_SET_DISPLAY_OBJECTIVE;
 use pumpkin_macros::client_packet;
 use serde::Serialize;
 
 use crate::VarInt;
 
 #[derive(Serialize)]
-#[client_packet("play:set_display_objective")]
+#[client_packet(PLAY_SET_DISPLAY_OBJECTIVE)]
 pub struct CDisplayObjective<'a> {
     position: VarInt,
     score_name: &'a str,

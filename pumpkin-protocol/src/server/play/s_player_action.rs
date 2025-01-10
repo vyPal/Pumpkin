@@ -1,10 +1,11 @@
-use pumpkin_core::math::position::WorldPosition;
+use pumpkin_data::packet::serverbound::PLAY_PLAYER_ACTION;
 use pumpkin_macros::server_packet;
+use pumpkin_util::math::position::WorldPosition;
 
 use crate::VarInt;
 
 #[derive(serde::Deserialize)]
-#[server_packet("play:player_action")]
+#[server_packet(PLAY_PLAYER_ACTION)]
 pub struct SPlayerAction {
     pub status: VarInt,
     pub location: WorldPosition,

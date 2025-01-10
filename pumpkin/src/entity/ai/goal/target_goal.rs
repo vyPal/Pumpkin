@@ -36,6 +36,12 @@ impl Goal for TargetGoal {
             .world
             .get_closest_player(mob.living_entity.entity.pos.load(), self.range)
             .await;
+        // we can't use filter, because of async clousrers
+        if let Some(player) = target.as_ref() {
+            if player.abilities.lock().await.invulnerable {
+                *target = None;
+            }
+        }
 
         target.is_some()
     }
@@ -44,7 +50,9 @@ impl Goal for TargetGoal {
         if let Some(target) = self.target.lock().await.as_ref() {
             let mob_pos = mob.living_entity.entity.pos.load();
             let target_pos = target.living_entity.entity.pos.load();
-            return mob_pos.squared_distance_to_vec(target_pos) <= (self.range * self.range);
+            let abilities = target.abilities.lock().await;
+            return !abilities.invulnerable
+                && mob_pos.squared_distance_to_vec(target_pos) <= (self.range * self.range);
         }
         false
     }

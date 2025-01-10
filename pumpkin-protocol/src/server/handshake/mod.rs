@@ -1,4 +1,5 @@
 use bytes::Buf;
+use pumpkin_data::packet::serverbound::HANDSHAKE_INTENTION;
 use pumpkin_macros::server_packet;
 
 use crate::{
@@ -6,7 +7,7 @@ use crate::{
     ConnectionState, ServerPacket, VarInt,
 };
 
-#[server_packet("handshake:intention")]
+#[server_packet(HANDSHAKE_INTENTION)]
 pub struct SHandShake {
     pub protocol_version: VarInt,
     pub server_address: String, // 255
