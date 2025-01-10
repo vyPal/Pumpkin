@@ -1,12 +1,12 @@
 use std::f32::consts::PI;
 
-use pumpkin_core::math::vector3::Vector3;
-use pumpkin_macros::{particle, sound};
+use pumpkin_data::{particle::Particle, sound::Sound};
 use pumpkin_protocol::{
     client::play::{CEntityVelocity, CParticle},
     codec::var_int::VarInt,
     SoundCategory,
 };
+use pumpkin_util::math::vector3::Vector3;
 use pumpkin_world::item::ItemStack;
 
 use crate::{
@@ -110,7 +110,7 @@ pub async fn spawn_sweep_particle(attacker_entity: &Entity, world: &World, pos: 
             Vector3::new(0.0, 0.0, 0.0),
             0.0,
             0,
-            VarInt(i32::from(particle!("sweep_attack"))), // sweep
+            VarInt(Particle::SweepAttack as i32), // sweep
             &[],
         ))
         .await;
@@ -121,7 +121,7 @@ pub async fn player_attack_sound(pos: &Vector3<f64>, world: &World, attack_type:
         AttackType::Knockback => {
             world
                 .play_sound(
-                    sound!("entity.player.attack.knockback"),
+                    Sound::EntityPlayerAttackKnockback as u16,
                     SoundCategory::Players,
                     pos,
                 )
@@ -130,7 +130,7 @@ pub async fn player_attack_sound(pos: &Vector3<f64>, world: &World, attack_type:
         AttackType::Critical => {
             world
                 .play_sound(
-                    sound!("entity.player.attack.crit"),
+                    Sound::EntityPlayerAttackCrit as u16,
                     SoundCategory::Players,
                     pos,
                 )
@@ -139,7 +139,7 @@ pub async fn player_attack_sound(pos: &Vector3<f64>, world: &World, attack_type:
         AttackType::Sweeping => {
             world
                 .play_sound(
-                    sound!("entity.player.attack.sweep"),
+                    Sound::EntityPlayerAttackSweep as u16,
                     SoundCategory::Players,
                     pos,
                 )
@@ -148,7 +148,7 @@ pub async fn player_attack_sound(pos: &Vector3<f64>, world: &World, attack_type:
         AttackType::Strong => {
             world
                 .play_sound(
-                    sound!("entity.player.attack.strong"),
+                    Sound::EntityPlayerAttackStrong as u16,
                     SoundCategory::Players,
                     pos,
                 )
@@ -157,7 +157,7 @@ pub async fn player_attack_sound(pos: &Vector3<f64>, world: &World, attack_type:
         AttackType::Weak => {
             world
                 .play_sound(
-                    sound!("entity.player.attack.weak"),
+                    Sound::EntityPlayerAttackWeak as u16,
                     SoundCategory::Players,
                     pos,
                 )

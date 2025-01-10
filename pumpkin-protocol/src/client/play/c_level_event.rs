@@ -1,9 +1,10 @@
-use pumpkin_core::math::position::WorldPosition;
+use pumpkin_data::packet::clientbound::PLAY_LEVEL_EVENT;
 use pumpkin_macros::client_packet;
+use pumpkin_util::math::position::WorldPosition;
 use serde::Serialize;
 
 #[derive(Serialize)]
-#[client_packet("play:level_event")]
+#[client_packet(PLAY_LEVEL_EVENT)]
 pub struct CLevelEvent {
     event: i32,
     location: WorldPosition,

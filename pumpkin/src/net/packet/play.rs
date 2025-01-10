@@ -12,12 +12,6 @@ use crate::{
     world::player_chunker,
 };
 use pumpkin_config::ADVANCED_CONFIG;
-use pumpkin_core::math::{boundingbox::BoundingBox, position::WorldPosition};
-use pumpkin_core::{
-    math::{vector3::Vector3, wrap_degrees},
-    text::TextComponent,
-    GameMode,
-};
 use pumpkin_entity::entity_type::EntityType;
 use pumpkin_inventory::player::PlayerInventory;
 use pumpkin_inventory::InventoryError;
@@ -40,6 +34,12 @@ use pumpkin_protocol::{
         SPlayerAbilities, SPlayerAction, SPlayerCommand, SPlayerPosition, SPlayerPositionRotation,
         SPlayerRotation, SSetCreativeSlot, SSetHeldItem, SSwingArm, SUseItemOn, Status,
     },
+};
+use pumpkin_util::math::{boundingbox::BoundingBox, position::WorldPosition};
+use pumpkin_util::{
+    math::{vector3::Vector3, wrap_degrees},
+    text::TextComponent,
+    GameMode,
 };
 use pumpkin_world::block::block_registry::Block;
 use pumpkin_world::item::item_registry::get_item_by_id;
@@ -121,7 +121,14 @@ impl Player {
         pos.clamp(-2.0E7, 2.0E7)
     }
 
+    pub fn handle_player_loaded(self: &Arc<Self>) {
+        self.set_client_loaded(true);
+    }
+
     pub async fn handle_position(self: &Arc<Self>, packet: SPlayerPosition) {
+        if !self.has_client_loaded() {
+            return;
+        }
         // y = feet Y
         let position = packet.position;
         if position.x.is_nan() || position.y.is_nan() || position.z.is_nan() {
@@ -178,6 +185,9 @@ impl Player {
     }
 
     pub async fn handle_position_rotation(self: &Arc<Self>, packet: SPlayerPositionRotation) {
+        if !self.has_client_loaded() {
+            return;
+        }
         // y = feet Y
         let position = packet.position;
         if position.x.is_nan() || position.y.is_nan() || position.z.is_nan() {
@@ -257,6 +267,9 @@ impl Player {
     }
 
     pub async fn handle_rotation(&self, rotation: SPlayerRotation) {
+        if !self.has_client_loaded() {
+            return;
+        }
         if !rotation.yaw.is_finite() || !rotation.pitch.is_finite() {
             self.kick(TextComponent::text("Invalid rotation")).await;
             return;
@@ -287,19 +300,23 @@ impl Player {
             .await;
     }
 
-    pub async fn handle_chat_command(
-        self: &Arc<Self>,
-        server: &Arc<Server>,
-        command: SChatCommand,
-    ) {
-        let dispatcher = server.command_dispatcher.read().await;
-        dispatcher
-            .handle_command(
-                &mut CommandSender::Player(self.clone()),
-                server,
-                &command.command,
-            )
-            .await;
+    pub fn handle_chat_command(self: &Arc<Self>, server: &Arc<Server>, command: &SChatCommand) {
+        let player_clone = self.clone();
+        let server_clone = server.clone();
+        let command_clone = command.command.clone();
+        // Some commands can take a long time to execute. If they do, they block packet processing for the player
+        // Thats why we will spawn a task instead
+        tokio::spawn(async move {
+            let dispatcher = server_clone.command_dispatcher.read().await;
+            dispatcher
+                .handle_command(
+                    &mut CommandSender::Player(player_clone),
+                    &server_clone,
+                    &command_clone,
+                )
+                .await;
+        });
+
         if ADVANCED_CONFIG.commands.log_console {
             log::info!(
                 "Player ({}): executed command /{}",
@@ -413,6 +430,9 @@ impl Player {
 
     pub async fn handle_player_command(&self, command: SPlayerCommand) {
         if command.entity_id != self.entity_id().into() {
+            return;
+        }
+        if !self.has_client_loaded() {
             return;
         }
 
@@ -630,6 +650,10 @@ impl Player {
     }
 
     pub async fn handle_interact(&self, interact: SInteract) {
+        if !self.has_client_loaded() {
+            return;
+        }
+
         let sneaking = interact.sneaking;
         let entity = &self.living_entity.entity;
         if entity.sneaking.load(std::sync::atomic::Ordering::Relaxed) != sneaking {
@@ -694,6 +718,9 @@ impl Player {
         player_action: SPlayerAction,
         server: &Server,
     ) {
+        if !self.has_client_loaded() {
+            return;
+        }
         match Status::try_from(player_action.status.0) {
             Ok(status) => match status {
                 Status::StartedDigging => {
@@ -814,6 +841,10 @@ impl Player {
         use_item_on: SUseItemOn,
         server: &Arc<Server>,
     ) -> Result<(), Box<dyn PumpkinError>> {
+        if !self.has_client_loaded() {
+            return Ok(());
+        }
+
         let location = use_item_on.location;
         let mut should_try_decrement = false;
 
@@ -893,6 +924,9 @@ impl Player {
     }
 
     pub fn handle_use_item(&self, _use_item: &SUseItem) {
+        if !self.has_client_loaded() {
+            return;
+        }
         // TODO: handle packet correctly
         log::error!("An item was used(SUseItem), but the packet is not implemented yet");
     }
@@ -1005,8 +1039,7 @@ impl Player {
         face: &BlockFace,
     ) -> Result<bool, Box<dyn PumpkinError>> {
         // checks if spawn egg has a corresponding entity name
-        if let Some(spawn_item_name) = get_entity_id(&item_t) {
-            let head_yaw = 10.0;
+        if let Some(spawn_item_id) = get_entity_id(&item_t) {
             let world_pos = WorldPosition(location.0 + face.to_offset());
             // align position like Vanilla does
             let pos = Vector3::new(
@@ -1017,19 +1050,20 @@ impl Player {
 
             // TODO: this should not be hardcoded
             let (mob, uuid) = mob::from_type(EntityType::Zombie, server, pos, self.world()).await;
+            let yaw = wrap_degrees(rand::random::<f32>() * 360.0) % 360.0;
+            mob.living_entity.entity.set_rotation(yaw, 0.0);
 
-            let opposite_yaw = self.living_entity.entity.yaw.load() + 180.0;
             server
                 .broadcast_packet_all(&CSpawnEntity::new(
                     VarInt(mob.living_entity.entity.entity_id),
                     uuid,
-                    VarInt((*spawn_item_name).into()),
+                    VarInt((*spawn_item_id).into()),
                     pos.x,
                     pos.y,
                     pos.z,
-                    10.0,
-                    head_yaw,
-                    opposite_yaw,
+                    0.0,
+                    yaw,
+                    yaw,
                     0.into(),
                     0.0,
                     0.0,

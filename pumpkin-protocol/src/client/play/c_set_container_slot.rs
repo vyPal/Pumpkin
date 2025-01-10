@@ -1,11 +1,12 @@
 use crate::codec::slot::Slot;
 use crate::VarInt;
 
+use pumpkin_data::packet::clientbound::PLAY_CONTAINER_SET_SLOT;
 use pumpkin_macros::client_packet;
 use serde::Serialize;
 
 #[derive(Serialize)]
-#[client_packet("play:container_set_slot")]
+#[client_packet(PLAY_CONTAINER_SET_SLOT)]
 pub struct CSetContainerSlot<'a> {
     window_id: i8,
     state_id: VarInt,

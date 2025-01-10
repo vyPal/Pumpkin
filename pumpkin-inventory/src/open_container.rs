@@ -1,6 +1,7 @@
 use crate::crafting::check_if_matches_crafting;
-use crate::{Container, WindowType};
-use pumpkin_core::math::position::WorldPosition;
+use crate::Container;
+use pumpkin_data::screen::WindowType;
+use pumpkin_util::math::position::WorldPosition;
 use pumpkin_world::block::block_registry::Block;
 use pumpkin_world::item::ItemStack;
 use std::sync::Arc;
@@ -125,7 +126,7 @@ pub struct CraftingTable {
 
 impl Container for CraftingTable {
     fn window_type(&self) -> &'static WindowType {
-        &WindowType::CraftingTable
+        &WindowType::Crafting
     }
 
     fn window_name(&self) -> &'static str {

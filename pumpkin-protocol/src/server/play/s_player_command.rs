@@ -1,4 +1,5 @@
 use bytes::Buf;
+use pumpkin_data::packet::serverbound::PLAY_PLAYER_COMMAND;
 use pumpkin_macros::server_packet;
 
 use crate::{
@@ -6,7 +7,7 @@ use crate::{
     ServerPacket, VarInt,
 };
 
-#[server_packet("play:player_command")]
+#[server_packet(PLAY_PLAYER_COMMAND)]
 pub struct SPlayerCommand {
     pub entity_id: VarInt,
     pub action: VarInt,

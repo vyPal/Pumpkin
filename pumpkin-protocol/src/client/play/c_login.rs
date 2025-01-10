@@ -1,4 +1,5 @@
-use pumpkin_core::math::position::WorldPosition;
+use pumpkin_data::packet::clientbound::PLAY_LOGIN;
+use pumpkin_util::math::position::WorldPosition;
 
 use pumpkin_macros::client_packet;
 use serde::Serialize;
@@ -6,7 +7,7 @@ use serde::Serialize;
 use crate::{codec::identifier::Identifier, VarInt};
 
 #[derive(Serialize)]
-#[client_packet("play:login")]
+#[client_packet(PLAY_LOGIN)]
 pub struct CLogin<'a> {
     entity_id: i32,
     is_hardcore: bool,
