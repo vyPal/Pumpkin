@@ -1,12 +1,12 @@
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use proc_macro::TokenStream;
 use quote::quote;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use syn::{parse_macro_input, parse_quote, ImplItem, ItemFn, ItemImpl, ItemStruct};
 
-static PLUGIN_METHODS: Lazy<Mutex<HashMap<String, Vec<String>>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+static PLUGIN_METHODS: LazyLock<Mutex<HashMap<String, Vec<String>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 #[proc_macro_attribute]
 pub fn plugin_method(attr: TokenStream, item: TokenStream) -> TokenStream {
