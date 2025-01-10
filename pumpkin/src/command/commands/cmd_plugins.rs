@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use pumpkin_core::text::{color::NamedColor, hover::HoverEvent, TextComponent};
+use pumpkin_util::text::{color::NamedColor, hover::HoverEvent, TextComponent};
 
 use crate::{
     command::{

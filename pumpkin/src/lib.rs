@@ -1,7 +1,7 @@
 use std::sync::LazyLock;
 
 use plugin::PluginManager;
-use pumpkin_core::text::TextComponent;
+use pumpkin_util::text::TextComponent;
 use tokio::sync::Mutex;
 
 pub mod block;

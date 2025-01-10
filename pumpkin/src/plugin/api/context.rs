@@ -1,6 +1,6 @@
 use std::{fs, path::Path, sync::Arc};
 
-use pumpkin_core::PermissionLvl;
+use pumpkin_util::PermissionLvl;
 use tokio::sync::RwLock;
 
 use crate::{

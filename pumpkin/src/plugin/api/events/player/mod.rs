@@ -1,4 +1,4 @@
-use pumpkin_core::text::TextComponent;
+use pumpkin_util::text::TextComponent;
 
 use crate::entity::player::Player;
 
