@@ -8,7 +8,7 @@ authors = ["vyPal"]
 description = "An example plugin for Pumpkin"
 
 [lib]
-crate-type = ["dylib"]
+crate-type = ["cdylib"]
 
 [dependencies]
 pumpkin = { path = "../../pumpkin" }
