@@ -9,7 +9,7 @@ use crate::{
     server::Server,
 };
 
-use super::{Event, PluginMetadata};
+use super::{Event, EventPriority, PluginMetadata};
 
 pub struct Context {
     metadata: PluginMetadata<'static>,
@@ -52,7 +52,7 @@ impl Context {
         dispatcher_lock.register(tree, permission);
     }
 
-    pub async fn register_event<E: Event + 'static, H>(&self, handler: H)
+    pub async fn register_event<E: Event + 'static, H>(&self, handler: H, priority: EventPriority, blocking: bool)
     where
         H: EventHandler<E> + 'static,
     {
@@ -64,6 +64,8 @@ impl Context {
 
         let typed_handler = TypedEventHandler {
             handler,
+            priority,
+            blocking,
             _phantom: std::marker::PhantomData,
         };
         handlers_vec.push(Box::new(typed_handler));

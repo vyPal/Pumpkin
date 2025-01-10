@@ -8,7 +8,8 @@ pub trait Event: Any + Send + Sync {
     where
         Self: Sized;
     fn get_name(&self) -> &'static str;
-    fn as_any(&mut self) -> &mut dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+    fn as_any(&self) -> &dyn Any;
 }
 
 pub trait CancellableEvent: Event {
@@ -16,7 +17,7 @@ pub trait CancellableEvent: Event {
     fn set_cancelled(&mut self, cancelled: bool);
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Clone)]
 // Lowest priority events are executed first, so that higher priority events can override their changes
 pub enum EventPriority {
     Highest,
