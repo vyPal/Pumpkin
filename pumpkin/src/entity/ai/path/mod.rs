@@ -45,6 +45,7 @@ impl Navigator {
                         goal.current_progress.y,
                         goal.current_progress.z + z,
                     );
+
                     let node = Node::new(potential_pos);
                     let cost = node.get_expense(goal.destination);
 

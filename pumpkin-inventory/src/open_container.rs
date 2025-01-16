@@ -1,7 +1,7 @@
 use crate::crafting::check_if_matches_crafting;
 use crate::Container;
 use pumpkin_data::screen::WindowType;
-use pumpkin_util::math::position::WorldPosition;
+use pumpkin_util::math::position::BlockPos;
 use pumpkin_world::block::block_registry::Block;
 use pumpkin_world::item::ItemStack;
 use std::sync::Arc;
@@ -12,7 +12,7 @@ pub struct OpenContainer {
     // TODO: should this be uuid?
     players: Vec<i32>,
     container: Arc<Mutex<Box<dyn Container>>>,
-    location: Option<WorldPosition>,
+    location: Option<BlockPos>,
     block: Option<Block>,
 }
 
@@ -46,7 +46,7 @@ impl OpenContainer {
 
     pub fn new_empty_container<C: Container + Default + 'static>(
         player_id: i32,
-        location: Option<WorldPosition>,
+        location: Option<BlockPos>,
         block: Option<Block>,
     ) -> Self {
         Self {
@@ -57,7 +57,7 @@ impl OpenContainer {
         }
     }
 
-    pub fn is_location(&self, try_position: WorldPosition) -> bool {
+    pub fn is_location(&self, try_position: BlockPos) -> bool {
         if let Some(location) = self.location {
             location == try_position
         } else {
@@ -81,11 +81,11 @@ impl OpenContainer {
         self.players.len()
     }
 
-    pub fn get_location(&self) -> Option<WorldPosition> {
+    pub fn get_location(&self) -> Option<BlockPos> {
         self.location
     }
 
-    pub async fn set_location(&mut self, location: Option<WorldPosition>) {
+    pub async fn set_location(&mut self, location: Option<BlockPos>) {
         self.location = location;
     }
 

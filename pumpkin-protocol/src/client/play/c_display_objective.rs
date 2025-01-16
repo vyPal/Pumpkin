@@ -1,4 +1,6 @@
-use pumpkin_data::packet::clientbound::PLAY_SET_DISPLAY_OBJECTIVE;
+use pumpkin_data::{
+    packet::clientbound::PLAY_SET_DISPLAY_OBJECTIVE, scoreboard::ScoreboardDisplaySlot,
+};
 use pumpkin_macros::client_packet;
 use serde::Serialize;
 
@@ -12,33 +14,10 @@ pub struct CDisplayObjective<'a> {
 }
 
 impl<'a> CDisplayObjective<'a> {
-    pub fn new(position: DisplaySlot, score_name: &'a str) -> Self {
+    pub fn new(position: ScoreboardDisplaySlot, score_name: &'a str) -> Self {
         Self {
             position: VarInt(position as i32),
             score_name,
         }
     }
-}
-
-#[repr(i32)]
-pub enum DisplaySlot {
-    List,
-    Sidebar,
-    BelowName,
-    TeamBlack,
-    TeamDarkBlue,
-    TeamDarkGreen,
-    TeanDarkAqua,
-    TeamDarkRed,
-    TeamDarkPurple,
-    TeamGold,
-    TeamGray,
-    TeamDarkGray,
-    TeamBlue,
-    TeamGreen,
-    TeamAqua,
-    TeamRed,
-    TeamLightPurple,
-    TeamYellow,
-    TeamWhite,
 }

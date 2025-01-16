@@ -97,27 +97,15 @@ fn init_logger() {
             logger = logger.without_timestamps();
         }
 
-        logger = logger.with_level(convert_logger_filter(ADVANCED_CONFIG.logging.level));
+        // default
+        logger = logger.with_level(LevelFilter::Info);
 
         logger = logger.with_colors(ADVANCED_CONFIG.logging.color);
         logger = logger.with_threads(ADVANCED_CONFIG.logging.threads);
 
-        if ADVANCED_CONFIG.logging.env {
-            logger = logger.env();
-        }
+        logger = logger.env();
 
         logger.init().unwrap();
-    }
-}
-
-const fn convert_logger_filter(level: pumpkin_config::logging::LevelFilter) -> LevelFilter {
-    match level {
-        pumpkin_config::logging::LevelFilter::Off => LevelFilter::Off,
-        pumpkin_config::logging::LevelFilter::Error => LevelFilter::Error,
-        pumpkin_config::logging::LevelFilter::Warn => LevelFilter::Warn,
-        pumpkin_config::logging::LevelFilter::Info => LevelFilter::Info,
-        pumpkin_config::logging::LevelFilter::Debug => LevelFilter::Debug,
-        pumpkin_config::logging::LevelFilter::Trace => LevelFilter::Trace,
     }
 }
 

@@ -1,10 +1,12 @@
 use std::f32::consts::PI;
 
-use pumpkin_data::{particle::Particle, sound::Sound};
+use pumpkin_data::{
+    particle::Particle,
+    sound::{Sound, SoundCategory},
+};
 use pumpkin_protocol::{
     client::play::{CEntityVelocity, CParticle},
     codec::var_int::VarInt,
-    SoundCategory,
 };
 use pumpkin_util::math::vector3::Vector3;
 use pumpkin_world::item::ItemStack;
@@ -121,7 +123,7 @@ pub async fn player_attack_sound(pos: &Vector3<f64>, world: &World, attack_type:
         AttackType::Knockback => {
             world
                 .play_sound(
-                    Sound::EntityPlayerAttackKnockback as u16,
+                    Sound::EntityPlayerAttackKnockback,
                     SoundCategory::Players,
                     pos,
                 )
@@ -129,38 +131,22 @@ pub async fn player_attack_sound(pos: &Vector3<f64>, world: &World, attack_type:
         }
         AttackType::Critical => {
             world
-                .play_sound(
-                    Sound::EntityPlayerAttackCrit as u16,
-                    SoundCategory::Players,
-                    pos,
-                )
+                .play_sound(Sound::EntityPlayerAttackCrit, SoundCategory::Players, pos)
                 .await;
         }
         AttackType::Sweeping => {
             world
-                .play_sound(
-                    Sound::EntityPlayerAttackSweep as u16,
-                    SoundCategory::Players,
-                    pos,
-                )
+                .play_sound(Sound::EntityPlayerAttackSweep, SoundCategory::Players, pos)
                 .await;
         }
         AttackType::Strong => {
             world
-                .play_sound(
-                    Sound::EntityPlayerAttackStrong as u16,
-                    SoundCategory::Players,
-                    pos,
-                )
+                .play_sound(Sound::EntityPlayerAttackStrong, SoundCategory::Players, pos)
                 .await;
         }
         AttackType::Weak => {
             world
-                .play_sound(
-                    Sound::EntityPlayerAttackWeak as u16,
-                    SoundCategory::Players,
-                    pos,
-                )
+                .play_sound(Sound::EntityPlayerAttackWeak, SoundCategory::Players, pos)
                 .await;
         }
     };

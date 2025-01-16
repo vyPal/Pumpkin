@@ -1,7 +1,7 @@
+use pumpkin_data::chunk::Biome;
 use pumpkin_util::math::vector2::Vector2;
 
 use crate::{
-    biome::Biome,
     block::block_state::BlockState,
     coordinates::XZBlockCoordinates,
     generation::{

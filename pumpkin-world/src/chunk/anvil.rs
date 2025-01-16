@@ -2,6 +2,7 @@ use bytes::*;
 use fastnbt::LongArray;
 use flate2::bufread::{GzDecoder, GzEncoder, ZlibDecoder, ZlibEncoder};
 use indexmap::IndexMap;
+use pumpkin_config::ADVANCED_CONFIG;
 use pumpkin_util::math::ceil_log2;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{
@@ -36,6 +37,18 @@ pub enum Compression {
     LZ4 = 4,
     /// Custom compression algorithm (since 24w05a)
     Custom = 127,
+}
+
+impl From<pumpkin_config::chunk::Compression> for Compression {
+    fn from(value: pumpkin_config::chunk::Compression) -> Self {
+        // :c
+        match value {
+            pumpkin_config::chunk::Compression::GZip => Self::GZip,
+            pumpkin_config::chunk::Compression::ZLib => Self::ZLib,
+            pumpkin_config::chunk::Compression::LZ4 => Self::LZ4,
+            pumpkin_config::chunk::Compression::Custom => Self::Custom,
+        }
+    }
 }
 
 impl Compression {
@@ -241,9 +254,17 @@ impl ChunkWriter for AnvilChunkFormat {
             .map_err(|err| ChunkWritingError::ChunkSerializingError(err.to_string()))?;
 
         // Compress chunk data
-        let compression = Compression::ZLib;
+        let compression: Compression = ADVANCED_CONFIG
+            .chunk
+            .compression
+            .compression_algorithm
+            .clone()
+            .into();
         let compressed_data = compression
-            .compress_data(&raw_bytes, 6)
+            .compress_data(
+                &raw_bytes,
+                ADVANCED_CONFIG.chunk.compression.compression_level,
+            )
             .map_err(ChunkWritingError::Compression)?;
 
         // Length of compressed data + compression type

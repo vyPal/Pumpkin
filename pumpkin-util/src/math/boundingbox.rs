@@ -1,4 +1,4 @@
-use super::{position::WorldPosition, vector3::Vector3};
+use super::{position::BlockPos, vector3::Vector3};
 
 #[derive(Clone, Copy)]
 pub struct BoundingBox {
@@ -38,7 +38,7 @@ impl BoundingBox {
         }
     }
 
-    pub fn from_block(position: &WorldPosition) -> Self {
+    pub fn from_block(position: &BlockPos) -> Self {
         let position = position.0;
         Self {
             min_x: position.x as f64,

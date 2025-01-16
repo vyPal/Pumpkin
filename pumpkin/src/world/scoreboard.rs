@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use pumpkin_data::scoreboard::ScoreboardDisplaySlot;
 use pumpkin_protocol::{
     client::play::{CDisplayObjective, CUpdateObjectives, CUpdateScore, RenderType},
     codec::var_int::VarInt,
@@ -43,7 +44,7 @@ impl Scoreboard {
             .await;
         world
             .broadcast_packet_all(&CDisplayObjective::new(
-                pumpkin_protocol::client::play::DisplaySlot::Sidebar,
+                ScoreboardDisplaySlot::Sidebar,
                 objective.name,
             ))
             .await;

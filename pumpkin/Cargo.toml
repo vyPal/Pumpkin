@@ -22,7 +22,6 @@ pumpkin-config = { path = "../pumpkin-config" }
 pumpkin-inventory = { path = "../pumpkin-inventory" }
 pumpkin-world = { path = "../pumpkin-world" }
 pumpkin-data = { path = "../pumpkin-data" }
-pumpkin-entity = { path = "../pumpkin-entity" }
 pumpkin-protocol = { path = "../pumpkin-protocol" }
 pumpkin-registry = { path = "../pumpkin-registry" }
 pumpkin-macros = { path = "../pumpkin-macros" }

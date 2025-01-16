@@ -5,10 +5,10 @@ use std::{
 
 use dashmap::{DashMap, Entry};
 use num_traits::Zero;
+use pumpkin_data::chunk::Biome;
 use pumpkin_util::math::{vector2::Vector2, vector3::Vector3};
 
 use crate::{
-    biome::Biome,
     block::block_state::BlockState,
     chunk::{ChunkData, Subchunks},
     coordinates::{

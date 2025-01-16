@@ -1,10 +1,10 @@
 use noise::Perlin;
+use pumpkin_data::chunk::Biome;
 use pumpkin_macros::block_state;
 use pumpkin_util::math::vector2::Vector2;
 use rand::Rng;
 
 use crate::{
-    biome::Biome,
     chunk::Subchunks,
     coordinates::{BlockCoordinates, ChunkRelativeBlockCoordinates, XZBlockCoordinates},
     generation::{

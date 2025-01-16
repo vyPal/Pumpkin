@@ -1,8 +1,8 @@
 use bytes::BufMut;
-use pumpkin_data::packet::clientbound::PLAY_SOUND;
+use pumpkin_data::{packet::clientbound::PLAY_SOUND, sound::SoundCategory};
 use pumpkin_macros::client_packet;
 
-use crate::{bytebuf::ByteBufMut, ClientPacket, IDOrSoundEvent, SoundCategory, SoundEvent, VarInt};
+use crate::{bytebuf::ByteBufMut, ClientPacket, IDOrSoundEvent, SoundEvent, VarInt};
 
 #[client_packet(PLAY_SOUND)]
 pub struct CSoundEffect {

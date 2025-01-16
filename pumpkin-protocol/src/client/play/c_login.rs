@@ -1,5 +1,5 @@
 use pumpkin_data::packet::clientbound::PLAY_LOGIN;
-use pumpkin_util::math::position::WorldPosition;
+use pumpkin_util::math::position::BlockPos;
 
 use pumpkin_macros::client_packet;
 use serde::Serialize;
@@ -27,7 +27,7 @@ pub struct CLogin<'a> {
     previous_gamemode: i8,
     debug: bool,
     is_flat: bool,
-    death_dimension_name: Option<(Identifier, WorldPosition)>,
+    death_dimension_name: Option<(Identifier, BlockPos)>,
     portal_cooldown: VarInt,
     sealevel: VarInt,
     enforce_secure_chat: bool,
@@ -52,7 +52,7 @@ impl<'a> CLogin<'a> {
         previous_gamemode: i8,
         debug: bool,
         is_flat: bool,
-        death_dimension_name: Option<(Identifier, WorldPosition)>,
+        death_dimension_name: Option<(Identifier, BlockPos)>,
         portal_cooldown: VarInt,
         sealevel: VarInt,
         enforce_secure_chat: bool,

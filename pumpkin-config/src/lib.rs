@@ -1,3 +1,4 @@
+use chunk::ChunkConfig;
 use log::warn;
 use logging::LoggingConfig;
 use pumpkin_util::{Difficulty, GameMode, PermissionLvl};
@@ -26,6 +27,7 @@ pub use server_links::ServerLinksConfig;
 
 mod commands;
 
+pub mod chunk;
 pub mod op;
 mod pvp;
 mod server_links;
@@ -50,6 +52,7 @@ pub static BASIC_CONFIG: LazyLock<BasicConfiguration> = LazyLock::new(BasicConfi
 pub struct AdvancedConfiguration {
     pub logging: LoggingConfig,
     pub resource_pack: ResourcePackConfig,
+    pub chunk: ChunkConfig,
     pub networking: NetworkingConfig,
     pub commands: CommandsConfig,
     pub pvp: PVPConfig,

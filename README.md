@@ -57,6 +57,8 @@ and customizable experience. It prioritizes performance and player enjoyment whi
   - [x] Scoreboard
   - [x] World Borders
   - [x] World Saving
+  - [ ] Redstone
+  - [ ] Liquid Physics
 - Player
   - [x] Player Skins
   - [x] Player Client brand

@@ -1,5 +1,5 @@
 use pumpkin_data::packet::clientbound::PLAY_BLOCK_EVENT;
-use pumpkin_util::math::position::WorldPosition;
+use pumpkin_util::math::position::BlockPos;
 
 use pumpkin_macros::client_packet;
 use serde::Serialize;
@@ -9,7 +9,7 @@ use crate::VarInt;
 #[derive(Serialize)]
 #[client_packet(PLAY_BLOCK_EVENT)]
 pub struct CBlockAction<'a> {
-    location: &'a WorldPosition,
+    location: &'a BlockPos,
     action_id: u8,
     action_parameter: u8,
     block_type: VarInt,
@@ -17,7 +17,7 @@ pub struct CBlockAction<'a> {
 
 impl<'a> CBlockAction<'a> {
     pub fn new(
-        location: &'a WorldPosition,
+        location: &'a BlockPos,
         action_id: u8,
         action_parameter: u8,
         block_type: VarInt,

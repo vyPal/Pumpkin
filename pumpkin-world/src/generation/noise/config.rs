@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use pumpkin_data::chunk::DoublePerlinNoiseParameters;
 use pumpkin_util::random::{
     legacy_rand::LegacyRand, xoroshiro128::Xoroshiro, RandomDeriver, RandomGenerator, RandomImpl,
 };
@@ -13,7 +14,7 @@ use super::{
         end::EndIslandFunction,
         noise::InternalNoise,
     },
-    perlin::{DoublePerlinNoiseParameters, DoublePerlinNoiseSampler},
+    perlin::DoublePerlinNoiseSampler,
     router::BaseRouter,
 };
 

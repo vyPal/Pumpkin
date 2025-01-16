@@ -12,7 +12,7 @@ use crate::{
     world::player_chunker,
 };
 use pumpkin_config::ADVANCED_CONFIG;
-use pumpkin_entity::entity_type::EntityType;
+use pumpkin_data::entity::EntityType;
 use pumpkin_inventory::player::PlayerInventory;
 use pumpkin_inventory::InventoryError;
 use pumpkin_protocol::client::play::{CSetContainerSlot, CSetHeldItem, CSpawnEntity};
@@ -35,7 +35,7 @@ use pumpkin_protocol::{
         SPlayerRotation, SSetCreativeSlot, SSetHeldItem, SSwingArm, SUseItemOn, Status,
     },
 };
-use pumpkin_util::math::{boundingbox::BoundingBox, position::WorldPosition};
+use pumpkin_util::math::{boundingbox::BoundingBox, position::BlockPos};
 use pumpkin_util::{
     math::{vector3::Vector3, wrap_degrees},
     text::TextComponent,
@@ -356,7 +356,7 @@ impl Player {
             return;
         }
 
-        let Ok(block) = self.world().get_block(pick_item.pos).await else {
+        let Ok(block) = self.world().get_block(&pick_item.pos).await else {
             return;
         };
 
@@ -739,9 +739,9 @@ impl Player {
                         // Block break & block break sound
                         let entity = &self.living_entity.entity;
                         let world = &entity.world;
-                        let block = world.get_block(location).await;
+                        let block = world.get_block(&location).await;
 
-                        world.break_block(location, Some(self.clone())).await;
+                        world.break_block(&location, Some(self.clone())).await;
 
                         if let Ok(block) = block {
                             server
@@ -777,9 +777,9 @@ impl Player {
                     // Block break & block break sound
                     let entity = &self.living_entity.entity;
                     let world = &entity.world;
-                    let block = world.get_block(location).await;
+                    let block = world.get_block(&location).await;
 
-                    world.break_block(location, Some(self.clone())).await;
+                    world.break_block(&location, Some(self.clone())).await;
 
                     if let Ok(block) = block {
                         server
@@ -859,12 +859,13 @@ impl Player {
             let world = &entity.world;
             let slot_id = inventory.get_selected();
             let mut state_id = inventory.state_id;
-            let item_slot = inventory.held_item_mut();
+            let item_slot = *inventory.held_item_mut();
+            drop(inventory);
 
             if let Some(item_stack) = item_slot {
                 // check if block is interactive
                 if let Some(item) = get_item_by_id(item_stack.item_id) {
-                    if let Ok(block) = world.get_block(location).await {
+                    if let Ok(block) = world.get_block(&location).await {
                         let result = server
                             .block_manager
                             .on_use_with_item(block, self, location, item, server)
@@ -895,6 +896,8 @@ impl Player {
                     // TODO: Config
                     // Decrease Block count
                     if self.gamemode.load() != GameMode::Creative {
+                        let mut inventory = self.inventory().lock().await;
+                        let item_slot = inventory.held_item_mut();
                         // This should never be possible
                         let Some(item_stack) = item_slot else {
                             return Err(BlockPlacingError::InventoryInvalid.into());
@@ -1035,12 +1038,12 @@ impl Player {
         &self,
         item_t: String,
         server: &Server,
-        location: WorldPosition,
+        location: BlockPos,
         face: &BlockFace,
     ) -> Result<bool, Box<dyn PumpkinError>> {
         // checks if spawn egg has a corresponding entity name
         if let Some(spawn_item_id) = get_entity_id(&item_t) {
-            let world_pos = WorldPosition(location.0 + face.to_offset());
+            let world_pos = BlockPos(location.0 + face.to_offset());
             // align position like Vanilla does
             let pos = Vector3::new(
                 f64::from(world_pos.0.x) + 0.5,
@@ -1049,7 +1052,13 @@ impl Player {
             );
 
             // TODO: this should not be hardcoded
-            let (mob, uuid) = mob::from_type(EntityType::Zombie, server, pos, self.world()).await;
+            let (mob, uuid) = mob::from_type(
+                EntityType::from_raw(*spawn_item_id).unwrap(),
+                server,
+                pos,
+                self.world(),
+            )
+            .await;
             let yaw = wrap_degrees(rand::random::<f32>() * 360.0) % 360.0;
             mob.living_entity.entity.set_rotation(yaw, 0.0);
 
@@ -1085,20 +1094,20 @@ impl Player {
         block: Block,
         server: &Server,
         use_item_on: SUseItemOn,
-        location: WorldPosition,
+        location: BlockPos,
         face: &BlockFace,
     ) -> Result<bool, Box<dyn PumpkinError>> {
         let entity = &self.living_entity.entity;
         let world = &entity.world;
 
-        let clicked_world_pos = WorldPosition(location.0);
-        let clicked_block_state = world.get_block_state(clicked_world_pos).await?;
+        let clicked_world_pos = BlockPos(location.0);
+        let clicked_block_state = world.get_block_state(&clicked_world_pos).await?;
 
         let world_pos = if clicked_block_state.replaceable {
             clicked_world_pos
         } else {
-            let world_pos = WorldPosition(location.0 + face.to_offset());
-            let previous_block_state = world.get_block_state(world_pos).await?;
+            let world_pos = BlockPos(location.0 + face.to_offset());
+            let previous_block_state = world.get_block_state(&world_pos).await?;
 
             if !previous_block_state.replaceable {
                 return Ok(true);
@@ -1125,7 +1134,7 @@ impl Player {
         }
         if !intersects {
             world
-                .set_block_state(world_pos, block.default_state_id)
+                .set_block_state(&world_pos, block.default_state_id)
                 .await;
             server
                 .block_manager

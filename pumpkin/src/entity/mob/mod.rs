@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use pumpkin_entity::entity_type::EntityType;
+use pumpkin_data::entity::EntityType;
 use pumpkin_util::math::vector3::Vector3;
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -46,11 +46,14 @@ pub async fn from_type(
     position: Vector3<f64>,
     world: &Arc<World>,
 ) -> (Arc<MobEntity>, Uuid) {
+    let entity = server.add_mob_entity(entity_type, position, world).await;
+    #[expect(clippy::single_match)]
     match entity_type {
-        EntityType::Zombie => Zombie::make(server, position, world).await,
+        EntityType::Zombie => Zombie::make(&entity.0).await,
         // TODO
-        _ => server.add_mob_entity(entity_type, position, world).await,
+        _ => (),
     }
+    entity
 }
 
 impl MobEntity {

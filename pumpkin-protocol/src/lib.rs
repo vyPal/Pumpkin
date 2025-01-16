@@ -65,19 +65,6 @@ impl TryFrom<VarInt> for ConnectionState {
     }
 }
 
-pub enum SoundCategory {
-    Master,
-    Music,
-    Records,
-    Weather,
-    Blocks,
-    Hostile,
-    Neutral,
-    Players,
-    Ambient,
-    Voice,
-}
-
 #[derive(Serialize)]
 pub struct IDOrSoundEvent {
     pub id: VarInt,

@@ -3,7 +3,6 @@ resolver = "2"
 members = [
     "pumpkin-config",
     "pumpkin-util",
-    "pumpkin-entity",
     "pumpkin-inventory",
     "pumpkin-macros/",
     "pumpkin-protocol/",
