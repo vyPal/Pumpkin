@@ -221,7 +221,7 @@ async fn main() {
             id
         );
 
-        let (tx, mut rx) = tokio::sync::mpsc::channel(16);
+        let (tx, mut rx) = tokio::sync::mpsc::channel(64);
         let (connection_reader, connection_writer) = connection.into_split();
         let connection_reader = Arc::new(Mutex::new(connection_reader));
         let connection_writer = Arc::new(Mutex::new(connection_writer));
@@ -236,6 +236,7 @@ async fn main() {
                 if let Err(e) = connection_writer.lock().await.write_all(&buf).await {
                     log::warn!("Failed to write packet to client: {e}");
                     client_clone.close();
+                    break;
                 }
             }
         });
