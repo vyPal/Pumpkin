@@ -15,6 +15,7 @@ pumpkin = { path = "../../pumpkin" }
 pumpkin-util = { path = "../../pumpkin-util" }
 pumpkin-protocol = { path = "../../pumpkin-protocol" }
 pumpkin-api-macros = { path = "../../pumpkin-api-macros" }
+pumpkin-data = { path = "../../pumpkin-data" }
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.8.19"
 async-trait = "0.1.83"

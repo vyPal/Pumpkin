@@ -19,7 +19,11 @@ use pumpkin_api_macros::{plugin_impl, plugin_method, with_runtime};
 use pumpkin_util::text::color::NamedColor;
 use pumpkin_util::text::TextComponent;
 use pumpkin_util::PermissionLvl;
+use pumpkin_data::sound::Sound;
+use pumpkin_data::sound::SoundCategory;
 use serde::{Deserialize, Serialize};
+use pumpkin_util::math::vector3::Vector3;
+use tokio::time::{sleep, Duration};
 use std::fs;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -73,23 +77,25 @@ impl CommandExecutor for SetblockExecutor {
 
         let success = match mode {
             Mode::Destroy => {
-                world.break_block(pos, None).await;
-                world.set_block_state(pos, block_state_id).await;
+                world.break_block(&pos, None).await;
+                world.set_block_state(&pos, block_state_id).await;
                 true
             }
             Mode::Replace => {
-                world.set_block_state(pos, block_state_id).await;
+                world.set_block_state(&pos, block_state_id).await;
                 true
             }
-            Mode::Keep => match world.get_block_state(pos).await {
+            Mode::Keep => match world.get_block_state(&pos).await {
                 Ok(old_state) if old_state.air => {
-                    world.set_block_state(pos, block_state_id).await;
+                    world.set_block_state(&pos, block_state_id).await;
                     true
                 }
                 Ok(_) => false,
                 Err(e) => return Err(CommandError::OtherPumpkin(e.into())),
             },
         };
+
+        world.play_sound(Sound::BlockNoteBlockBanjo, SoundCategory::Master, &Vector3::new(pos.0.x as f64, pos.0.y as f64, pos.0.z as f64)).await;
 
         sender
             .send_message(if success {
@@ -120,6 +126,7 @@ pub fn init_command_tree() -> CommandTree {
 
 struct MyJoinHandler;
 
+#[with_runtime(global)]
 #[async_trait]
 impl EventHandler<PlayerJoinEventImpl> for MyJoinHandler {
     async fn handle_blocking(&self, event: &mut PlayerJoinEventImpl) {
@@ -127,6 +134,24 @@ impl EventHandler<PlayerJoinEventImpl> for MyJoinHandler {
             TextComponent::text(format!("Welcome, {}!", event.get_player().gameprofile.name))
                 .color_named(NamedColor::Green),
         );
+        let player = event.get_player().clone();
+
+        tokio::spawn(async move {
+            let player = player.clone();
+            let world = player.world().clone();
+            let pos = player.living_entity.last_pos.load();
+            world.play_sound(Sound::BlockNoteBlockBanjo, SoundCategory::Master, &pos).await;
+            player.send_system_message(&TextComponent::text(format!("Played sound at {:?}!", pos))
+            .color_named(NamedColor::Green)).await;
+
+            sleep(Duration::from_millis(1000)).await;
+
+            let world = player.world().clone();
+            let pos = player.living_entity.last_pos.load();
+            world.play_sound(Sound::BlockNoteBlockBanjo, SoundCategory::Master, &pos).await;
+            player.send_system_message(&TextComponent::text(format!("Played sound at {:?}!", pos))
+            .color_named(NamedColor::Green)).await;
+        });
     }
 }
 
