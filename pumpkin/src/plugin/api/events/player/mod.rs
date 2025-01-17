@@ -1,4 +1,5 @@
 use pumpkin_util::text::TextComponent;
+use std::sync::Arc;
 
 use crate::entity::player::Player;
 
