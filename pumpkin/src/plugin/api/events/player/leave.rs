@@ -36,8 +36,8 @@ impl PlayerLeaveEvent for PlayerLeaveEventImpl {
 }
 
 impl PlayerEvent for PlayerLeaveEventImpl {
-    fn get_player(&self) -> &Player {
-        &self.player
+    fn get_player(&self) -> Arc<Player> {
+        self.player.clone()
     }
 }
 

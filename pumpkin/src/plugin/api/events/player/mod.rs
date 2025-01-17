@@ -8,7 +8,7 @@ pub mod join;
 pub mod leave;
 
 pub trait PlayerEvent: CancellableEvent {
-    fn get_player(&self) -> &Player;
+    fn get_player(&self) -> Arc<Player>;
 }
 
 pub trait PlayerJoinEvent: PlayerEvent {

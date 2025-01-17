@@ -36,8 +36,8 @@ impl PlayerJoinEvent for PlayerJoinEventImpl {
 }
 
 impl PlayerEvent for PlayerJoinEventImpl {
-    fn get_player(&self) -> &Player {
-        &self.player
+    fn get_player(&self) -> Arc<Player> {
+        self.player.clone()
     }
 }
 
