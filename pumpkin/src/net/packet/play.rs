@@ -336,7 +336,7 @@ impl Player {
     async fn update_single_slot(
         &self,
         inventory: &mut tokio::sync::MutexGuard<'_, PlayerInventory>,
-        slot: usize,
+        slot: i16,
         slot_data: Slot,
     ) {
         inventory.state_id += 1;
@@ -344,7 +344,7 @@ impl Player {
         self.client.send_packet(&dest_packet).await;
 
         if inventory
-            .set_slot(slot, slot_data.to_item(), false)
+            .set_slot(slot as usize, slot_data.to_item(), false)
             .is_err()
         {
             log::error!("Pick item set slot error!");
@@ -368,7 +368,7 @@ impl Player {
         let mut inventory = self.inventory().lock().await;
 
         let source_slot = inventory.get_slot_with_item(block.item_id);
-        let mut dest_slot = inventory.get_pick_item_hotbar_slot();
+        let mut dest_slot = inventory.get_pick_item_hotbar_slot() as usize;
 
         let dest_slot_data = match inventory.get_slot(dest_slot + 36) {
             Ok(Some(stack)) => Slot::from(&*stack),
@@ -393,24 +393,24 @@ impl Player {
                     Ok(Some(stack)) => Slot::from(&*stack),
                     _ => return,
                 };
-                self.update_single_slot(&mut inventory, dest_slot + 36, source_slot_data)
+                self.update_single_slot(&mut inventory, dest_slot as i16 + 36, source_slot_data)
                     .await;
 
                 // Update source slot
-                self.update_single_slot(&mut inventory, slot_index, dest_slot_data)
+                self.update_single_slot(&mut inventory, slot_index as i16, dest_slot_data)
                     .await;
             }
             None if self.gamemode.load() == GameMode::Creative => {
                 // Case where item is not present, if in creative mode create the item
                 let item_stack = ItemStack::new(1, block.item_id);
                 let slot_data = Slot::from(&item_stack);
-                self.update_single_slot(&mut inventory, dest_slot + 36, slot_data)
+                self.update_single_slot(&mut inventory, dest_slot as i16 + 36, slot_data)
                     .await;
 
                 // Check if there is any empty slot in the player inventory
                 if let Some(slot_index) = inventory.get_empty_slot() {
                     inventory.state_id += 1;
-                    self.update_single_slot(&mut inventory, slot_index, dest_slot_data)
+                    self.update_single_slot(&mut inventory, slot_index as i16, dest_slot_data)
                         .await;
                 }
             }
@@ -418,7 +418,7 @@ impl Player {
         }
 
         // Update held item
-        inventory.set_selected(dest_slot);
+        inventory.set_selected(dest_slot as u32);
         self.client
             .send_packet(&CSetHeldItem::new(dest_slot as i8))
             .await;
@@ -911,7 +911,7 @@ impl Player {
                         let _ = self
                             .handle_decrease_item(
                                 server,
-                                slot_id,
+                                slot_id as i16,
                                 item_slot.as_ref(),
                                 &mut state_id,
                             )
@@ -940,7 +940,7 @@ impl Player {
             self.kick(TextComponent::text("Invalid held slot")).await;
             return;
         }
-        self.inventory().lock().await.set_selected(slot as usize);
+        self.inventory().lock().await.set_selected(slot as u32);
     }
 
     pub async fn handle_set_creative_slot(
