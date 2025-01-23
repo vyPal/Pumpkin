@@ -29,21 +29,17 @@ impl CommandExecutor for KickExecutor {
             return Err(InvalidConsumption(Some(ARG_TARGET.into())));
         };
 
-        let target_count = targets.len();
-
         for target in targets {
             target
-                .kick(TextComponent::text("Kicked by an operator"))
+                .kick(TextComponent::translate(
+                    "multiplayer.disconnect.kicked",
+                    [],
+                ))
                 .await;
+            let name = &target.gameprofile.name;
+            let msg = TextComponent::text(format!("Kicked: {name}"));
+            sender.send_message(msg.color_named(NamedColor::Blue)).await;
         }
-
-        let msg = if target_count == 1 {
-            TextComponent::text("Player has been kicked.")
-        } else {
-            TextComponent::text(format!("{target_count} players have been kicked."))
-        };
-
-        sender.send_message(msg.color_named(NamedColor::Blue)).await;
 
         Ok(())
     }

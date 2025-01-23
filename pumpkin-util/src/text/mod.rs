@@ -1,7 +1,7 @@
 use core::str;
 use std::borrow::Cow;
 
-use crate::text::color::ARGBColor;
+use crate::{text::color::ARGBColor, translation::get_translation_en_us};
 use click::ClickEvent;
 use color::Color;
 use colored::Colorize;
@@ -42,15 +42,28 @@ impl TextComponent {
         }
     }
 
+    pub fn translate<K, W>(key: K, with: W) -> Self
+    where
+        K: Into<Cow<'static, str>>,
+        W: Into<Vec<Cow<'static, str>>>,
+    {
+        Self {
+            content: TextContent::Translate {
+                translate: key.into(),
+                with: with.into(),
+            },
+            style: Style::default(),
+            extra: vec![],
+        }
+    }
+
     pub fn add_child(mut self, child: TextComponent) -> Self {
         self.extra.push(child);
         self
     }
 
-    pub fn to_pretty_console(self) -> String {
-        let style = self.style;
-        let color = style.color;
-        let mut text = match self.content {
+    pub fn get_text(self) -> String {
+        match self.content {
             TextContent::Text { text } => text.into_owned(),
             TextContent::Translate { translate, with: _ } => translate.into_owned(),
             TextContent::EntityNames {
@@ -58,7 +71,26 @@ impl TextComponent {
                 separator: _,
             } => selector.into_owned(),
             TextContent::Keybind { keybind } => keybind.into_owned(),
+        }
+    }
+
+    pub fn to_pretty_console(self) -> String {
+        let mut text = match self.content {
+            TextContent::Text { text } => text.into_owned(),
+            TextContent::Translate { translate, with } => {
+                let translate = translate.into_owned();
+                get_translation_en_us(&translate, with)
+                    .unwrap_or(translate.to_string())
+                    .clone()
+            }
+            TextContent::EntityNames {
+                selector,
+                separator: _,
+            } => selector.into_owned(),
+            TextContent::Keybind { keybind } => keybind.into_owned(),
         };
+        let style = self.style;
+        let color = style.color;
         if let Some(color) = color {
             text = color.console_color(&text).to_string();
         }
@@ -220,7 +252,8 @@ pub enum TextContent {
     Translate {
         translate: Cow<'static, str>,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        with: Vec<TextComponent>,
+        // TODO: ReIntroduce TextComponent, changed due to circular encoding
+        with: Vec<Cow<'static, str>>,
     },
     /// Displays the name of one or more entities found by a selector.
     EntityNames {

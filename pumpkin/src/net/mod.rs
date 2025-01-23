@@ -245,7 +245,7 @@ impl Client {
 
         let mut enc = self.enc.lock().await;
         if let Err(error) = enc.append_packet(packet) {
-            self.kick(&error.to_string()).await;
+            self.kick(&TextComponent::text(error.to_string())).await;
             return;
         }
 
@@ -337,7 +337,7 @@ impl Client {
                     i32::from(packet.id),
                     error
                 );
-                self.kick(&text).await;
+                self.kick(&TextComponent::text(text)).await;
             };
         }
     }
@@ -515,23 +515,20 @@ impl Client {
     /// # Arguments
     ///
     /// * `reason`: A string describing the reason for kicking the client.
-    pub async fn kick(&self, reason: &str) {
-        log::info!("Kicking Client id {} for {}", self.id, reason);
+    pub async fn kick(&self, reason: &TextComponent) {
+        let text = reason.clone().get_text();
+        log::info!("Kicking Client id {} for {}", self.id, &text);
         let result = match self.connection_state.load() {
             ConnectionState::Login => {
+                // TextComponent implements Serialze and writes in bytes instead of String, thats the reasib we only use content
                 self.try_send_packet(&CLoginDisconnect::new(
-                    &serde_json::to_string_pretty(&reason).unwrap_or_else(|_| String::new()),
+                    &serde_json::to_string(&reason.content).unwrap_or_else(|_| String::new()),
                 ))
                 .await
             }
-            ConnectionState::Config => self.try_send_packet(&CConfigDisconnect::new(reason)).await,
+            ConnectionState::Config => self.try_send_packet(&CConfigDisconnect::new(&text)).await,
             // This way players get kicked when players using client functions (e.g. poll, send_packet)
-            ConnectionState::Play => {
-                self.try_send_packet(&CPlayDisconnect::new(&TextComponent::text(
-                    reason.to_owned(),
-                )))
-                .await
-            }
+            ConnectionState::Play => self.try_send_packet(&CPlayDisconnect::new(reason)).await,
             _ => {
                 log::warn!("Can't kick in {:?} State", self.connection_state);
                 Ok(())

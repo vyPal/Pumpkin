@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use pumpkin_util::text::color::NamedColor;
 use pumpkin_util::text::TextComponent;
 
 use crate::command::args::arg_block::BlockArgumentConsumer;
@@ -67,9 +66,16 @@ impl CommandExecutor for SetblockExecutor {
 
         sender
             .send_message(if success {
-                TextComponent::text(format!("Placed block {} at {pos}", block.name,))
+                TextComponent::translate(
+                    "commands.setblock.success",
+                    [
+                        pos.0.x.to_string().into(),
+                        pos.0.y.to_string().into(),
+                        pos.0.z.to_string().into(),
+                    ],
+                )
             } else {
-                TextComponent::text(format!("Kept block at {pos}")).color_named(NamedColor::Red)
+                TextComponent::translate("commands.setblock.failed", [])
             })
             .await;
 

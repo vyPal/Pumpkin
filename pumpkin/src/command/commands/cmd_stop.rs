@@ -21,7 +21,9 @@ impl CommandExecutor for StopExecutor {
         _args: &ConsumedArgs<'a>,
     ) -> Result<(), CommandError> {
         sender
-            .send_message(TextComponent::text("Stopping Server").color_named(NamedColor::Red))
+            .send_message(
+                TextComponent::translate("commands.stop.stopping", []).color_named(NamedColor::Red),
+            )
             .await;
 
         // TODO: Gracefully stop
