@@ -34,11 +34,11 @@ pub trait BlockCanBuildEvent: BlockEvent {
     fn get_block_to_build(&self) -> &Block;
     fn is_buildable(&self) -> bool;
     fn set_buildable(&mut self, buildable: bool);
-    fn get_player(&self) -> &Player;
+    fn get_player(&self) -> Option<Arc<Player>>;
 }
 
 pub trait BlockPlaceEvent: BlockEvent {
-    fn get_player(&self) -> &Player;
+    fn get_player(&self) -> Option<Arc<Player>>;
     fn can_build(&self) -> bool;
     fn set_build(&mut self, build: bool);
     fn get_block_placed_against(&self) -> &Block;

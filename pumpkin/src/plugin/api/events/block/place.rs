@@ -1,4 +1,5 @@
 use pumpkin_world::block::block_registry::Block;
+use std::sync::Arc;
 
 use crate::{
     entity::player::Player,
@@ -8,7 +9,7 @@ use crate::{
 use super::{BlockEvent, BlockPlaceEvent};
 
 pub struct BlockPlaceEventImpl {
-    player: Player,
+    player: Arc<Player>,
     block_placed: Block,
     block_placed_against: Block,
     can_build: bool,
@@ -16,8 +17,8 @@ pub struct BlockPlaceEventImpl {
 }
 
 impl BlockPlaceEvent for BlockPlaceEventImpl {
-    fn get_player(&self) -> &Player {
-        &self.player
+    fn get_player(&self) -> Option<Arc<Player>> {
+        Some(self.player.clone())
     }
 
     fn can_build(&self) -> bool {

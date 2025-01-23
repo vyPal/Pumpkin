@@ -26,8 +26,8 @@ impl PlayerLeaveEventImpl {
 }
 
 impl PlayerLeaveEvent for PlayerLeaveEventImpl {
-    fn get_leave_message(&self) -> TextComponent {
-        self.leave_message.clone()
+    fn get_leave_message(&self) -> &TextComponent {
+        &self.leave_message
     }
 
     fn set_leave_message(&mut self, message: TextComponent) {

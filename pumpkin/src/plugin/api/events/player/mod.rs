@@ -13,11 +13,11 @@ pub trait PlayerEvent: CancellableEvent {
 }
 
 pub trait PlayerJoinEvent: PlayerEvent {
-    fn get_join_message(&self) -> TextComponent;
+    fn get_join_message(&self) -> &TextComponent;
     fn set_join_message(&mut self, message: TextComponent);
 }
 
 pub trait PlayerLeaveEvent: PlayerEvent {
-    fn get_leave_message(&self) -> TextComponent;
+    fn get_leave_message(&self) -> &TextComponent;
     fn set_leave_message(&mut self, message: TextComponent);
 }

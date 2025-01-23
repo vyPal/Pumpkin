@@ -26,8 +26,8 @@ impl PlayerJoinEventImpl {
 }
 
 impl PlayerJoinEvent for PlayerJoinEventImpl {
-    fn get_join_message(&self) -> TextComponent {
-        self.join_message.clone()
+    fn get_join_message(&self) -> &TextComponent {
+        &self.join_message
     }
 
     fn set_join_message(&mut self, message: TextComponent) {
