@@ -773,9 +773,9 @@ impl World {
                 let current_players = current_players.clone();
                 let players = current_players.lock().await;
                 for player in players.values() {
-                    player.send_system_message(&event.get_join_message()).await;
+                    player.send_system_message(event.get_join_message()).await;
                 }
-                log::info!("{}", event.get_join_message().to_pretty_console());
+                log::info!("{}", event.get_join_message().clone().to_pretty_console());
             }
         });
     }
@@ -828,9 +828,9 @@ impl World {
         if !event.is_cancelled() {
             let players = self.current_players.lock().await;
             for player in players.values() {
-                player.send_system_message(&event.get_leave_message()).await;
+                player.send_system_message(event.get_leave_message()).await;
             }
-            log::info!("{}", event.get_leave_message().to_pretty_console());
+            log::info!("{}", event.get_leave_message().clone().to_pretty_console());
         }
     }
 
