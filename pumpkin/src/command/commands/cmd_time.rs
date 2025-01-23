@@ -62,19 +62,19 @@ impl CommandExecutor for TimeQueryExecutor {
         let msg = match mode {
             QueryMode::DayTime => {
                 let curr_time = level_time.query_daytime();
-                format!("Daytime is: {curr_time}")
+                TextComponent::translate("commands.time.query", [curr_time.to_string().into()])
             }
             QueryMode::GameTime => {
                 let curr_time = level_time.query_gametime();
-                format!("Gametime is: {curr_time}")
+                TextComponent::translate("commands.time.query", [curr_time.to_string().into()])
             }
             QueryMode::Day => {
                 let curr_time = level_time.query_day();
-                format!("Day is: {curr_time}")
+                TextComponent::translate("commands.time.query", [curr_time.to_string().into()])
             }
         };
 
-        sender.send_message(TextComponent::text(msg)).await;
+        sender.send_message(msg).await;
         Ok(())
     }
 }
@@ -124,17 +124,17 @@ impl CommandExecutor for TimeChangeExecutor {
                 level_time.add_time(time_count.into());
                 level_time.send_time(world).await;
                 let curr_time = level_time.query_daytime();
-                format!("Added {time_count} time for result: {curr_time}")
+                TextComponent::translate("commands.time.add", [curr_time.to_string().into()])
             }
             Mode::Set(_) => {
                 // set
                 level_time.set_time(time_count.into());
                 level_time.send_time(world).await;
-                format!("Changed time to: {time_count}")
+                TextComponent::translate("commands.time.set", [time_count.to_string().into()])
             }
         };
 
-        sender.send_message(TextComponent::text(msg)).await;
+        sender.send_message(msg).await;
         Ok(())
     }
 }

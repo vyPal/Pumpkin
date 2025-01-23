@@ -39,6 +39,13 @@ impl CommandExecutor for OpExecutor {
             .op_permission_level
             .min(sender.permission_lvl());
 
+        if player.permission_lvl.load() == new_level {
+            sender
+                .send_message(TextComponent::translate("commands.op.failed", []))
+                .await;
+            return Ok(());
+        }
+
         if let Some(op) = config
             .ops
             .iter_mut()
@@ -62,11 +69,11 @@ impl CommandExecutor for OpExecutor {
             .await;
 
         let player_name = &player.gameprofile.name;
-        let message = format!("Made {player_name} a server operator.");
-        let msg = TextComponent::text(message);
-        sender.send_message(msg).await;
-        player
-            .send_system_message(&TextComponent::text("You are now a server operator."))
+        sender
+            .send_message(TextComponent::translate(
+                "commands.op.success",
+                [player_name.clone().into()],
+            ))
             .await;
 
         Ok(())

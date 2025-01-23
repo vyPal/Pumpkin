@@ -419,7 +419,8 @@ impl Player {
                 .wait_for_keep_alive
                 .load(std::sync::atomic::Ordering::Relaxed)
             {
-                self.kick(TextComponent::text("Timeout")).await;
+                self.kick(TextComponent::translate("disconnect.timeout", []))
+                    .await;
                 return;
             }
             self.wait_for_keep_alive
@@ -697,8 +698,12 @@ impl Player {
     }
 
     pub async fn send_system_message(&self, text: &TextComponent) {
+        self.send_system_message_raw(text, false).await;
+    }
+
+    pub async fn send_system_message_raw(&self, text: &TextComponent, overlay: bool) {
         self.client
-            .send_packet(&CSystemChatMessage::new(text, false))
+            .send_packet(&CSystemChatMessage::new(text, overlay))
             .await;
     }
 }

@@ -757,7 +757,11 @@ impl World {
         let current_players = self.current_players.clone();
         tokio::spawn(async move {
             let msg_txt = format!("{} joined the game.", player.gameprofile.name.as_str());
-            let msg_comp = TextComponent::text(msg_txt).color_named(NamedColor::Yellow);
+            let msg_comp = TextComponent::translate(
+                "multiplayer.player.joined",
+                [player.gameprofile.name.clone().into()],
+            )
+            .color_named(NamedColor::Yellow);
             let event = PlayerJoinEventImpl::new(player.clone(), msg_comp);
 
             let event = PLUGIN_MANAGER
@@ -810,7 +814,11 @@ impl World {
         self.remove_entity(&player.living_entity.entity).await;
 
         let msg_txt = format!("{} left the game.", player.gameprofile.name.as_str());
-        let msg_comp = TextComponent::text(msg_txt).color_named(NamedColor::Yellow);
+        let msg_comp = TextComponent::translate(
+            "multiplayer.player.left",
+            [player.gameprofile.name.clone().into()],
+        )
+        .color_named(NamedColor::Yellow);
         let event = PlayerLeaveEventImpl::new(player.clone(), msg_comp);
 
         let event = PLUGIN_MANAGER
