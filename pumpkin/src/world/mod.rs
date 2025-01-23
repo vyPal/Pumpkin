@@ -756,7 +756,6 @@ impl World {
 
         let current_players = self.current_players.clone();
         tokio::spawn(async move {
-            let msg_txt = format!("{} joined the game.", player.gameprofile.name.as_str());
             let msg_comp = TextComponent::translate(
                 "multiplayer.player.joined",
                 [player.gameprofile.name.clone().into()],
@@ -813,7 +812,6 @@ impl World {
         .await;
         self.remove_entity(&player.living_entity.entity).await;
 
-        let msg_txt = format!("{} left the game.", player.gameprofile.name.as_str());
         let msg_comp = TextComponent::translate(
             "multiplayer.player.left",
             [player.gameprofile.name.clone().into()],
