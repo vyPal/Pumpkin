@@ -114,6 +114,10 @@ impl PluginManager {
     pub async fn load_plugins(&mut self) -> Result<(), String> {
         const PLUGIN_DIR: &str = "./plugins";
 
+        if !Path::new(PLUGIN_DIR).exists() {
+            fs::create_dir(PLUGIN_DIR).unwrap();
+        }
+
         let dir_entires = fs::read_dir(PLUGIN_DIR);
 
         for entry in dir_entires.unwrap() {
