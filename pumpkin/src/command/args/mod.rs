@@ -37,6 +37,7 @@ pub mod arg_position_block;
 pub mod arg_resource_location;
 pub mod arg_rotation;
 pub mod arg_simple;
+pub mod arg_sound;
 pub mod arg_textcomponent;
 mod coordinate;
 

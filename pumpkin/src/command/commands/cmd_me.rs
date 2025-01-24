@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use pumpkin_data::world::SAY_COMMAND;
+use pumpkin_data::world::EMOTE_COMMAND;
 use pumpkin_util::text::TextComponent;
 
 use crate::command::{
@@ -10,16 +10,16 @@ use crate::command::{
 };
 use CommandError::InvalidConsumption;
 
-const NAMES: [&str; 1] = ["say"];
+const NAMES: [&str; 1] = ["me"];
 
-const DESCRIPTION: &str = "Broadcast a message to all Players.";
+const DESCRIPTION: &str = "Broadcasts a narrative message about yourself.";
 
-const ARG_MESSAGE: &str = "message";
+const ARG_MESSAGE: &str = "action";
 
-struct SayExecutor;
+struct MeExecutor;
 
 #[async_trait]
-impl CommandExecutor for SayExecutor {
+impl CommandExecutor for MeExecutor {
     async fn execute<'a>(
         &self,
         sender: &mut CommandSender<'a>,
@@ -34,7 +34,7 @@ impl CommandExecutor for SayExecutor {
             .broadcast_message(
                 &TextComponent::text(msg.clone()),
                 &TextComponent::text(format!("{sender}")),
-                SAY_COMMAND,
+                EMOTE_COMMAND,
                 None,
             )
             .await;
@@ -44,5 +44,5 @@ impl CommandExecutor for SayExecutor {
 
 pub fn init_command_tree() -> CommandTree {
     CommandTree::new(NAMES, DESCRIPTION)
-        .with_child(argument(ARG_MESSAGE, MsgArgConsumer).execute(SayExecutor))
+        .with_child(argument(ARG_MESSAGE, MsgArgConsumer).execute(MeExecutor))
 }

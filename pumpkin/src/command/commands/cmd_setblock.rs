@@ -13,7 +13,7 @@ const NAMES: [&str; 1] = ["setblock"];
 const DESCRIPTION: &str = "Place a block.";
 
 const ARG_BLOCK: &str = "block";
-const ARG_BLOCK_POS: &str = "position";
+const ARG_BLOCK_POS: &str = "pos";
 
 #[derive(Clone, Copy)]
 enum Mode {

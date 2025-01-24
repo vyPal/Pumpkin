@@ -1,7 +1,7 @@
 use connection_cache::{CachedBranding, CachedStatus};
 use crossbeam::atomic::AtomicCell;
 use key_store::KeyStore;
-use pumpkin_config::BASIC_CONFIG;
+use pumpkin_config::{ADVANCED_CONFIG, BASIC_CONFIG};
 use pumpkin_data::entity::EntityType;
 use pumpkin_inventory::drag_handler::DragHandler;
 use pumpkin_inventory::{Container, OpenContainer};
@@ -12,6 +12,7 @@ use pumpkin_util::math::boundingbox::{BoundingBox, BoundingBoxSize};
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_util::math::vector2::Vector2;
 use pumpkin_util::math::vector3::Vector3;
+use pumpkin_util::text::TextComponent;
 use pumpkin_util::GameMode;
 use pumpkin_world::block::block_registry::Block;
 use pumpkin_world::dimension::Dimension;
@@ -88,7 +89,12 @@ impl Server {
     pub fn new() -> Self {
         let auth_client = BASIC_CONFIG.online_mode.then(|| {
             reqwest::Client::builder()
-                .timeout(Duration::from_millis(5000))
+                .connect_timeout(Duration::from_millis(u64::from(
+                    ADVANCED_CONFIG.networking.authentication.connect_timeout,
+                )))
+                .read_timeout(Duration::from_millis(u64::from(
+                    ADVANCED_CONFIG.networking.authentication.read_timeout,
+                )))
                 .build()
                 .expect("Failed to to make reqwest client")
         });
@@ -327,6 +333,20 @@ impl Server {
     {
         for world in &self.worlds {
             world.broadcast_packet_all(packet).await;
+        }
+    }
+
+    pub async fn broadcast_message(
+        &self,
+        message: &TextComponent,
+        sender_name: &TextComponent,
+        chat_type: u32,
+        target_name: Option<&TextComponent>,
+    ) {
+        for world in &self.worlds {
+            world
+                .broadcast_message(message, sender_name, chat_type, target_name)
+                .await;
         }
     }
 

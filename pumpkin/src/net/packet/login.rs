@@ -187,9 +187,18 @@ impl Client {
                 .await
             {
                 Ok(new_profile) => *profile = new_profile,
-                Err(e) => {
-                    self.kick(&TextComponent::text(e.to_string())).await;
-                    return;
+                Err(error) => {
+                    self.kick(&match error {
+                        AuthError::FailedResponse => {
+                            TextComponent::translate("multiplayer.disconnect.authservers_down", [])
+                        }
+                        AuthError::UnverifiedUsername => TextComponent::translate(
+                            "multiplayer.disconnect.unverified_username",
+                            [],
+                        ),
+                        e => TextComponent::text(e.to_string()),
+                    })
+                    .await;
                 }
             }
         }
