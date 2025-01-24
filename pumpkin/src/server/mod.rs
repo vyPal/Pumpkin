@@ -64,7 +64,7 @@ pub struct Server {
     /// Saves and calls blocks blocks
     pub block_manager: Arc<BlockManager>,
     /// Manages multiple worlds within the server.
-    pub worlds: Vec<Arc<World>>,
+    pub worlds: RwLock<Vec<Arc<World>>>,
     // All the dimensions that exists on the server,
     pub dimensions: Vec<DimensionType>,
     /// Caches game registries for efficient access.
@@ -124,7 +124,7 @@ impl Server {
             // 0 is invalid
             entity_id: 2.into(),
             container_id: 0.into(),
-            worlds: vec![Arc::new(world)],
+            worlds: RwLock::new(vec![Arc::new(world)]),
             dimensions: vec![
                 DimensionType::Overworld,
                 DimensionType::OverworldCaves,
@@ -174,7 +174,7 @@ impl Server {
         };
         // Basically the default world
         // TODO: select default from config
-        let world = &self.worlds[0];
+        let world = &self.worlds.read().await[0];
 
         let player = Arc::new(Player::new(client, world.clone(), entity_id, gamemode).await);
         world
@@ -197,7 +197,7 @@ impl Server {
     }
 
     pub async fn save(&self) {
-        for world in &self.worlds {
+        for world in self.worlds.read().await.iter() {
             world.save().await;
         }
     }
@@ -331,7 +331,7 @@ impl Server {
     where
         P: ClientPacket,
     {
-        for world in &self.worlds {
+        for world in self.worlds.read().await.iter() {
             world.broadcast_packet_all(packet).await;
         }
     }
@@ -343,7 +343,7 @@ impl Server {
         chat_type: u32,
         target_name: Option<&TextComponent>,
     ) {
-        for world in &self.worlds {
+        for world in self.worlds.read().await.iter() {
             world
                 .broadcast_message(message, sender_name, chat_type, target_name)
                 .await;
@@ -363,7 +363,7 @@ impl Server {
     ///
     /// An `Option<Arc<Player>>` containing the player if found, or `None` if not found.
     pub async fn get_player_by_name(&self, name: &str) -> Option<Arc<Player>> {
-        for world in &self.worlds {
+        for world in self.worlds.read().await.iter() {
             if let Some(player) = world.get_player_by_name(name).await {
                 return Some(player);
             }
@@ -375,7 +375,7 @@ impl Server {
     pub async fn get_all_players(&self) -> Vec<Arc<Player>> {
         let mut players = Vec::<Arc<Player>>::new();
 
-        for world in &self.worlds {
+        for world in self.worlds.read().await.iter() {
             for (_, player) in world.current_players.lock().await.iter() {
                 players.push(player.clone());
             }
@@ -404,7 +404,7 @@ impl Server {
     ///
     /// An `Option<Arc<Player>>` containing the player if found, or `None` if not found.
     pub async fn get_player_by_uuid(&self, id: uuid::Uuid) -> Option<Arc<Player>> {
-        for world in &self.worlds {
+        for world in self.worlds.read().await.iter() {
             if let Some(player) = world.get_player_by_uuid(id).await {
                 return Some(player);
             }
@@ -421,7 +421,7 @@ impl Server {
     /// The total number of players connected to the server.
     pub async fn get_player_count(&self) -> usize {
         let mut count = 0;
-        for world in &self.worlds {
+        for world in self.worlds.read().await.iter() {
             count += world.current_players.lock().await.len();
         }
         count
@@ -430,7 +430,7 @@ impl Server {
     /// Similar to [`Server::get_player_count`] >= n, but may be more efficient since it stops it's iteration through all worlds as soon as n players were found.
     pub async fn has_n_players(&self, n: usize) -> bool {
         let mut count = 0;
-        for world in &self.worlds {
+        for world in self.worlds.read().await.iter() {
             count += world.current_players.lock().await.len();
             if count >= n {
                 return true;
@@ -476,7 +476,7 @@ impl Server {
     }
 
     async fn tick(&self) {
-        for world in &self.worlds {
+        for world in self.worlds.read().await.iter() {
             world.tick().await;
         }
     }

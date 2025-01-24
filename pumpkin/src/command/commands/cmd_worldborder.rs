@@ -59,10 +59,11 @@ impl CommandExecutor for WorldborderGetExecutor {
         server: &Server,
         _args: &ConsumedArgs<'a>,
     ) -> Result<(), CommandError> {
-        let world = server
-            .worlds
+        // TODO: Maybe ask player for world, or get the current world
+        let worlds = server.worlds.read().await;
+        let world = worlds
             .first()
-            .expect("There should always be atleast one world");
+            .expect("There should always be at least one world");
         let border = world.worldborder.lock().await;
 
         let diameter = border.new_diameter.round() as i32;
@@ -86,10 +87,11 @@ impl CommandExecutor for WorldborderSetExecutor {
         server: &Server,
         args: &ConsumedArgs<'a>,
     ) -> Result<(), CommandError> {
-        let world = server
-            .worlds
+        // TODO: Maybe ask player for world, or get the current world
+        let worlds = server.worlds.read().await;
+        let world = worlds
             .first()
-            .expect("There should always be atleast one world");
+            .expect("There should always be at least one world");
         let mut border = world.worldborder.lock().await;
 
         let Ok(distance) = distance_consumer().find_arg_default_name(args)? else {
@@ -137,10 +139,11 @@ impl CommandExecutor for WorldborderSetTimeExecutor {
         server: &Server,
         args: &ConsumedArgs<'a>,
     ) -> Result<(), CommandError> {
-        let world = server
-            .worlds
+        // TODO: Maybe ask player for world, or get the current world
+        let worlds = server.worlds.read().await;
+        let world = worlds
             .first()
-            .expect("There should always be atleast one world");
+            .expect("There should always be at least one world");
         let mut border = world.worldborder.lock().await;
 
         let Ok(distance) = distance_consumer().find_arg_default_name(args)? else {
@@ -223,10 +226,11 @@ impl CommandExecutor for WorldborderAddExecutor {
         server: &Server,
         args: &ConsumedArgs<'a>,
     ) -> Result<(), CommandError> {
-        let world = server
-            .worlds
+        // TODO: Maybe ask player for world, or get the current world
+        let worlds = server.worlds.read().await;
+        let world = worlds
             .first()
-            .expect("There should always be atleast one world");
+            .expect("There should always be at least one world");
         let mut border = world.worldborder.lock().await;
 
         let Ok(distance) = distance_consumer().find_arg_default_name(args)? else {
@@ -276,10 +280,11 @@ impl CommandExecutor for WorldborderAddTimeExecutor {
         server: &Server,
         args: &ConsumedArgs<'a>,
     ) -> Result<(), CommandError> {
-        let world = server
-            .worlds
+        // TODO: Maybe ask player for world, or get the current world
+        let worlds = server.worlds.read().await;
+        let world = worlds
             .first()
-            .expect("There should always be atleast one world");
+            .expect("There should always be at least one world");
         let mut border = world.worldborder.lock().await;
 
         let Ok(distance) = distance_consumer().find_arg_default_name(args)? else {
@@ -364,10 +369,11 @@ impl CommandExecutor for WorldborderCenterExecutor {
         server: &Server,
         args: &ConsumedArgs<'a>,
     ) -> Result<(), CommandError> {
-        let world = server
-            .worlds
+        // TODO: Maybe ask player for world, or get the current world
+        let worlds = server.worlds.read().await;
+        let world = worlds
             .first()
-            .expect("There should always be atleast one world");
+            .expect("There should always be at least one world");
         let mut border = world.worldborder.lock().await;
 
         let Vector2 { x, z } = Position2DArgumentConsumer.find_arg_default_name(args)?;
@@ -397,10 +403,11 @@ impl CommandExecutor for WorldborderDamageAmountExecutor {
         server: &Server,
         args: &ConsumedArgs<'a>,
     ) -> Result<(), CommandError> {
-        let world = server
-            .worlds
+        // TODO: Maybe ask player for world, or get the current world
+        let worlds = server.worlds.read().await;
+        let world = worlds
             .first()
-            .expect("There should always be atleast one world");
+            .expect("There should always be at least one world");
         let mut border = world.worldborder.lock().await;
 
         let Ok(damage_per_block) = damage_per_block_consumer().find_arg_default_name(args)? else {
@@ -451,10 +458,11 @@ impl CommandExecutor for WorldborderDamageBufferExecutor {
         server: &Server,
         args: &ConsumedArgs<'a>,
     ) -> Result<(), CommandError> {
-        let world = server
-            .worlds
+        // TODO: Maybe ask player for world, or get the current world
+        let worlds = server.worlds.read().await;
+        let world = worlds
             .first()
-            .expect("There should always be atleast one world");
+            .expect("There should always be at least one world");
         let mut border = world.worldborder.lock().await;
 
         let Ok(buffer) = damage_buffer_consumer().find_arg_default_name(args)? else {
@@ -505,10 +513,11 @@ impl CommandExecutor for WorldborderWarningDistanceExecutor {
         server: &Server,
         args: &ConsumedArgs<'a>,
     ) -> Result<(), CommandError> {
-        let world = server
-            .worlds
+        // TODO: Maybe ask player for world, or get the current world
+        let worlds = server.worlds.read().await;
+        let world = worlds
             .first()
-            .expect("There should always be atleast one world");
+            .expect("There should always be at least one world");
         let mut border = world.worldborder.lock().await;
 
         let Ok(distance) = warning_distance_consumer().find_arg_default_name(args)? else {
@@ -558,10 +567,11 @@ impl CommandExecutor for WorldborderWarningTimeExecutor {
         server: &Server,
         args: &ConsumedArgs<'a>,
     ) -> Result<(), CommandError> {
-        let world = server
-            .worlds
+        // TODO: Maybe ask player for world, or get the current world
+        let worlds = server.worlds.read().await;
+        let world = worlds
             .first()
-            .expect("There should always be atleast one world");
+            .expect("There should always be at least one world");
         let mut border = world.worldborder.lock().await;
 
         let Ok(time) = time_consumer().find_arg_default_name(args)? else {

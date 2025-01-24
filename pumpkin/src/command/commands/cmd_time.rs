@@ -53,8 +53,9 @@ impl CommandExecutor for TimeQueryExecutor {
         _args: &ConsumedArgs<'a>,
     ) -> Result<(), CommandError> {
         let mode = self.0;
-        let world = server
-            .worlds
+        // TODO: Maybe ask player for world, or get the current world
+        let worlds = server.worlds.read().await;
+        let world = worlds
             .first()
             .expect("There should always be at least one world");
         let level_time = world.level_time.lock().await;
@@ -121,8 +122,9 @@ impl CommandExecutor for TimeChangeExecutor {
             }
         };
         let mode = self.0;
-        let world = server
-            .worlds
+        // TODO: Maybe ask player for world, or get the current world
+        let worlds = server.worlds.read().await;
+        let world = worlds
             .first()
             .expect("There should always be at least one world");
         let mut level_time = world.level_time.lock().await;
