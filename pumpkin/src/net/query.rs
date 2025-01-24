@@ -113,7 +113,7 @@ async fn handle_packet(
                         if packet.is_full_request {
                             // Get 4 players
                             let mut players: Vec<CString> = Vec::new();
-                            for world in &server.worlds {
+                            for world in server.worlds.read().await.iter() {
                                 let mut world_players = world
                                     .current_players
                                     .lock()
