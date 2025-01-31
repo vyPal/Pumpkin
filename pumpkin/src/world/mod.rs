@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{atomic::AtomicBool, Arc},
+};
 
 pub mod level_time;
 pub mod player_chunker;
@@ -110,6 +113,8 @@ pub struct World {
     pub level_time: Mutex<LevelTime>,
     /// The type of dimension the world is in
     pub dimension_type: DimensionType,
+    /// Whether the world should tick
+    pub ticking: AtomicBool,
     // TODO: entities
 }
 
@@ -124,6 +129,7 @@ impl World {
             worldborder: Mutex::new(Worldborder::new(0.0, 0.0, 29_999_984.0, 0, 0, 0)),
             level_time: Mutex::new(LevelTime::new()),
             dimension_type,
+            ticking: AtomicBool::new(true),
         }
     }
 
@@ -224,6 +230,11 @@ impl World {
     }
 
     pub async fn tick(&self) {
+        // Skip ticking if the world is paused
+        if !self.ticking.load(std::sync::atomic::Ordering::Relaxed) {
+            return;
+        }
+
         // world ticks
         {
             let mut level_time = self.level_time.lock().await;
