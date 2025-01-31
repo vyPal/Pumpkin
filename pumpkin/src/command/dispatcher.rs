@@ -320,7 +320,7 @@ impl CommandDispatcher {
     /// Remove a command from the dispatcher by its primary name.
     pub(crate) fn unregister(&mut self, name: &str) {
         let mut to_remove = Vec::new();
-        for (key, value) in self.commands.iter() {
+        for (key, value) in &self.commands {
             if key == name {
                 to_remove.push(key.clone());
             } else if let Command::Alias(target) = value {
