@@ -8,12 +8,8 @@ use crate::{
     entity::{living::LivingEntity, mob::MobEntity, player::Player, Entity, EntityId},
     error::PumpkinError,
     plugin::{
-        block::r#break::BlockBreakEventImpl,
-        player::{
-            join::PlayerJoinEventImpl, leave::PlayerLeaveEventImpl, PlayerJoinEvent,
-            PlayerLeaveEvent,
-        },
-        CancellableEvent,
+        block::BlockBreakEvent,
+        player::{PlayerJoinEvent, PlayerLeaveEvent},
     },
     server::Server,
     PLUGIN_MANAGER,
@@ -240,7 +236,7 @@ impl World {
         for player in self.current_players.lock().await.values() {
             player.tick().await;
         }
-        // entites tick
+        // entities tick
         for entity in self.current_living_mobs.lock().await.values() {
             entity.tick().await;
         }
@@ -310,8 +306,9 @@ impl World {
         player.send_permission_lvl_update().await;
         client_cmd_suggestions::send_c_commands_packet(&player, &server.command_dispatcher).await;
         // teleport
-        let mut position = Vector3::new(10.0, 120.0, 10.0);
-        let yaw = 10.0;
+        let info = &self.level.level_info;
+        let mut position = Vector3::new(f64::from(info.spawn_x), 120.0, f64::from(info.spawn_z));
+        let yaw = info.spawn_angle;
         let pitch = 10.0;
 
         let top = self
@@ -462,6 +459,8 @@ impl World {
         //         player.send_bossbar(bossbar).await;
         //     }
         // }
+
+        player.send_mobs(self).await;
     }
 
     pub async fn respawn_player(&self, player: &Arc<Player>, alive: bool) {
@@ -500,8 +499,9 @@ impl World {
         player.send_permission_lvl_update().await;
 
         // teleport
-        let mut position = Vector3::new(10.0, 120.0, 10.0);
-        let yaw = 10.0;
+        let info = &self.level.level_info;
+        let mut position = Vector3::new(f64::from(info.spawn_x), 120.0, f64::from(info.spawn_z));
+        let yaw = info.spawn_angle;
         let pitch = 10.0;
 
         let top = self
@@ -777,21 +777,21 @@ impl World {
                 [TextComponent::text(player.gameprofile.name.clone())].into(),
             )
             .color_named(NamedColor::Yellow);
-            let event = PlayerJoinEventImpl::new(player.clone(), msg_comp);
+            let event = PlayerJoinEvent::new(player.clone(), msg_comp);
 
             let event = PLUGIN_MANAGER
                 .lock()
                 .await
-                .fire::<PlayerJoinEventImpl>(event)
+                .fire::<PlayerJoinEvent>(event)
                 .await;
 
-            if !event.is_cancelled() {
+            if !event.cancelled {
                 let current_players = current_players.clone();
                 let players = current_players.lock().await;
                 for player in players.values() {
-                    player.send_system_message(event.get_join_message()).await;
+                    player.send_system_message(&event.join_message).await;
                 }
-                log::info!("{}", event.get_join_message().clone().to_pretty_console());
+                log::info!("{}", event.join_message.clone().to_pretty_console());
             }
         });
     }
@@ -833,20 +833,20 @@ impl World {
             [TextComponent::text(player.gameprofile.name.clone())].into(),
         )
         .color_named(NamedColor::Yellow);
-        let event = PlayerLeaveEventImpl::new(player.clone(), msg_comp);
+        let event = PlayerLeaveEvent::new(player.clone(), msg_comp);
 
         let event = PLUGIN_MANAGER
             .lock()
             .await
-            .fire::<PlayerLeaveEventImpl>(event)
+            .fire::<PlayerLeaveEvent>(event)
             .await;
 
-        if !event.is_cancelled() {
+        if !event.cancelled {
             let players = self.current_players.lock().await;
             for player in players.values() {
-                player.send_system_message(event.get_leave_message()).await;
+                player.send_system_message(&event.leave_message).await;
             }
-            log::info!("{}", event.get_leave_message().clone().to_pretty_console());
+            log::info!("{}", event.leave_message.clone().to_pretty_console());
         }
     }
 
@@ -865,13 +865,18 @@ impl World {
     }
 
     pub async fn remove_mob_entity(self: Arc<Self>, living_entity: Arc<LivingEntity>) {
-        let mut current_living_entities = self.current_living_mobs.lock().await.clone();
-        current_living_entities.remove(&living_entity.entity.entity_uuid);
+        let mut current_living_entities = self.current_living_mobs.lock().await;
+        current_living_entities
+            .remove(&living_entity.entity.entity_uuid)
+            .unwrap();
+
         // TODO: does this work with collisions?
         living_entity.entity.set_pose(EntityPose::Dying).await;
+
+        let world = self.clone();
         tokio::spawn(async move {
             tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
-            self.remove_entity(&living_entity.entity).await;
+            world.remove_entity(&living_entity.entity).await;
         });
     }
 
@@ -938,15 +943,15 @@ impl World {
 
     pub async fn break_block(&self, position: &BlockPos, cause: Option<Arc<Player>>) {
         let block = self.get_block(position).await.unwrap();
-        let event = BlockBreakEventImpl::new(cause.clone(), block.clone(), 0, false);
+        let event = BlockBreakEvent::new(cause.clone(), block.clone(), 0, false);
 
         let event = PLUGIN_MANAGER
             .lock()
             .await
-            .fire::<BlockBreakEventImpl>(event)
+            .fire::<BlockBreakEvent>(event)
             .await;
 
-        if !event.is_cancelled() {
+        if !event.cancelled {
             let broken_block_state_id = self.set_block_state(position, 0).await;
 
             let particles_packet = CWorldEvent::new(

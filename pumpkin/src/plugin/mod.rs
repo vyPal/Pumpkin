@@ -6,6 +6,7 @@ use std::{collections::HashMap, fs, path::Path, sync::Arc};
 use tokio::sync::RwLock;
 
 use crate::server::Server;
+use thiserror::Error;
 
 type PluginData = (
     PluginMetadata<'static>,
@@ -111,31 +112,47 @@ impl PluginManager {
         self.server = Some(server);
     }
 
-    pub async fn load_plugins(&mut self) -> Result<(), String> {
+    pub async fn load_plugins(&mut self) -> Result<(), PluginsLoadError> {
         const PLUGIN_DIR: &str = "./plugins";
 
         if !Path::new(PLUGIN_DIR).exists() {
-            fs::create_dir(PLUGIN_DIR).unwrap();
+            fs::create_dir(PLUGIN_DIR).map_err(|_| PluginsLoadError::CreatePluginDir)?;
+            // Well we just created the dir, it has to be empty so lets return
+            return Ok(());
         }
 
-        let dir_entires = fs::read_dir(PLUGIN_DIR);
+        let dir_entries = fs::read_dir(PLUGIN_DIR).map_err(|_| PluginsLoadError::ReadPluginDir)?;
 
-        for entry in dir_entires.unwrap() {
-            if !entry.as_ref().unwrap().path().is_file() {
+        for entry in dir_entries {
+            let entry = entry.unwrap();
+            if !entry.file_type().unwrap().is_file() {
                 continue;
             }
-            self.try_load_plugin(entry.unwrap().path().as_path()).await;
+            let name = entry.file_name().into_string().unwrap();
+            if let Err(err) = self.try_load_plugin(&entry.path()).await {
+                log::error!("Plugin {}: {}", name, err.to_string());
+            }
         }
 
         Ok(())
     }
 
-    async fn try_load_plugin(&mut self, path: &Path) {
-        let library = unsafe { libloading::Library::new(path).unwrap() };
+    async fn try_load_plugin(&mut self, path: &Path) -> Result<(), PluginLoadError> {
+        let library = unsafe {
+            libloading::Library::new(path)
+                .map_err(|e| PluginLoadError::LoadLibrary(e.to_string()))?
+        };
 
-        let plugin_fn = unsafe { library.get::<fn() -> Box<dyn Plugin>>(b"plugin").unwrap() };
-        let metadata: &PluginMetadata =
-            unsafe { &**library.get::<*const PluginMetadata>(b"METADATA").unwrap() };
+        let plugin_fn = unsafe {
+            library
+                .get::<fn() -> Box<dyn Plugin>>(b"plugin")
+                .map_err(|_| PluginLoadError::GetPluginMain)?
+        };
+        let metadata: &PluginMetadata = unsafe {
+            &**library
+                .get::<*const PluginMetadata>(b"METADATA")
+                .map_err(|_| PluginLoadError::GetPluginMeta)?
+        };
 
         // The chance that this will panic is non-existent, but just in case
         let context = Context::new(
@@ -153,6 +170,7 @@ impl PluginManager {
 
         self.plugins
             .push((metadata.clone(), plugin_box, library, loaded));
+        Ok(())
     }
 
     #[must_use]
@@ -269,4 +287,26 @@ impl PluginManager {
 
         event
     }
+}
+
+/// Error when failed to load the entire Plugin directory
+#[derive(Error, Debug)]
+pub enum PluginsLoadError {
+    #[error("Failed to Create new Plugins directory")]
+    CreatePluginDir,
+    #[error("Failed to Read Plugins directory")]
+    ReadPluginDir,
+    #[error("Failed to load Plugin {0}")]
+    LoadPlugin(String, PluginLoadError),
+}
+
+/// Error when failed to load a single Plugin
+#[derive(Error, Debug)]
+pub enum PluginLoadError {
+    #[error("Failed to load Library: {0}")]
+    LoadLibrary(String),
+    #[error("Failed to load Plugin entry function")]
+    GetPluginMain,
+    #[error("Failed to load Plugin Metadata")]
+    GetPluginMeta,
 }

@@ -3,10 +3,15 @@ use std::sync::{atomic::AtomicBool, Arc};
 
 use async_trait::async_trait;
 use crossbeam::atomic::AtomicCell;
-use pumpkin_data::entity::{EntityPose, EntityType};
+use pumpkin_data::{
+    entity::{EntityPose, EntityType},
+    sound::{Sound, SoundCategory},
+};
 use pumpkin_nbt::{compound::NbtCompound, tag::NbtTag};
 use pumpkin_protocol::{
-    client::play::{CHeadRot, CSetEntityMetadata, CTeleportEntity, CUpdateEntityRot, Metadata},
+    client::play::{
+        CHeadRot, CSetEntityMetadata, CSpawnEntity, CTeleportEntity, CUpdateEntityRot, Metadata,
+    },
     codec::var_int::VarInt,
 };
 use pumpkin_util::math::{
@@ -17,6 +22,7 @@ use pumpkin_util::math::{
     vector3::Vector3,
     wrap_degrees,
 };
+use uuid::Uuid;
 
 use crate::world::World;
 
@@ -32,7 +38,7 @@ pub type EntityId = i32;
 pub struct Entity {
     /// A unique identifier for the entity
     pub entity_id: EntityId,
-    /// A persistant, unique identifier for the entity
+    /// A persistent, unique identifier for the entity
     pub entity_uuid: uuid::Uuid,
     /// The type of entity (e.g., player, zombie, item)
     pub entity_type: EntityType,
@@ -206,6 +212,26 @@ impl Entity {
         self.world.remove_entity(self).await;
     }
 
+    pub fn create_spawn_packet(&self, uuid: Uuid) -> CSpawnEntity {
+        let entity_loc = self.pos.load();
+        let entity_vel = self.velocity.load();
+        CSpawnEntity::new(
+            VarInt(self.entity_id),
+            uuid,
+            VarInt((self.entity_type) as i32),
+            entity_loc.x,
+            entity_loc.y,
+            entity_loc.z,
+            self.pitch.load(),
+            self.yaw.load(),
+            self.head_yaw.load(), // todo: head_yaw and yaw are swapped, find out why
+            0.into(),
+            entity_vel.x as f32,
+            entity_vel.y as f32,
+            entity_vel.z as f32,
+        )
+    }
+
     /// Applies knockback to the entity, following vanilla Minecraft's mechanics.
     ///
     /// This function calculates the entity's new velocity based on the specified knockback strength and direction.
@@ -271,6 +297,13 @@ impl Entity {
         }
         let packet = CSetEntityMetadata::new(self.entity_id.into(), Metadata::new(0, 0.into(), b));
         self.world.broadcast_packet_all(&packet).await;
+    }
+
+    /// Plays sound at this entity's position with the entity's sound category
+    pub async fn play_sound(&self, sound: Sound) {
+        self.world
+            .play_sound(sound, SoundCategory::Neutral, &self.pos.load())
+            .await;
     }
 
     pub async fn set_pose(&self, pose: EntityPose) {
