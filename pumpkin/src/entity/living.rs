@@ -59,6 +59,8 @@ impl LivingEntity {
         // tell everyone entities health changed
         self.entity
             .world
+            .read()
+            .await
             .broadcast_packet_all(&CSetEntityMetadata::new(
                 self.entity.entity_id.into(),
                 Metadata::new(9, 3.into(), health),
@@ -74,6 +76,8 @@ impl LivingEntity {
     pub async fn damage(&self, amount: f32, damage_type: u8) {
         self.entity
             .world
+            .read()
+            .await
             .broadcast_packet_all(&CDamageEvent::new(
                 self.entity.entity_id.into(),
                 damage_type.into(),
@@ -161,11 +165,15 @@ impl LivingEntity {
         // Spawns death smoke particles
         self.entity
             .world
+            .read()
+            .await
             .broadcast_packet_all(&CEntityStatus::new(self.entity.entity_id, 60))
             .await;
         // Plays the death sound and death animation
         self.entity
             .world
+            .read()
+            .await
             .broadcast_packet_all(&CEntityStatus::new(self.entity.entity_id, 3))
             .await;
     }

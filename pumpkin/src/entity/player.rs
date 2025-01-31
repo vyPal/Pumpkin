@@ -226,7 +226,7 @@ impl Player {
     /// Removes the Player out of the current World
     #[allow(unused_variables)]
     pub async fn remove(self: Arc<Self>) {
-        let world = self.world();
+        let world = self.world().await;
         self.cancel_tasks.notify_waiters();
 
         world.remove_player(self.clone()).await;
@@ -265,7 +265,7 @@ impl Player {
     }
 
     pub async fn attack(&self, victim: &Arc<Self>) {
-        let world = self.world();
+        let world = self.world().await;
         let victim_entity = &victim.living_entity.entity;
         let attacker_entity = &self.living_entity.entity;
         let config = &ADVANCED_CONFIG.pvp;
@@ -335,7 +335,7 @@ impl Player {
 
         let attack_type = AttackType::new(self, attack_cooldown_progress as f32).await;
 
-        player_attack_sound(&pos, world, attack_type).await;
+        player_attack_sound(&pos, &world, attack_type).await;
 
         if matches!(attack_type, AttackType::Critical) {
             damage *= 1.5;
@@ -350,7 +350,7 @@ impl Player {
         match attack_type {
             AttackType::Knockback => knockback_strength += 1.0,
             AttackType::Sweeping => {
-                combat::spawn_sweep_particle(attacker_entity, world, &pos).await;
+                combat::spawn_sweep_particle(attacker_entity, &world, &pos).await;
             }
             _ => {}
         };
@@ -469,8 +469,8 @@ impl Player {
         self.living_entity.entity.entity_id
     }
 
-    pub const fn world(&self) -> &Arc<World> {
-        &self.living_entity.entity.world
+    pub async fn world(&self) -> Arc<World> {
+        self.living_entity.entity.world.read().await.clone()
     }
 
     /// Updates the current abilities the Player has
@@ -663,6 +663,8 @@ impl Player {
         self.living_entity
             .entity
             .world
+            .read()
+            .await
             .broadcast_packet_all(&CPlayerInfoUpdate::new(
                 0x04,
                 &[pumpkin_protocol::client::play::Player {
@@ -683,7 +685,7 @@ impl Player {
     /// Send skin layers and used hand to all players
     pub async fn update_client_information(&self) {
         let config = self.config.lock().await;
-        let world = self.world();
+        let world = self.world().await;
         world
             .broadcast_packet_all(&CSetEntityMetadata::new(
                 self.entity_id().into(),

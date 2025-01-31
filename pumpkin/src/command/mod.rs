@@ -99,11 +99,11 @@ impl CommandSender<'_> {
     }
 
     #[must_use]
-    pub fn world(&self) -> Option<&World> {
+    pub async fn world(&self) -> Option<Arc<World>> {
         match self {
             // TODO: maybe return first world when console
             CommandSender::Console | CommandSender::Rcon(..) => None,
-            CommandSender::Player(p) => Some(&p.living_entity.entity.world),
+            CommandSender::Player(p) => Some(p.living_entity.entity.world.read().await.clone()),
         }
     }
 }

@@ -490,6 +490,8 @@ impl Player {
             .living_entity
             .entity
             .world
+            .read()
+            .await
             .current_players
             .lock()
             .await

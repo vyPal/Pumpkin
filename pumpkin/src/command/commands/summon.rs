@@ -37,9 +37,10 @@ impl CommandExecutor for SummonExecutor {
         // TODO: Make this work in console
         if let Some(player) = sender.as_player() {
             let pos = pos.unwrap_or(player.living_entity.entity.pos.load());
-            let (mob, uuid) = mob::from_type(entity, server, pos, player.world()).await;
+            let (mob, uuid) = mob::from_type(entity, server, pos, &player.world().await).await;
             player
                 .world()
+                .await
                 .broadcast_packet_all(&mob.living_entity.entity.create_spawn_packet(uuid))
                 .await;
             sender
