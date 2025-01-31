@@ -51,7 +51,7 @@ impl Context {
     ) {
         {
             let mut dispatcher_lock = self.server.command_dispatcher.write().await;
-            dispatcher_lock.register(tree, permission)
+            dispatcher_lock.register(tree, permission);
         };
 
         for world in self.server.worlds.read().await.iter() {
@@ -68,7 +68,7 @@ impl Context {
     pub async fn unregister_command(&self, name: &str) {
         {
             let mut dispatcher_lock = self.server.command_dispatcher.write().await;
-            dispatcher_lock.unregister(name)
+            dispatcher_lock.unregister(name);
         };
 
         for world in self.server.worlds.read().await.iter() {
