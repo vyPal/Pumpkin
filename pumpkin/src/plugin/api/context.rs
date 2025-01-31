@@ -52,6 +52,11 @@ impl Context {
         dispatcher_lock.register(tree, permission);
     }
 
+    pub async fn unregister_command(&self, name: &str) {
+        let mut dispatcher_lock = self.server.command_dispatcher.write().await;
+        dispatcher_lock.unregister(name);
+    }
+
     pub async fn register_event<E: Event + 'static, H>(
         &self,
         handler: H,
