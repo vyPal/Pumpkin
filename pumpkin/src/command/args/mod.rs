@@ -42,7 +42,7 @@ pub mod sound_category;
 pub mod summonable_entities;
 pub mod textcomponent;
 
-/// see [`crate::commands::tree_builder::argument`]
+/// see [`crate::commands::tree::builder::argument`]
 #[async_trait]
 pub trait ArgumentConsumer: Sync + GetClientSideArgParser {
     async fn consume<'a>(
@@ -99,7 +99,7 @@ pub enum Arg<'a> {
     SoundCategory(SoundCategory),
 }
 
-/// see [`crate::commands::tree_builder::argument`] and [`CommandTree::execute`]/[`crate::commands::tree_builder::NonLeafNodeBuilder::execute`]
+/// see [`crate::commands::tree::builder::argument`] and [`CommandTree::execute`]/[`crate::commands::tree::builder::NonLeafNodeBuilder::execute`]
 pub type ConsumedArgs<'a> = HashMap<&'a str, Arg<'a>>;
 
 pub(crate) trait GetCloned<K, V: Clone> {

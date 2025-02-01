@@ -8,12 +8,12 @@ use pumpkin_macros::pumpkin_block;
 use pumpkin_protocol::{client::play::CBlockAction, codec::var_int::VarInt};
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_world::{
-    block::block_registry::{get_block, Block},
-    item::item_registry::Item,
+    block::registry::{get_block, Block},
+    item::registry::Item,
 };
 
 use crate::{
-    block::{block_manager::BlockActionResult, pumpkin_block::PumpkinBlock},
+    block::{pumpkin_block::PumpkinBlock, registry::BlockActionResult},
     entity::player::Player,
     server::Server,
 };
