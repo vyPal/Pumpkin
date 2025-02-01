@@ -583,20 +583,6 @@ impl Player {
     }
 
     pub async fn teleport_world(self: Arc<Self>, new_world: Arc<World>) {
-        log::debug!(
-            "Moving player from {} to {}...",
-            self.living_entity
-                .entity
-                .world
-                .read()
-                .await
-                .level
-                .level_info
-                .level_name,
-            new_world.level.level_info.level_name
-        );
-
-        // Remove player from old world
         let current_world = self.living_entity.entity.world.read().await.clone();
         let uuid = self.gameprofile.id;
         current_world
@@ -613,16 +599,13 @@ impl Player {
             .send_packet(&CGameEvent::new(GameEvent::StartWaitingChunks, 0.0))
             .await;
 
-        // Set entity's new world
         *self.living_entity.entity.world.write().await = new_world.clone();
 
-        // Add player to new world
         {
             let mut current_players = new_world.players.lock().await;
             current_players.insert(uuid, self.clone())
         };
 
-        // Send packets to unload all chunks around the player
         let cylindrical = self.watched_section.load();
         let radial_chunks = cylindrical.all_chunks_within();
         let level = &new_world.level;
@@ -633,7 +616,6 @@ impl Player {
         tokio::spawn(async move {
             for chunk in chunks_to_clean {
                 if client.closed.load(std::sync::atomic::Ordering::Relaxed) {
-                    // We will never un-close a connection
                     break;
                 }
                 client
@@ -657,20 +639,6 @@ impl Player {
         yaw: f32,
         pitch: f32,
     ) {
-        log::debug!(
-            "Moving player from {} to {}...",
-            self.living_entity
-                .entity
-                .world
-                .read()
-                .await
-                .level
-                .level_info
-                .level_name,
-            new_world.level.level_info.level_name
-        );
-
-        // Remove player from old world
         let current_world = self.living_entity.entity.world.read().await.clone();
         let uuid = self.gameprofile.id;
         current_world
@@ -687,16 +655,13 @@ impl Player {
             .send_packet(&CGameEvent::new(GameEvent::StartWaitingChunks, 0.0))
             .await;
 
-        // Set entity's new world
         *self.living_entity.entity.world.write().await = new_world.clone();
 
-        // Add player to new world
         {
             let mut current_players = new_world.players.lock().await;
             current_players.insert(uuid, self.clone())
         };
 
-        // Send packets to unload all chunks around the player
         let cylindrical = self.watched_section.load();
         let radial_chunks = cylindrical.all_chunks_within();
         let level = &new_world.level;
@@ -707,7 +672,6 @@ impl Player {
         tokio::spawn(async move {
             for chunk in chunks_to_clean {
                 if client.closed.load(std::sync::atomic::Ordering::Relaxed) {
-                    // We will never un-close a connection
                     break;
                 }
                 client
@@ -729,8 +693,6 @@ impl Player {
             last_pos.z.round() as i32,
         ));
 
-        // TODO: switch world in player entity to new world
-
         self.client
             .send_packet(&CRespawn::new(
                 (new_world.dimension_type as u8).into(),
@@ -743,37 +705,19 @@ impl Player {
                 Some((death_dimension, death_location)),
                 0.into(),
                 0.into(),
-                1.into(),
+                1,
             ))
             .await;
-
-        log::debug!("Sending player abilities to {}", self.gameprofile.name);
         self.send_abilities_update().await;
-
         self.send_permission_lvl_update().await;
-
-        /* TODO: Maybe check if the Y position is valid and if not teleport to the top block
-        let top = new_world
-            .get_top_block(Vector2::new(position.x as i32, position.z as i32))
-            .await;
-            position.y = f64::from(top + 1);
-        */
-
-        log::debug!("Sending player teleport to {}", self.gameprofile.name);
         self.request_teleport(position, yaw, pitch).await;
-
         self.living_entity.last_pos.store(position);
-
-        // TODO: difficulty, exp bar, status effect
-
         new_world
             .worldborder
             .lock()
             .await
             .init_client(&self.client)
             .await;
-
-        // TODO: world spawn (compass stuff)
 
         self.client
             .send_packet(&CGameEvent::new(GameEvent::StartWaitingChunks, 0.0))
@@ -805,7 +749,6 @@ impl Player {
 
         self.send_client_information().await;
         player_chunker::player_join(&self).await;
-        // update commands
 
         self.set_health(20.0, 20, 20.0).await;
     }
