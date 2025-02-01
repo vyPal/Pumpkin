@@ -21,8 +21,8 @@ use pumpkin_protocol::{
     client::play::{
         CActionBar, CCombatDeath, CDisguisedChatMessage, CEntityStatus, CGameEvent, CHurtAnimation,
         CKeepAlive, CPlayDisconnect, CPlayerAbilities, CPlayerInfoUpdate, CPlayerPosition,
-        CRemovePlayerInfo, CSetHealth, CSubtitle, CSystemChatMessage, CTitleText, CUnloadChunk,
-        GameEvent, PlayerAction,
+        CRemovePlayerInfo, CRespawn, CSetHealth, CSpawnEntity, CSubtitle, CSystemChatMessage,
+        CTitleText, CUnloadChunk, GameEvent, PlayerAction,
     },
     server::play::{
         SChatCommand, SChatMessage, SClientCommand, SClientInformationPlay, SClientTickEnd,
@@ -73,7 +73,7 @@ use crate::{
         Client, PlayerConfig,
     },
     server::Server,
-    world::World,
+    world::{player_chunker, World},
 };
 use crate::{error::PumpkinError, net::GameProfile};
 
@@ -572,7 +572,75 @@ impl Player {
             .await;
     }
 
-    pub async fn teleport_world(
+    pub async fn teleport_world(self: Arc<Self>, new_world: Arc<World>) {
+        log::debug!(
+            "Moving player from {} to {}...",
+            self.living_entity
+                .entity
+                .world
+                .read()
+                .await
+                .level
+                .level_info
+                .level_name,
+            new_world.level.level_info.level_name
+        );
+
+        // Remove player from old world
+        let current_world = self.living_entity.entity.world.read().await.clone();
+        let uuid = self.gameprofile.id;
+        current_world
+            .broadcast_packet_all(&CRemovePlayerInfo::new(1.into(), &[uuid]))
+            .await;
+        current_world
+            .current_players
+            .lock()
+            .await
+            .remove(&self.gameprofile.id)
+            .unwrap();
+
+        self.client
+            .send_packet(&CGameEvent::new(GameEvent::StartWaitingChunks, 0.0))
+            .await;
+
+        // Set entity's new world
+        *self.living_entity.entity.world.write().await = new_world.clone();
+
+        // Add player to new world
+        {
+            let mut current_players = new_world.current_players.lock().await;
+            current_players.insert(uuid, self.clone())
+        };
+
+        // Send packets to unload all chunks around the player
+        let cylindrical = self.watched_section.load();
+        let radial_chunks = cylindrical.all_chunks_within();
+        let level = &new_world.level;
+        let chunks_to_clean = level.mark_chunks_as_not_watched(&radial_chunks);
+        level.clean_chunks(&chunks_to_clean).await;
+
+        let client = self.client.clone();
+        tokio::spawn(async move {
+            for chunk in chunks_to_clean {
+                if client.closed.load(std::sync::atomic::Ordering::Relaxed) {
+                    // We will never un-close a connection
+                    break;
+                }
+                client
+                    .send_packet(&CUnloadChunk::new(chunk.x, chunk.z))
+                    .await;
+            }
+        });
+
+        self.watched_section.store(Cylindrical::new(
+            Vector2::new(i32::MAX >> 1, i32::MAX >> 1),
+            unsafe { NonZeroU8::new_unchecked(1) },
+        ));
+
+        new_world.respawn_player(&self.clone(), true).await;
+    }
+
+    pub async fn teleport_world_position(
         self: Arc<Self>,
         new_world: Arc<World>,
         position: Vector3<f64>,
@@ -643,7 +711,100 @@ impl Player {
             unsafe { NonZeroU8::new_unchecked(1) },
         ));
 
-        new_world.respawn_player(&self.clone(), true).await;
+        let last_pos = self.living_entity.last_pos.load();
+        let death_dimension = self.world().await.dimension_type.name();
+        let death_location = BlockPos(Vector3::new(
+            last_pos.x.round() as i32,
+            last_pos.y.round() as i32,
+            last_pos.z.round() as i32,
+        ));
+
+        // TODO: switch world in player entity to new world
+
+        self.client
+            .send_packet(&CRespawn::new(
+                (new_world.dimension_type as u8).into(),
+                new_world.dimension_type.name(),
+                0, // seed
+                self.gamemode.load() as u8,
+                self.gamemode.load() as i8,
+                false,
+                false,
+                Some((death_dimension, death_location)),
+                0.into(),
+                0.into(),
+                1.into(),
+            ))
+            .await;
+
+        log::debug!("Sending player abilities to {}", self.gameprofile.name);
+        self.send_abilities_update().await;
+
+        self.send_permission_lvl_update().await;
+
+        /* TODO: Maybe check if the Y position is valid and if not teleport to the top block
+        let top = new_world
+            .get_top_block(Vector2::new(position.x as i32, position.z as i32))
+            .await;
+            position.y = f64::from(top + 1);
+        */
+
+        log::debug!("Sending player teleport to {}", self.gameprofile.name);
+        self.request_teleport(position, yaw, pitch).await;
+
+        self.living_entity.last_pos.store(position);
+
+        // TODO: difficulty, exp bar, status effect
+
+        new_world
+            .worldborder
+            .lock()
+            .await
+            .init_client(&self.client)
+            .await;
+
+        // TODO: world spawn (compass stuff)
+
+        self.client
+            .send_packet(&CGameEvent::new(GameEvent::StartWaitingChunks, 0.0))
+            .await;
+
+        let entity = &self.living_entity.entity;
+        let entity_id = entity.entity_id;
+
+        let skin_parts = self.config.lock().await.skin_parts;
+        let entity_metadata_packet =
+            CSetEntityMetadata::new(entity_id.into(), Metadata::new(17, VarInt(0), &skin_parts));
+
+        new_world
+            .broadcast_packet_except(
+                &[self.gameprofile.id],
+                // TODO: add velo
+                &CSpawnEntity::new(
+                    entity.entity_id.into(),
+                    self.gameprofile.id,
+                    (EntityType::Player as i32).into(),
+                    position.x,
+                    position.y,
+                    position.z,
+                    pitch,
+                    yaw,
+                    yaw,
+                    0.into(),
+                    0.0,
+                    0.0,
+                    0.0,
+                ),
+            )
+            .await;
+
+        player_chunker::player_join(&self).await;
+        new_world
+            .broadcast_packet_all(&entity_metadata_packet)
+            .await;
+        // update commands
+
+        self.set_health(20.0, 20, 20.0).await;
     }
 
     pub fn block_interaction_range(&self) -> f64 {
