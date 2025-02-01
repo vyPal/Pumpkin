@@ -21,8 +21,8 @@ use pumpkin_protocol::{
     client::play::{
         CActionBar, CCombatDeath, CDisguisedChatMessage, CEntityStatus, CGameEvent, CHurtAnimation,
         CKeepAlive, CPlayDisconnect, CPlayerAbilities, CPlayerInfoUpdate, CPlayerPosition,
-        CSetExperience, CRemovePlayerInfo, CRespawn, CSetHealth, CSpawnEntity, CSubtitle,
-         CSystemChatMessage, CTitleText, CUnloadChunk, GameEvent, MetaDataType, PlayerAction,
+        CRemovePlayerInfo, CRespawn, CSetExperience, CSetHealth, CSpawnEntity, CSubtitle,
+        CSystemChatMessage, CTitleText, CUnloadChunk, GameEvent, MetaDataType, PlayerAction,
     },
     server::play::{
         SChatCommand, SChatMessage, SClientCommand, SClientInformationPlay, SClientTickEnd,
@@ -603,7 +603,7 @@ impl Player {
             .broadcast_packet_all(&CRemovePlayerInfo::new(1.into(), &[uuid]))
             .await;
         current_world
-            .current_players
+            .players
             .lock()
             .await
             .remove(&self.gameprofile.id)
@@ -618,7 +618,7 @@ impl Player {
 
         // Add player to new world
         {
-            let mut current_players = new_world.current_players.lock().await;
+            let mut current_players = new_world.players.lock().await;
             current_players.insert(uuid, self.clone())
         };
 
@@ -677,7 +677,7 @@ impl Player {
             .broadcast_packet_all(&CRemovePlayerInfo::new(1.into(), &[uuid]))
             .await;
         current_world
-            .current_players
+            .players
             .lock()
             .await
             .remove(&self.gameprofile.id)
@@ -692,7 +692,7 @@ impl Player {
 
         // Add player to new world
         {
-            let mut current_players = new_world.current_players.lock().await;
+            let mut current_players = new_world.players.lock().await;
             current_players.insert(uuid, self.clone())
         };
 
@@ -780,11 +780,6 @@ impl Player {
             .await;
 
         let entity = &self.living_entity.entity;
-        let entity_id = entity.entity_id;
-
-        let skin_parts = self.config.lock().await.skin_parts;
-        let entity_metadata_packet =
-            CSetEntityMetadata::new(entity_id.into(), Metadata::new(17, VarInt(0), &skin_parts));
 
         new_world
             .broadcast_packet_except(
@@ -808,10 +803,8 @@ impl Player {
             )
             .await;
 
+        self.send_client_information().await;
         player_chunker::player_join(&self).await;
-        new_world
-            .broadcast_packet_all(&entity_metadata_packet)
-            .await;
         // update commands
 
         self.set_health(20.0, 20, 20.0).await;
@@ -968,10 +961,10 @@ impl Player {
             let entity = server.add_entity(
                 self.living_entity.entity.pos.load(),
                 EntityType::Item,
-                self.world(),
+                &self.world().await,
             );
             let item_entity = Arc::new(ItemEntity::new(entity, &item.clone()));
-            self.world().spawn_entity(item_entity.clone()).await;
+            self.world().await.spawn_entity(item_entity.clone()).await;
             item_entity.send_meta_packet().await;
             // decrase item in hotbar
             inv.decrease_current_stack(1);

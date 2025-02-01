@@ -723,7 +723,7 @@ impl Player {
                     return;
                 }
 
-                let world = &entity.world.read().await;
+                let world = entity.world.read().await;
                 let player_victim = world.get_player_by_id(entity_id.0).await;
                 let entity_victim = world.get_entity_by_id(entity_id.0).await;
                 if let Some(player_victim) = player_victim {

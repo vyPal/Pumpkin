@@ -25,9 +25,8 @@ use pumpkin_util::math::{
     vector3::Vector3,
     wrap_degrees,
 };
-use tokio::sync::RwLock;
-use uuid::Uuid;
 use serde::Serialize;
+use tokio::sync::RwLock;
 
 use crate::world::World;
 
@@ -335,6 +334,8 @@ impl Entity {
         T: Serialize,
     {
         self.world
+            .read()
+            .await
             .broadcast_packet_all(&CSetEntityMetadata::new(self.entity_id.into(), meta))
             .await;
     }
