@@ -626,11 +626,11 @@ impl World {
                 }
 
                 let (world, chunk) = if level.is_chunk_watched(&position) {
-                    (player.world().clone(), chunk)
+                    (player.world().await.clone(), chunk)
                 } else {
                     send_cancellable! {{
                         ChunkSave {
-                            world: player.world().clone(),
+                            world: player.world().await.clone(),
                             chunk,
                             cancelled: false,
                         };
