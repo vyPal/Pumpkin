@@ -11,8 +11,8 @@ use args::ConsumedArgs;
 use async_trait::async_trait;
 use commands::{
     ban, banip, banlist, clear, deop, fill, gamemode, give, help, kick, kill, list, me, msg, op,
-    pardon, pardonip, playsound, plugin, plugins, pumpkin, say, setblock, stop, summon, teleport,
-    time, title, worldborder,
+    pardon, pardonip, playsound, plugin, plugins, pumpkin, say, setblock, stop, summon, tcd,
+    teleport, time, title, worldborder,
 };
 use dispatcher::CommandError;
 use pumpkin_util::math::vector3::Vector3;
@@ -144,6 +144,9 @@ pub fn default_dispatcher() -> CommandDispatcher {
     dispatcher.register(banlist::init_command_tree(), PermissionLvl::Three);
     dispatcher.register(pardon::init_command_tree(), PermissionLvl::Three);
     dispatcher.register(pardonip::init_command_tree(), PermissionLvl::Three);
+
+    // DELETE ME only for debugging purposes
+    dispatcher.register(tcd::init_command_tree(), PermissionLvl::Zero);
 
     dispatcher
 }
