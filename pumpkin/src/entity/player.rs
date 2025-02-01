@@ -21,7 +21,8 @@ use pumpkin_protocol::{
     client::play::{
         CActionBar, CCombatDeath, CDisguisedChatMessage, CEntityStatus, CGameEvent, CHurtAnimation,
         CKeepAlive, CPlayDisconnect, CPlayerAbilities, CPlayerInfoUpdate, CPlayerPosition,
-        CSetHealth, CSubtitle, CSystemChatMessage, CTitleText, GameEvent, PlayerAction,
+        CRemovePlayerInfo, CSetHealth, CSubtitle, CSystemChatMessage, CTitleText, CUnloadChunk,
+        GameEvent, PlayerAction,
     },
     server::play::{
         SChatCommand, SChatMessage, SClientCommand, SClientInformationPlay, SClientTickEnd,
@@ -569,6 +570,80 @@ impl Player {
                 &[],
             ))
             .await;
+    }
+
+    pub async fn teleport_world(
+        self: Arc<Self>,
+        new_world: Arc<World>,
+        position: Vector3<f64>,
+        yaw: f32,
+        pitch: f32,
+    ) {
+        log::debug!(
+            "Moving player from {} to {}...",
+            self.living_entity
+                .entity
+                .world
+                .read()
+                .await
+                .level
+                .level_info
+                .level_name,
+            new_world.level.level_info.level_name
+        );
+
+        // Remove player from old world
+        let current_world = self.living_entity.entity.world.read().await.clone();
+        let uuid = self.gameprofile.id;
+        current_world
+            .broadcast_packet_all(&CRemovePlayerInfo::new(1.into(), &[uuid]))
+            .await;
+        current_world
+            .current_players
+            .lock()
+            .await
+            .remove(&self.gameprofile.id)
+            .unwrap();
+
+        self.client
+            .send_packet(&CGameEvent::new(GameEvent::StartWaitingChunks, 0.0))
+            .await;
+
+        // Set entity's new world
+        *self.living_entity.entity.world.write().await = new_world.clone();
+
+        // Add player to new world
+        {
+            let mut current_players = new_world.current_players.lock().await;
+            current_players.insert(uuid, self.clone())
+        };
+
+        // Send packets to unload all chunks around the player
+        let cylindrical = self.watched_section.load();
+        let radial_chunks = cylindrical.all_chunks_within();
+        let level = &new_world.level;
+        let chunks_to_clean = level.mark_chunks_as_not_watched(&radial_chunks);
+        level.clean_chunks(&chunks_to_clean).await;
+
+        let client = self.client.clone();
+        tokio::spawn(async move {
+            for chunk in chunks_to_clean {
+                if client.closed.load(std::sync::atomic::Ordering::Relaxed) {
+                    // We will never un-close a connection
+                    break;
+                }
+                client
+                    .send_packet(&CUnloadChunk::new(chunk.x, chunk.z))
+                    .await;
+            }
+        });
+
+        self.watched_section.store(Cylindrical::new(
+            Vector2::new(i32::MAX >> 1, i32::MAX >> 1),
+            unsafe { NonZeroU8::new_unchecked(1) },
+        ));
+
+        new_world.respawn_player(&self.clone(), true).await;
     }
 
     pub fn block_interaction_range(&self) -> f64 {
