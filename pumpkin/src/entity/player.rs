@@ -582,36 +582,11 @@ impl Player {
             .await;
     }
 
-    pub async fn teleport_world(self: Arc<Self>, new_world: Arc<World>) {
-        let current_world = self.living_entity.entity.world.read().await.clone();
-        let uuid = self.gameprofile.id;
-        current_world
-            .broadcast_packet_all(&CRemovePlayerInfo::new(1.into(), &[uuid]))
-            .await;
-        current_world
-            .players
-            .lock()
-            .await
-            .remove(&self.gameprofile.id)
-            .unwrap();
-
-        self.client
-            .send_packet(&CGameEvent::new(GameEvent::StartWaitingChunks, 0.0))
-            .await;
-
-        *self.living_entity.entity.world.write().await = new_world.clone();
-
-        {
-            let mut current_players = new_world.players.lock().await;
-            current_players.insert(uuid, self.clone())
-        };
-
-        let cylindrical = self.watched_section.load();
-        let radial_chunks = cylindrical.all_chunks_within();
-        let level = &new_world.level;
+    async fn unload_watched_chunks(&self, world: &World) {
+        let radial_chunks = self.watched_section.load().all_chunks_within();
+        let level = &world.level;
         let chunks_to_clean = level.mark_chunks_as_not_watched(&radial_chunks);
         level.clean_chunks(&chunks_to_clean).await;
-
         let client = self.client.clone();
         tokio::spawn(async move {
             for chunk in chunks_to_clean {
@@ -623,21 +598,14 @@ impl Player {
                     .await;
             }
         });
-
-        self.watched_section.store(Cylindrical::new(
-            Vector2::new(i32::MAX >> 1, i32::MAX >> 1),
-            unsafe { NonZeroU8::new_unchecked(1) },
-        ));
-
-        new_world.respawn_player(&self.clone(), true).await;
     }
 
-    pub async fn teleport_world_position(
+    pub async fn teleport_world(
         self: Arc<Self>,
         new_world: Arc<World>,
-        position: Vector3<f64>,
-        yaw: f32,
-        pitch: f32,
+        position: Option<Vector3<f64>>,
+        yaw: Option<f32>,
+        pitch: Option<f32>,
     ) {
         let current_world = self.living_entity.entity.world.read().await.clone();
         let uuid = self.gameprofile.id;
@@ -648,43 +616,17 @@ impl Player {
             .players
             .lock()
             .await
-            .remove(&self.gameprofile.id)
-            .unwrap();
-
+            .remove(&self.gameprofile.id);
         self.client
             .send_packet(&CGameEvent::new(GameEvent::StartWaitingChunks, 0.0))
             .await;
-
         *self.living_entity.entity.world.write().await = new_world.clone();
-
-        {
-            let mut current_players = new_world.players.lock().await;
-            current_players.insert(uuid, self.clone())
-        };
-
-        let cylindrical = self.watched_section.load();
-        let radial_chunks = cylindrical.all_chunks_within();
-        let level = &new_world.level;
-        let chunks_to_clean = level.mark_chunks_as_not_watched(&radial_chunks);
-        level.clean_chunks(&chunks_to_clean).await;
-
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            for chunk in chunks_to_clean {
-                if client.closed.load(std::sync::atomic::Ordering::Relaxed) {
-                    break;
-                }
-                client
-                    .send_packet(&CUnloadChunk::new(chunk.x, chunk.z))
-                    .await;
-            }
-        });
-
+        new_world.players.lock().await.insert(uuid, self.clone());
+        self.unload_watched_chunks(&current_world).await;
         self.watched_section.store(Cylindrical::new(
             Vector2::new(i32::MAX >> 1, i32::MAX >> 1),
             unsafe { NonZeroU8::new_unchecked(1) },
         ));
-
         let last_pos = self.living_entity.last_pos.load();
         let death_dimension = self.world().await.dimension_type.name();
         let death_location = BlockPos(Vector3::new(
@@ -692,7 +634,6 @@ impl Player {
             last_pos.y.round() as i32,
             last_pos.z.round() as i32,
         ));
-
         self.client
             .send_packet(&CRespawn::new(
                 (new_world.dimension_type as u8).into(),
@@ -710,6 +651,26 @@ impl Player {
             .await;
         self.send_abilities_update().await;
         self.send_permission_lvl_update().await;
+        let info = &new_world.level.level_info;
+        let position = if let Some(pos) = position {
+            pos
+        } else {
+            Vector3::new(
+                f64::from(info.spawn_x),
+                f64::from(
+                    new_world
+                        .get_top_block(Vector2::new(
+                            f64::from(info.spawn_x) as i32,
+                            f64::from(info.spawn_x) as i32,
+                        ))
+                        .await
+                        + 1,
+                ),
+                f64::from(info.spawn_z),
+            )
+        };
+        let yaw = yaw.unwrap_or(info.spawn_angle);
+        let pitch = pitch.unwrap_or(10.0);
         self.request_teleport(position, yaw, pitch).await;
         self.living_entity.last_pos.store(position);
         new_world
@@ -718,19 +679,14 @@ impl Player {
             .await
             .init_client(&self.client)
             .await;
-
         self.client
             .send_packet(&CGameEvent::new(GameEvent::StartWaitingChunks, 0.0))
             .await;
-
-        let entity = &self.living_entity.entity;
-
         new_world
             .broadcast_packet_except(
                 &[self.gameprofile.id],
-                // TODO: add velo
                 &CSpawnEntity::new(
-                    entity.entity_id.into(),
+                    self.living_entity.entity.entity_id.into(),
                     self.gameprofile.id,
                     (EntityType::Player as i32).into(),
                     position.x,
@@ -746,10 +702,8 @@ impl Player {
                 ),
             )
             .await;
-
         self.send_client_information().await;
         player_chunker::player_join(&self).await;
-
         self.set_health(20.0, 20, 20.0).await;
     }
 

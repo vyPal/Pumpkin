@@ -26,9 +26,15 @@ impl CommandExecutor for TpSelfToPosExecutor {
                 let new_world_index = cw.level.level_info.level_name == "world";
                 let worlds = _server.worlds.read().await;
                 if new_world_index {
-                    player.clone().teleport_world(worlds[1].clone()).await;
+                    player
+                        .clone()
+                        .teleport_world(worlds[1].clone(), None, None, None)
+                        .await;
                 } else {
-                    player.clone().teleport_world(worlds[0].clone()).await;
+                    player
+                        .clone()
+                        .teleport_world(worlds[0].clone(), None, None, None)
+                        .await;
                 }
             }
             _ => {
