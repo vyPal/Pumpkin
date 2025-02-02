@@ -14,7 +14,7 @@ pub struct JukeboxBlock;
 
 #[async_trait]
 impl PumpkinBlock for JukeboxBlock {
-    async fn on_use<'a>(
+    async fn normal_use(
         &self,
         _block: &Block,
         player: &Player,
@@ -27,7 +27,7 @@ impl PumpkinBlock for JukeboxBlock {
         world.read().await.stop_record(location).await;
     }
 
-    async fn on_use_with_item<'a>(
+    async fn use_with_item(
         &self,
         _block: &Block,
         player: &Player,
@@ -61,13 +61,7 @@ impl PumpkinBlock for JukeboxBlock {
         BlockActionResult::Consume
     }
 
-    async fn on_broken<'a>(
-        &self,
-        _block: &Block,
-        player: &Player,
-        location: BlockPos,
-        _server: &Server,
-    ) {
+    async fn broken(&self, _block: &Block, player: &Player, location: BlockPos, _server: &Server) {
         // For now just stop the music at this position
         let world = &player.living_entity.entity.world;
 

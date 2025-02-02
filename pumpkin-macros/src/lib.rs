@@ -231,7 +231,7 @@ pub fn pumpkin_item(input: TokenStream, item: TokenStream) -> TokenStream {
 
     let gen = quote! {
         #item
-        impl #impl_generics crate::block::pumpkin_block::BlockMetadata for #name #ty_generics {
+        impl #impl_generics crate::item::pumpkin_item::ItemMetadata for #name #ty_generics {
             const NAMESPACE: &'static str = #namespace;
             const ID: &'static str = #id;
         }

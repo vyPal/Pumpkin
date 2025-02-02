@@ -2,15 +2,21 @@ use std::f32::{self, consts::PI};
 
 use pumpkin_util::math::vector3::Vector3;
 
-use super::Entity;
+use super::{living::LivingEntity, Entity, EntityBase};
 
-pub struct ProjectileEntity {
+pub struct ThrownItemEntity {
     entity: Entity,
 }
 
 const DEG_PER_RAD_F32: f32 = 180.0 / PI;
 
-impl ProjectileEntity {
+impl ThrownItemEntity {
+    pub fn new(entity: Entity, owner: &Entity) -> Self {
+        let mut owner_pos = owner.pos.load();
+        owner_pos.y = (owner_pos.y + f64::from(owner.standing_eye_height)) - 0.1;
+        entity.pos.store(owner_pos);
+        Self { entity }
+    }
     pub fn set_velocity_from(
         &self,
         shooter: &Entity,
@@ -20,9 +26,15 @@ impl ProjectileEntity {
         speed: f32,
         divergence: f32,
     ) {
-        let x = -(yaw * PI / 180.0).sin() * (pitch * PI / 180.0).cos();
-        let y = -((pitch + roll) * PI / 180.0).sin();
-        let z = -(yaw * PI / 180.0).cos() * (pitch * PI / 180.0).cos();
+        let to_radians = |degrees: f32| degrees * PI / 180.0;
+
+        let yaw_rad = to_radians(yaw);
+        let pitch_rad = to_radians(pitch);
+        let roll_rad = to_radians(pitch + roll);
+
+        let x = -yaw_rad.sin() * pitch_rad.cos();
+        let y = -roll_rad.sin();
+        let z = yaw_rad.cos() * pitch_rad.cos();
         self.set_velocity(
             f64::from(x),
             f64::from(y),
@@ -62,5 +74,15 @@ impl ProjectileEntity {
             velocity.x.atan2(velocity.z) as f32 * DEG_PER_RAD_F32,
             velocity.y.atan2(len) as f32 * DEG_PER_RAD_F32,
         );
+    }
+}
+
+impl EntityBase for ThrownItemEntity {
+    fn get_entity(&self) -> &Entity {
+        &self.entity
+    }
+
+    fn get_living_entity(&self) -> Option<&LivingEntity> {
+        None
     }
 }

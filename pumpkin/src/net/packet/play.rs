@@ -45,11 +45,11 @@ use pumpkin_util::{
 };
 use pumpkin_world::block::registry::get_block_collision_shapes;
 use pumpkin_world::block::registry::Block;
-use pumpkin_world::item::registry::get_item_by_id;
+use pumpkin_world::item::registry::{get_item_by_id, get_name_by_id};
 use pumpkin_world::item::ItemStack;
 use pumpkin_world::{
     block::{registry::get_block_by_item, BlockDirection},
-    entity::entity_registry::get_entity_id,
+    entity::registry::get_entity_id,
     item::registry::get_spawn_egg,
 };
 
@@ -236,10 +236,7 @@ impl Player {
             .on_ground
             .store(packet.ground, std::sync::atomic::Ordering::Relaxed);
 
-        entity.set_rotation(
-            wrap_degrees(packet.yaw) % 360.0,
-            wrap_degrees(packet.pitch).clamp(-90.0, 90.0) % 360.0,
-        );
+        entity.set_rotation(wrap_degrees(packet.yaw) % 360.0, wrap_degrees(packet.pitch));
 
         let entity_id = entity.entity_id;
         let Vector3 { x, y, z } = position;
@@ -316,7 +313,7 @@ impl Player {
             .store(rotation.ground, std::sync::atomic::Ordering::Relaxed);
         entity.set_rotation(
             wrap_degrees(rotation.yaw) % 360.0,
-            wrap_degrees(rotation.pitch).clamp(-90.0, 90.0) % 360.0,
+            wrap_degrees(rotation.pitch),
         );
         // send new position to all other players
         let entity_id = entity.entity_id;
@@ -803,7 +800,7 @@ impl Player {
                         if let Ok(block) = block {
                             server
                                 .block_registry
-                                .on_broken(block, &self, location, server)
+                                .broken(block, &self, location, server)
                                 .await;
                         }
                     }
@@ -841,7 +838,7 @@ impl Player {
                     if let Ok(block) = block {
                         server
                             .block_registry
-                            .on_broken(block, &self, location, server)
+                            .broken(block, &self, location, server)
                             .await;
                     }
                 }
@@ -954,7 +951,7 @@ impl Player {
         {
             let action_result = server
                 .block_registry
-                .on_use_with_item(block, self, location, item, server)
+                .use_with_item(block, self, location, item, server)
                 .await;
             match action_result {
                 BlockActionResult::Continue => {}
@@ -999,12 +996,17 @@ impl Player {
         Ok(())
     }
 
-    pub fn handle_use_item(&self, _use_item: &SUseItem) {
+    pub async fn handle_use_item(&self, _use_item: &SUseItem, server: &Server) {
         if !self.has_client_loaded() {
             return;
         }
-        // TODO: handle packet correctly
-        log::error!("An item was used(SUseItem), but the packet is not implemented yet");
+        if let Some(held) = self.inventory().lock().await.held_item() {
+            // this is so ugly and slow brooo...
+            if let Some(item) = get_item_by_id(held.item_id) {
+                let name = get_name_by_id(item.id).unwrap();
+                server.item_registry.on_use(name, item, self, server).await;
+            }
+        }
     }
 
     pub async fn handle_set_held_item(&self, held: SSetHeldItem) {
@@ -1058,7 +1060,7 @@ impl Player {
                     if let Some(block) = container.get_block() {
                         server
                             .block_registry
-                            .on_close(&block, self, pos, server, container) //block, self, location, server)
+                            .close(&block, self, pos, server, container) //block, self, location, server)
                             .await;
                     }
                 }

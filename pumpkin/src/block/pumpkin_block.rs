@@ -17,7 +17,7 @@ pub trait BlockMetadata {
 
 #[async_trait]
 pub trait PumpkinBlock: Send + Sync {
-    async fn on_use<'a>(
+    async fn normal_use(
         &self,
         _block: &Block,
         _player: &Player,
@@ -25,7 +25,7 @@ pub trait PumpkinBlock: Send + Sync {
         _server: &Server,
     ) {
     }
-    async fn on_use_with_item<'a>(
+    async fn use_with_item(
         &self,
         _block: &Block,
         _player: &Player,
@@ -36,7 +36,7 @@ pub trait PumpkinBlock: Send + Sync {
         BlockActionResult::Continue
     }
 
-    async fn on_placed<'a>(
+    async fn placed(
         &self,
         _block: &Block,
         _player: &Player,
@@ -45,7 +45,7 @@ pub trait PumpkinBlock: Send + Sync {
     ) {
     }
 
-    async fn on_broken<'a>(
+    async fn broken(
         &self,
         _block: &Block,
         _player: &Player,
@@ -54,7 +54,7 @@ pub trait PumpkinBlock: Send + Sync {
     ) {
     }
 
-    async fn on_close<'a>(
+    async fn close(
         &self,
         _block: &Block,
         _player: &Player,

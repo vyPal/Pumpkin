@@ -11,6 +11,7 @@ use async_trait::async_trait;
 use crossbeam::atomic::AtomicCell;
 use pumpkin_config::{ADVANCED_CONFIG, BASIC_CONFIG};
 use pumpkin_data::{
+    damage::DamageType,
     entity::EntityType,
     sound::{Sound, SoundCategory},
 };
@@ -183,6 +184,7 @@ impl Player {
                 1.62,
                 AtomicCell::new(BoundingBox::new_default(&bounding_box_size)),
                 AtomicCell::new(bounding_box_size),
+                matches!(gamemode, GameMode::Creative | GameMode::Spectator),
             )),
             config: Mutex::new(config),
             gameprofile,
@@ -354,7 +356,7 @@ impl Player {
 
         victim
             .living_entity
-            .damage(damage as f32, 34) // PlayerAttack
+            .damage(damage as f32, DamageType::PlayerAttack) // PlayerAttack
             .await;
 
         let mut knockback_strength = 1.0;
@@ -482,6 +484,10 @@ impl Player {
 
     pub async fn world(&self) -> Arc<World> {
         self.living_entity.entity.world.read().await.clone()
+    }
+
+    pub fn position(&self) -> Vector3<f64> {
+        self.living_entity.entity.pos.load()
     }
 
     /// Updates the current abilities the Player has
@@ -796,6 +802,11 @@ impl Player {
             abilities.set_for_gamemode(gamemode);
         };
         self.send_abilities_update().await;
+
+        self.living_entity.entity.invulnerable.store(
+            matches!(gamemode, GameMode::Creative | GameMode::Spectator),
+            std::sync::atomic::Ordering::Relaxed,
+        );
         self.living_entity
             .entity
             .world
@@ -809,6 +820,7 @@ impl Player {
                 }],
             ))
             .await;
+
         #[allow(clippy::cast_precision_loss)]
         self.client
             .send_packet(&CGameEvent::new(
@@ -1111,7 +1123,10 @@ impl Player {
                 self.handle_use_item_on(SUseItemOn::read(bytebuf)?, server)
                     .await?;
             }
-            SUseItem::PACKET_ID => self.handle_use_item(&SUseItem::read(bytebuf)?),
+            SUseItem::PACKET_ID => {
+                self.handle_use_item(&SUseItem::read(bytebuf)?, server)
+                    .await;
+            }
             SCommandSuggestion::PACKET_ID => {
                 self.handle_command_suggestion(SCommandSuggestion::read(bytebuf)?, server)
                     .await;

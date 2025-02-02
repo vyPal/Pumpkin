@@ -34,11 +34,13 @@ impl BlockRegistry {
     ) {
         let pumpkin_block = self.get_pumpkin_block(block);
         if let Some(pumpkin_block) = pumpkin_block {
-            pumpkin_block.on_use(block, player, location, server).await;
+            pumpkin_block
+                .normal_use(block, player, location, server)
+                .await;
         }
     }
 
-    pub async fn on_use_with_item(
+    pub async fn use_with_item(
         &self,
         block: &Block,
         player: &Player,
@@ -49,7 +51,7 @@ impl BlockRegistry {
         let pumpkin_block = self.get_pumpkin_block(block);
         if let Some(pumpkin_block) = pumpkin_block {
             return pumpkin_block
-                .on_use_with_item(block, player, location, item, server)
+                .use_with_item(block, player, location, item, server)
                 .await;
         }
         BlockActionResult::Continue
@@ -64,13 +66,11 @@ impl BlockRegistry {
     ) {
         let pumpkin_block = self.get_pumpkin_block(block);
         if let Some(pumpkin_block) = pumpkin_block {
-            pumpkin_block
-                .on_placed(block, player, location, server)
-                .await;
+            pumpkin_block.placed(block, player, location, server).await;
         }
     }
 
-    pub async fn on_broken(
+    pub async fn broken(
         &self,
         block: &Block,
         player: &Player,
@@ -79,13 +79,11 @@ impl BlockRegistry {
     ) {
         let pumpkin_block = self.get_pumpkin_block(block);
         if let Some(pumpkin_block) = pumpkin_block {
-            pumpkin_block
-                .on_broken(block, player, location, server)
-                .await;
+            pumpkin_block.broken(block, player, location, server).await;
         }
     }
 
-    pub async fn on_close(
+    pub async fn close(
         &self,
         block: &Block,
         player: &Player,
@@ -96,7 +94,7 @@ impl BlockRegistry {
         let pumpkin_block = self.get_pumpkin_block(block);
         if let Some(pumpkin_block) = pumpkin_block {
             pumpkin_block
-                .on_close(block, player, location, server, container)
+                .close(block, player, location, server, container)
                 .await;
         }
     }
