@@ -240,7 +240,7 @@ impl Player {
     /// Removes the Player out of the current World
     #[allow(unused_variables)]
     pub async fn remove(self: Arc<Self>) {
-        let world = self.world();
+        let world = self.world().await;
         self.cancel_tasks.notify_waiters();
 
         world.remove_player(self.clone()).await;
@@ -279,7 +279,7 @@ impl Player {
     }
 
     pub async fn attack(&self, victim: &Arc<Self>) {
-        let world = self.world();
+        let world = self.world().await;
         let victim_entity = &victim.living_entity.entity;
         let attacker_entity = &self.living_entity.entity;
         let config = &ADVANCED_CONFIG.pvp;
@@ -349,7 +349,7 @@ impl Player {
 
         let attack_type = AttackType::new(self, attack_cooldown_progress as f32).await;
 
-        player_attack_sound(&pos, world, attack_type).await;
+        player_attack_sound(&pos, &world, attack_type).await;
 
         if matches!(attack_type, AttackType::Critical) {
             damage *= 1.5;
@@ -364,7 +364,7 @@ impl Player {
         match attack_type {
             AttackType::Knockback => knockback_strength += 1.0,
             AttackType::Sweeping => {
-                combat::spawn_sweep_particle(attacker_entity, world, &pos).await;
+                combat::spawn_sweep_particle(attacker_entity, &world, &pos).await;
             }
             _ => {}
         };
@@ -483,8 +483,8 @@ impl Player {
         self.living_entity.entity.entity_id
     }
 
-    pub const fn world(&self) -> &Arc<World> {
-        &self.living_entity.entity.world
+    pub async fn world(&self) -> Arc<World> {
+        self.living_entity.entity.world.read().await.clone()
     }
 
     pub fn position(&self) -> Vector3<f64> {
@@ -686,6 +686,8 @@ impl Player {
         self.living_entity
             .entity
             .world
+            .read()
+            .await
             .broadcast_packet_all(&CPlayerInfoUpdate::new(
                 0x04,
                 &[pumpkin_protocol::client::play::Player {
@@ -744,10 +746,10 @@ impl Player {
             let entity = server.add_entity(
                 self.living_entity.entity.pos.load(),
                 EntityType::Item,
-                self.world(),
+                &self.world().await,
             );
             let item_entity = Arc::new(ItemEntity::new(entity, &item.clone()));
-            self.world().spawn_entity(item_entity.clone()).await;
+            self.world().await.spawn_entity(item_entity.clone()).await;
             item_entity.send_meta_packet().await;
             // decrase item in hotbar
             inv.decrease_current_stack(1);

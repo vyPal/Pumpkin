@@ -22,7 +22,7 @@ impl PumpkinBlock for JukeboxBlock {
         _server: &Server,
     ) {
         // For now just stop the music at this position
-        let world = &player.living_entity.entity.world;
+        let world = &player.living_entity.entity.world.read().await;
 
         world.stop_record(location).await;
     }
@@ -35,7 +35,7 @@ impl PumpkinBlock for JukeboxBlock {
         item: &Item,
         _server: &Server,
     ) -> BlockActionResult {
-        let world = &player.living_entity.entity.world;
+        let world = &player.living_entity.entity.world.read().await;
 
         let Some(jukebox_playable) = &item.components.jukebox_playable else {
             return BlockActionResult::Continue;
@@ -59,7 +59,7 @@ impl PumpkinBlock for JukeboxBlock {
 
     async fn broken(&self, _block: &Block, player: &Player, location: BlockPos, _server: &Server) {
         // For now just stop the music at this position
-        let world = &player.living_entity.entity.world;
+        let world = &player.living_entity.entity.world.read().await;
 
         world.stop_record(location).await;
     }

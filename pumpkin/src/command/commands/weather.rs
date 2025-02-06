@@ -30,14 +30,17 @@ impl CommandExecutor for WeatherExecutor {
         _server: &crate::server::Server,
         args: &ConsumedArgs<'a>,
     ) -> Result<(), CommandError> {
-        let world = sender.world().ok_or(CommandError::InvalidRequirement)?;
+        let world = sender
+            .world()
+            .await
+            .ok_or(CommandError::InvalidRequirement)?;
         let duration = TimeArgumentConsumer::find_arg(args, ARG_DURATION).unwrap_or(6000);
         let mut weather = world.weather.lock().await;
 
         match self.mode {
             WeatherMode::Clear => {
                 weather
-                    .set_weather_parameters(world, duration, 0, false, false)
+                    .set_weather_parameters(&world, duration, 0, false, false)
                     .await;
                 sender
                     .send_message(TextComponent::translate(
@@ -48,7 +51,7 @@ impl CommandExecutor for WeatherExecutor {
             }
             WeatherMode::Rain => {
                 weather
-                    .set_weather_parameters(world, 0, duration, true, false)
+                    .set_weather_parameters(&world, 0, duration, true, false)
                     .await;
                 sender
                     .send_message(TextComponent::translate(
@@ -59,7 +62,7 @@ impl CommandExecutor for WeatherExecutor {
             }
             WeatherMode::Thunder => {
                 weather
-                    .set_weather_parameters(world, 0, duration, true, true)
+                    .set_weather_parameters(&world, 0, duration, true, true)
                     .await;
                 sender
                     .send_message(TextComponent::translate(

@@ -522,7 +522,7 @@ impl World {
 
     pub async fn respawn_player(&self, player: &Arc<Player>, alive: bool) {
         let last_pos = player.living_entity.last_pos.load();
-        let death_dimension = player.world().dimension_type.name();
+        let death_dimension = player.world().await.dimension_type.name();
         let death_location = BlockPos(Vector3::new(
             last_pos.x.round() as i32,
             last_pos.y.round() as i32,
@@ -665,11 +665,11 @@ impl World {
                 }
 
                 let (world, chunk) = if level.is_chunk_watched(&position) {
-                    (player.world().clone(), chunk)
+                    (player.world().await.clone(), chunk)
                 } else {
                     send_cancellable! {{
                         ChunkSave {
-                            world: player.world().clone(),
+                            world: player.world().await.clone(),
                             chunk,
                             cancelled: false,
                         };
