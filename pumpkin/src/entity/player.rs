@@ -600,6 +600,10 @@ impl Player {
                     .await;
             }
         });
+        self.watched_section.store(Cylindrical::new(
+            Vector2::new(i32::MAX >> 1, i32::MAX >> 1),
+            unsafe { NonZeroU8::new_unchecked(1) },
+        ));
     }
 
     /// Teleports the player to a different world or dimension with an optional position, yaw, and pitch.
@@ -627,10 +631,6 @@ impl Player {
         *self.living_entity.entity.world.write().await = new_world.clone();
         new_world.players.lock().await.insert(uuid, self.clone());
         self.unload_watched_chunks(&current_world).await;
-        self.watched_section.store(Cylindrical::new(
-            Vector2::new(i32::MAX >> 1, i32::MAX >> 1),
-            unsafe { NonZeroU8::new_unchecked(1) },
-        ));
         let last_pos = self.living_entity.last_pos.load();
         let death_dimension = self.world().await.dimension_type.name();
         let death_location = BlockPos(Vector3::new(
@@ -708,7 +708,7 @@ impl Player {
             .await;
         self.send_client_information().await;
         chunker::player_join(&self).await;
-        self.set_health(20.0, 20, 20.0).await;
+        self.set_health(20.0).await;
     }
 
     /// Yaw and Pitch in degrees
