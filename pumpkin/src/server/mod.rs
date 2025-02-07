@@ -13,7 +13,6 @@ use pumpkin_util::math::position::BlockPos;
 use pumpkin_util::math::vector2::Vector2;
 use pumpkin_util::math::vector3::Vector3;
 use pumpkin_util::text::TextComponent;
-use pumpkin_util::GameMode;
 use pumpkin_world::block::registry::Block;
 use pumpkin_world::dimension::Dimension;
 use pumpkin_world::entity::registry::get_entity_by_id;
@@ -173,10 +172,7 @@ impl Server {
     /// You still have to spawn the Player in the World to make then to let them Join and make them Visible
     pub async fn add_player(&self, client: Arc<Client>) -> (Arc<Player>, Arc<World>) {
         let entity_id = self.new_entity_id();
-        let gamemode = match BASIC_CONFIG.default_gamemode {
-            GameMode::Undefined => GameMode::Survival,
-            game_mode => game_mode,
-        };
+        let gamemode = BASIC_CONFIG.default_gamemode;
         // Basically the default world
         // TODO: select default from config
         let world = &self.worlds.read().await[0];

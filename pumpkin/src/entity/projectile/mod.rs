@@ -26,11 +26,9 @@ impl ThrownItemEntity {
         speed: f32,
         divergence: f32,
     ) {
-        let to_radians = |degrees: f32| degrees * PI / 180.0;
-
-        let yaw_rad = to_radians(yaw);
-        let pitch_rad = to_radians(pitch);
-        let roll_rad = to_radians(pitch + roll);
+        let yaw_rad = yaw.to_radians();
+        let pitch_rad = pitch.to_radians();
+        let roll_rad = (pitch + roll).to_radians();
 
         let x = -yaw_rad.sin() * pitch_rad.cos();
         let y = -roll_rad.sin();

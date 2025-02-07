@@ -25,7 +25,6 @@ impl Default for ChunkCompression {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
-#[repr(u8)]
 pub enum Compression {
     /// GZip Compression
     GZip,
@@ -38,7 +37,6 @@ pub enum Compression {
 }
 
 #[derive(Deserialize, Serialize, Clone, Default)]
-#[repr(u8)]
 pub enum ChunkFormat {
     #[default]
     Anvil,

@@ -159,6 +159,14 @@ impl Player {
         let last_pos = entity.pos.load();
         self.living_entity.set_pos(position);
 
+        let height_difference = position.y - last_pos.y;
+        if entity.on_ground.load(std::sync::atomic::Ordering::Relaxed)
+            && !packet.ground
+            && height_difference > 0.0
+        {
+            self.jump().await;
+        }
+
         entity
             .on_ground
             .store(packet.ground, std::sync::atomic::Ordering::Relaxed);
@@ -195,7 +203,6 @@ impl Player {
             )
             .await;
         if !self.abilities.lock().await.flying {
-            let height_difference = position.y - last_pos.y;
             self.living_entity
                 .update_fall_distance(
                     height_difference,
@@ -205,6 +212,12 @@ impl Player {
                 .await;
         }
         chunker::update_position(self).await;
+        self.progress_motion(Vector3::new(
+            position.x - last_pos.x,
+            position.y - last_pos.y,
+            position.z - last_pos.z,
+        ))
+        .await;
     }
 
     pub async fn handle_position_rotation(self: &Arc<Self>, packet: SPlayerPositionRotation) {
@@ -236,6 +249,13 @@ impl Player {
         let last_pos = entity.pos.load();
         self.living_entity.set_pos(position);
 
+        let height_difference = position.y - last_pos.y;
+        if entity.on_ground.load(std::sync::atomic::Ordering::Relaxed)
+            && !packet.ground
+            && height_difference > 0.0
+        {
+            self.jump().await;
+        }
         entity
             .on_ground
             .store(packet.ground, std::sync::atomic::Ordering::Relaxed);
@@ -287,7 +307,6 @@ impl Player {
             )
             .await;
         if !self.abilities.lock().await.flying {
-            let height_difference = position.y - last_pos.y;
             self.living_entity
                 .update_fall_distance(
                     height_difference,
@@ -297,6 +316,12 @@ impl Player {
                 .await;
         }
         chunker::update_position(self).await;
+        self.progress_motion(Vector3::new(
+            position.x - last_pos.x,
+            position.y - last_pos.y,
+            position.z - last_pos.z,
+        ))
+        .await;
     }
 
     pub async fn handle_rotation(&self, rotation: SPlayerRotation) {
@@ -808,6 +833,9 @@ impl Player {
                                 .await;
                         }
                     }
+                    self.client
+                        .send_packet(&CAcknowledgeBlockChange::new(player_action.sequence))
+                        .await;
                 }
                 Status::CancelledDigging => {
                     if !self.can_interact_with_block_at(&player_action.location, 1.0) {
@@ -820,6 +848,9 @@ impl Player {
                     }
                     self.current_block_destroy_stage
                         .store(0, std::sync::atomic::Ordering::Relaxed);
+                    self.client
+                        .send_packet(&CAcknowledgeBlockChange::new(player_action.sequence))
+                        .await;
                 }
                 Status::FinishedDigging => {
                     // TODO: do validation
@@ -845,6 +876,9 @@ impl Player {
                             .broken(block, &self, location, server)
                             .await;
                     }
+                    self.client
+                        .send_packet(&CAcknowledgeBlockChange::new(player_action.sequence))
+                        .await;
                 }
                 Status::DropItemStack | Status::DropItem => {
                     self.drop_item(server).await;
@@ -855,10 +889,6 @@ impl Player {
             },
             Err(_) => self.kick(TextComponent::text("Invalid status")).await,
         }
-
-        self.client
-            .send_packet(&CAcknowledgeBlockChange::new(player_action.sequence))
-            .await;
     }
 
     pub async fn handle_keep_alive(&self, keep_alive: SKeepAlive) {

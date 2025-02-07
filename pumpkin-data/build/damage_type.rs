@@ -102,7 +102,6 @@ pub(crate) fn build() -> TokenStream {
         #(#constants)*
 
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-        #[repr(u8)]
         pub enum DamageType {
             #(#enum_variants,)*
         }

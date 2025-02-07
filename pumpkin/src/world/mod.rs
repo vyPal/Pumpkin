@@ -613,7 +613,7 @@ impl World {
         chunker::player_join(player).await;
         // update commands
 
-        player.set_health(20.0, 20, 20.0).await;
+        player.set_health(20.0).await;
     }
 
     /// IMPORTANT: Chunks have to be non-empty

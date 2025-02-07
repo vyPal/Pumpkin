@@ -27,7 +27,6 @@ const WORLD_DATA_VERSION: i32 = 4189;
 pub struct AnvilChunkFormat;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
 pub enum Compression {
     /// GZip Compression
     GZip = 1,

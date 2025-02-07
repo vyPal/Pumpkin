@@ -54,6 +54,12 @@ impl LivingEntity {
         self.entity.set_pos(position);
     }
 
+    pub async fn heal(&self, additional_health: f32) {
+        assert!(additional_health > 0.0);
+        self.set_health(self.health.load() + additional_health)
+            .await;
+    }
+
     pub async fn set_health(&self, health: f32) {
         self.health.store(health);
         // tell everyone entities health changed
