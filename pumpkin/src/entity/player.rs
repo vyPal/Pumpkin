@@ -22,8 +22,8 @@ use pumpkin_protocol::{
     client::play::{
         CActionBar, CCombatDeath, CDisguisedChatMessage, CEntityStatus, CGameEvent, CHurtAnimation,
         CKeepAlive, CPlayDisconnect, CPlayerAbilities, CPlayerInfoUpdate, CPlayerPosition,
-        CSetExperience, CSetHealth, CSubtitle, CSystemChatMessage, CTitleText, GameEvent,
-        MetaDataType, PlayerAction,
+        CRemovePlayerInfo, CRespawn, CSetExperience, CSetHealth, CSpawnEntity, CSubtitle,
+        CSystemChatMessage, CTitleText, CUnloadChunk, GameEvent, MetaDataType, PlayerAction,
     },
     server::play::{
         SChatCommand, SChatMessage, SClientCommand, SClientInformationPlay, SClientTickEnd,
@@ -76,7 +76,7 @@ use crate::{
     data::op_data::OPERATOR_CONFIG,
     net::{Client, PlayerConfig},
     server::Server,
-    world::World,
+    world::{chunker, World},
 };
 use crate::{error::PumpkinError, net::GameProfile};
 
@@ -559,6 +559,131 @@ impl Player {
                 .send_packet(&entity.get_entity().create_spawn_packet())
                 .await;
         }
+    }
+
+    async fn unload_watched_chunks(&self, world: &World) {
+        let radial_chunks = self.watched_section.load().all_chunks_within();
+        let level = &world.level;
+        let chunks_to_clean = level.mark_chunks_as_not_watched(&radial_chunks);
+        level.clean_chunks(&chunks_to_clean).await;
+        let client = self.client.clone();
+        tokio::spawn(async move {
+            for chunk in chunks_to_clean {
+                if client.closed.load(std::sync::atomic::Ordering::Relaxed) {
+                    break;
+                }
+                client
+                    .send_packet(&CUnloadChunk::new(chunk.x, chunk.z))
+                    .await;
+            }
+        });
+    }
+
+    pub async fn teleport_world(
+        self: Arc<Self>,
+        new_world: Arc<World>,
+        position: Option<Vector3<f64>>,
+        yaw: Option<f32>,
+        pitch: Option<f32>,
+    ) {
+        let current_world = self.living_entity.entity.world.read().await.clone();
+        let uuid = self.gameprofile.id;
+        current_world
+            .broadcast_packet_all(&CRemovePlayerInfo::new(1.into(), &[uuid]))
+            .await;
+        current_world
+            .players
+            .lock()
+            .await
+            .remove(&self.gameprofile.id);
+        self.client
+            .send_packet(&CGameEvent::new(GameEvent::StartWaitingChunks, 0.0))
+            .await;
+        *self.living_entity.entity.world.write().await = new_world.clone();
+        new_world.players.lock().await.insert(uuid, self.clone());
+        self.unload_watched_chunks(&current_world).await;
+        self.watched_section.store(Cylindrical::new(
+            Vector2::new(i32::MAX >> 1, i32::MAX >> 1),
+            unsafe { NonZeroU8::new_unchecked(1) },
+        ));
+        let last_pos = self.living_entity.last_pos.load();
+        let death_dimension = self.world().await.dimension_type.name();
+        let death_location = BlockPos(Vector3::new(
+            last_pos.x.round() as i32,
+            last_pos.y.round() as i32,
+            last_pos.z.round() as i32,
+        ));
+        self.client
+            .send_packet(&CRespawn::new(
+                (new_world.dimension_type as u8).into(),
+                new_world.dimension_type.name(),
+                0, // seed
+                self.gamemode.load() as u8,
+                self.gamemode.load() as i8,
+                false,
+                false,
+                Some((death_dimension, death_location)),
+                0.into(),
+                0.into(),
+                1,
+            ))
+            .await;
+        self.send_abilities_update().await;
+        self.send_permission_lvl_update().await;
+        let info = &new_world.level.level_info;
+        let position = if let Some(pos) = position {
+            pos
+        } else {
+            Vector3::new(
+                f64::from(info.spawn_x),
+                f64::from(
+                    new_world
+                        .get_top_block(Vector2::new(
+                            f64::from(info.spawn_x) as i32,
+                            f64::from(info.spawn_x) as i32,
+                        ))
+                        .await
+                        + 1,
+                ),
+                f64::from(info.spawn_z),
+            )
+        };
+        let yaw = yaw.unwrap_or(info.spawn_angle);
+        let pitch = pitch.unwrap_or(10.0);
+        self.request_teleport(position, yaw, pitch).await;
+        self.living_entity.last_pos.store(position);
+        new_world
+            .worldborder
+            .lock()
+            .await
+            .init_client(&self.client)
+            .await;
+        self.client
+            .send_packet(&CGameEvent::new(GameEvent::StartWaitingChunks, 0.0))
+            .await;
+        new_world
+            .broadcast_packet_except(
+                &[self.gameprofile.id],
+                &CSpawnEntity::new(
+                    self.living_entity.entity.entity_id.into(),
+                    self.gameprofile.id,
+                    (EntityType::Player as i32).into(),
+                    position.x,
+                    position.y,
+                    position.z,
+                    pitch,
+                    yaw,
+                    yaw,
+                    0.into(),
+                    0.0,
+                    0.0,
+                    0.0,
+                ),
+            )
+            .await;
+        self.send_client_information().await;
+        chunker::player_join(&self).await;
+        self.set_health(20.0, 20, 20.0).await;
     }
 
     /// Yaw and Pitch in degrees
