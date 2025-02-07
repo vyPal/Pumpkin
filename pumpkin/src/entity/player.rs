@@ -579,6 +579,7 @@ impl Player {
         });
     }
 
+    /// Teleports the player to a different world or dimension with an optional position, yaw, and pitch.
     pub async fn teleport_world(
         self: Arc<Self>,
         new_world: Arc<World>,
@@ -586,6 +587,7 @@ impl Player {
         yaw: Option<f32>,
         pitch: Option<f32>,
     ) {
+        self.set_client_loaded(false);
         let current_world = self.living_entity.entity.world.read().await.clone();
         let uuid = self.gameprofile.id;
         current_world
