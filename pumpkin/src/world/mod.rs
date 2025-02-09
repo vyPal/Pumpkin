@@ -7,6 +7,7 @@ pub mod chunker;
 pub mod time;
 
 use crate::{
+    block,
     command::client_suggestions,
     entity::{player::Player, Entity, EntityBase, EntityId},
     error::PumpkinError,
@@ -423,17 +424,13 @@ impl World {
             &CSpawnEntity::new(
                 entity_id.into(),
                 gameprofile.id,
-                (EntityType::Player as i32).into(),
-                position.x,
-                position.y,
-                position.z,
+                i32::from(EntityType::PLAYER.id).into(),
+                position,
                 pitch,
                 yaw,
                 yaw,
                 0.into(),
-                0.0,
-                0.0,
-                0.0,
+                Vector3::new(0.0, 0.0, 0.0),
             ),
         )
         .await;
@@ -449,17 +446,13 @@ impl World {
                 .send_packet(&CSpawnEntity::new(
                     existing_player.entity_id().into(),
                     gameprofile.id,
-                    (EntityType::Player as i32).into(),
-                    pos.x,
-                    pos.y,
-                    pos.z,
+                    i32::from(EntityType::PLAYER.id).into(),
+                    pos,
                     entity.yaw.load(),
                     entity.pitch.load(),
                     entity.head_yaw.load(),
                     0.into(),
-                    0.0,
-                    0.0,
-                    0.0,
+                    Vector3::new(0.0, 0.0, 0.0),
                 ))
                 .await;
         }
@@ -594,17 +587,13 @@ impl World {
             &CSpawnEntity::new(
                 entity.entity_id.into(),
                 player.gameprofile.id,
-                (EntityType::Player as i32).into(),
-                position.x,
-                position.y,
-                position.z,
+                i32::from(EntityType::PLAYER.id).into(),
+                position,
                 pitch,
                 yaw,
                 yaw,
                 0.into(),
-                0.0,
-                0.0,
-                0.0,
+                Vector3::new(0.0, 0.0, 0.0),
             ),
         )
         .await;
@@ -1025,7 +1014,13 @@ impl World {
         chunk
     }
 
-    pub async fn break_block(&self, position: &BlockPos, cause: Option<Arc<Player>>) {
+    pub async fn break_block(
+        self: &Arc<Self>,
+        server: &Server,
+        position: &BlockPos,
+        cause: Option<Arc<Player>>,
+        drop: bool,
+    ) {
         let block = self.get_block(position).await.unwrap();
         let event = BlockBreakEvent::new(cause.clone(), block.clone(), 0, false);
 
@@ -1044,6 +1039,10 @@ impl World {
                 broken_block_state_id.into(),
                 false,
             );
+
+            if drop {
+                block::drop_loot(server, self, block, position).await;
+            }
 
             match cause {
                 Some(player) => {

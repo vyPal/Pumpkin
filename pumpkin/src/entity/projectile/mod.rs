@@ -1,4 +1,4 @@
-use std::f32::{self, consts::PI};
+use std::f32::{self};
 
 use pumpkin_util::math::vector3::Vector3;
 
@@ -7,8 +7,6 @@ use super::{living::LivingEntity, Entity, EntityBase};
 pub struct ThrownItemEntity {
     entity: Entity,
 }
-
-const DEG_PER_RAD_F32: f32 = 180.0 / PI;
 
 impl ThrownItemEntity {
     pub fn new(entity: Entity, owner: &Entity) -> Self {
@@ -69,8 +67,8 @@ impl ThrownItemEntity {
         self.entity.velocity.store(velocity);
         let len = velocity.horizontal_length();
         self.entity.set_rotation(
-            velocity.x.atan2(velocity.z) as f32 * DEG_PER_RAD_F32,
-            velocity.y.atan2(len) as f32 * DEG_PER_RAD_F32,
+            velocity.x.atan2(velocity.z).to_degrees() as f32,
+            velocity.y.atan2(len).to_degrees() as f32,
         );
     }
 }

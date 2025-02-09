@@ -101,7 +101,7 @@ pub enum Arg<'a> {
     #[allow(unused)]
     Simple(&'a str),
     SoundCategory(SoundCategory),
-    DamageType(&'a DamageType),
+    DamageType(DamageType),
 }
 
 /// see [`crate::commands::tree::builder::argument`] and [`CommandTree::execute`]/[`crate::commands::tree::builder::NonLeafNodeBuilder::execute`]

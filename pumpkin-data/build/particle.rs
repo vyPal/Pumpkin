@@ -8,7 +8,7 @@ pub(crate) fn build() -> TokenStream {
 
     let particle: Vec<String> = serde_json::from_str(include_str!("../../assets/particles.json"))
         .expect("Failed to parse particles.json");
-    let variants = array_to_tokenstream(particle);
+    let variants = array_to_tokenstream(&particle);
 
     quote! {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

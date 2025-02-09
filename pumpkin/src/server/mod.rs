@@ -8,14 +8,13 @@ use pumpkin_inventory::{Container, OpenContainer};
 use pumpkin_protocol::client::login::CEncryptionRequest;
 use pumpkin_protocol::{client::config::CPluginMessage, ClientPacket};
 use pumpkin_registry::{DimensionType, Registry};
-use pumpkin_util::math::boundingbox::{BoundingBox, BoundingBoxSize};
+use pumpkin_util::math::boundingbox::{BoundingBox, EntityDimensions};
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_util::math::vector2::Vector2;
 use pumpkin_util::math::vector3::Vector3;
 use pumpkin_util::text::TextComponent;
 use pumpkin_world::block::registry::Block;
 use pumpkin_world::dimension::Dimension;
-use pumpkin_world::entity::registry::get_entity_by_id;
 use rand::prelude::SliceRandom;
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -221,16 +220,10 @@ impl Server {
         let entity_id = self.new_entity_id();
 
         // TODO: this should be resolved to a integer using a macro when calling this function
-        let bounding_box_size = get_entity_by_id(entity_type as u16).map_or(
-            BoundingBoxSize {
-                width: 0.6,
-                height: 1.8,
-            },
-            |entity| BoundingBoxSize {
-                width: f64::from(entity.dimension[0]),
-                height: f64::from(entity.dimension[1]),
-            },
-        );
+        let bounding_box_size = EntityDimensions {
+            width: entity_type.dimension[0],
+            height: entity_type.dimension[1],
+        };
 
         // TODO: standing eye height should be per mob
         let new_uuid = uuid::Uuid::new_v4();
@@ -240,7 +233,7 @@ impl Server {
             world.clone(),
             position,
             entity_type,
-            1.62,
+            entity_type.eye_height,
             AtomicCell::new(BoundingBox::new_from_pos(
                 position.x,
                 position.y,

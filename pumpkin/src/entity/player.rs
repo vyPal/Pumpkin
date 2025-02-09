@@ -13,6 +13,7 @@ use pumpkin_config::{ADVANCED_CONFIG, BASIC_CONFIG};
 use pumpkin_data::{
     damage::DamageType,
     entity::EntityType,
+    item::Operation,
     sound::{Sound, SoundCategory},
 };
 use pumpkin_inventory::player::PlayerInventory;
@@ -47,7 +48,7 @@ use pumpkin_protocol::{
 };
 use pumpkin_util::{
     math::{
-        boundingbox::{BoundingBox, BoundingBoxSize},
+        boundingbox::{BoundingBox, EntityDimensions},
         experience,
         position::BlockPos,
         vector2::Vector2,
@@ -57,13 +58,7 @@ use pumpkin_util::{
     text::TextComponent,
     GameMode,
 };
-use pumpkin_world::{
-    cylindrical_chunk_iterator::Cylindrical,
-    item::{
-        registry::{get_item_by_id, Operation},
-        ItemStack,
-    },
-};
+use pumpkin_world::{cylindrical_chunk_iterator::Cylindrical, item::ItemStack};
 use tokio::sync::{Mutex, Notify, RwLock};
 
 use super::{
@@ -169,9 +164,9 @@ impl Player {
 
         let gameprofile_clone = gameprofile.clone();
         let config = client.config.lock().await.clone().unwrap_or_default();
-        let bounding_box_size = BoundingBoxSize {
-            width: 0.6,
-            height: 1.8,
+        let bounding_box_size = EntityDimensions {
+            width: EntityType::PLAYER.dimension[0],
+            height: EntityType::PLAYER.dimension[1],
         };
 
         Self {
@@ -180,8 +175,8 @@ impl Player {
                 player_uuid,
                 world,
                 Vector3::new(0.0, 0.0, 0.0),
-                EntityType::Player,
-                1.62,
+                EntityType::PLAYER,
+                EntityType::PLAYER.eye_height,
                 AtomicCell::new(BoundingBox::new_default(&bounding_box_size)),
                 AtomicCell::new(bounding_box_size),
                 matches!(gamemode, GameMode::Creative | GameMode::Spectator),
@@ -294,17 +289,15 @@ impl Player {
 
         // get attack damage
         if let Some(item_stack) = item_slot {
-            if let Some(item) = get_item_by_id(item_stack.item_id) {
-                // TODO: this should be cached in memory
-                if let Some(modifiers) = &item.components.attribute_modifiers {
-                    for item_mod in &modifiers.modifiers {
-                        if item_mod.operation == Operation::AddValue {
-                            if item_mod.id == "minecraft:base_attack_damage" {
-                                add_damage = item_mod.amount;
-                            }
-                            if item_mod.id == "minecraft:base_attack_speed" {
-                                add_speed = item_mod.amount;
-                            }
+            // TODO: this should be cached in memory
+            if let Some(modifiers) = &item_stack.item.components.attribute_modifiers {
+                for item_mod in modifiers.modifiers {
+                    if item_mod.operation == Operation::AddValue {
+                        if item_mod.id == "minecraft:base_attack_damage" {
+                            add_damage = item_mod.amount;
+                        }
+                        if item_mod.id == "minecraft:base_attack_speed" {
+                            add_speed = item_mod.amount;
                         }
                     }
                 }
@@ -355,7 +348,7 @@ impl Player {
 
         victim
             .living_entity
-            .damage(damage as f32, DamageType::PlayerAttack) // PlayerAttack
+            .damage(damage as f32, DamageType::PLAYER_ATTACK)
             .await;
 
         let mut knockback_strength = 1.0;
@@ -404,9 +397,7 @@ impl Player {
                 VarInt(i32::from(sound_id)),
                 None,
                 category,
-                position.x,
-                position.y,
-                position.z,
+                position,
                 volume,
                 pitch,
                 seed,
@@ -920,7 +911,7 @@ impl Player {
         if let Some(item) = inv.held_item_mut() {
             let entity = server.add_entity(
                 self.living_entity.entity.pos.load(),
-                EntityType::Item,
+                EntityType::ITEM,
                 &self.world().await,
             );
             let item_entity = Arc::new(ItemEntity::new(entity, &item.clone()));

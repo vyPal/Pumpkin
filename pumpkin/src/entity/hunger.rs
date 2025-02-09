@@ -50,7 +50,7 @@ impl HungerManager {
         } else if level == 0 {
             self.tick_timer.fetch_add(1);
             if self.tick_timer.load() >= 80 {
-                player.living_entity.damage(1.0, DamageType::Starve).await;
+                player.living_entity.damage(1.0, DamageType::STARVE).await;
                 self.tick_timer.store(0);
             }
         } else {

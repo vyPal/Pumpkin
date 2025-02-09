@@ -81,7 +81,7 @@ impl LivingEntity {
         cause: Option<&Entity>,
     ) -> bool {
         // Check invulnerability before applying damage
-        if self.entity.is_invulnerable_to(damage_type) {
+        if self.entity.is_invulnerable_to(&damage_type) {
             return false;
         }
 
@@ -91,7 +91,7 @@ impl LivingEntity {
             .await
             .broadcast_packet_all(&CDamageEvent::new(
                 self.entity.entity_id.into(),
-                damage_type.data().id.into(),
+                damage_type.id.into(),
                 source.map(|e| e.entity_id.into()),
                 cause.map(|e| e.entity_id.into()),
                 position,
@@ -158,7 +158,7 @@ impl LivingEntity {
                 .play_sound(Self::get_fall_sound(fall_distance as i32))
                 .await;
             // TODO: Play block fall sound
-            self.damage(damage, DamageType::Fall).await; // Fall
+            self.damage(damage, DamageType::FALL).await; // Fall
         } else if height_difference < 0.0 {
             let distance = self.fall_distance.load();
             self.fall_distance
