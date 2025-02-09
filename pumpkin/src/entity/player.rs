@@ -683,17 +683,13 @@ impl Player {
                 &CSpawnEntity::new(
                     self.living_entity.entity.entity_id.into(),
                     self.gameprofile.id,
-                    (EntityType::Player as i32).into(),
-                    position.x,
-                    position.y,
-                    position.z,
+                    i32::from(EntityType::PLAYER.id).into(),
+                    position,
                     pitch,
                     yaw,
                     yaw,
                     0.into(),
-                    0.0,
-                    0.0,
-                    0.0,
+                    Vector3::new(0.0, 0.0, 0.0),
                 ),
             )
             .await;

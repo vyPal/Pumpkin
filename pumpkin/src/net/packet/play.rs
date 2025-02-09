@@ -1168,6 +1168,7 @@ impl Player {
         server: &Server,
         location: BlockPos,
         face: &BlockDirection,
+    ) {
         let world_pos = BlockPos(location.0 + face.to_offset());
         // align position like Vanilla does
         let pos = Vector3::new(
@@ -1178,13 +1179,13 @@ impl Player {
         // create rotation like Vanilla
         let yaw = wrap_degrees(rand::random::<f32>() * 360.0) % 360.0;
 
-        let world = self.world();
+        let world = self.world().await;
         // create new mob and uuid based on spawn egg id
         let mob = mob::from_type(
             EntityType::from_raw(entity_type.id).unwrap(),
             server,
             pos,
-            world,
+            &world,
         )
         .await;
 
