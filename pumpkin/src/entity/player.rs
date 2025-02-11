@@ -23,8 +23,8 @@ use pumpkin_protocol::{
     client::play::{
         CActionBar, CCombatDeath, CDisguisedChatMessage, CEntityStatus, CGameEvent, CHurtAnimation,
         CKeepAlive, CPlayDisconnect, CPlayerAbilities, CPlayerInfoUpdate, CPlayerPosition,
-        CRemovePlayerInfo, CRespawn, CSetExperience, CSetHealth, CSpawnEntity, CSubtitle,
-        CSystemChatMessage, CTitleText, CUnloadChunk, GameEvent, MetaDataType, PlayerAction,
+        CRespawn, CSetExperience, CSetHealth, CSubtitle, CSystemChatMessage, CTitleText,
+        CUnloadChunk, GameEvent, MetaDataType, PlayerAction,
     },
     server::play::{
         SChatCommand, SChatMessage, SClientCommand, SClientInformationPlay, SClientTickEnd,
@@ -72,7 +72,7 @@ use crate::{
     data::op_data::OPERATOR_CONFIG,
     net::{Client, PlayerConfig},
     server::Server,
-    world::{chunker, World},
+    world::World,
 };
 use crate::{error::PumpkinError, net::GameProfile};
 
@@ -610,7 +610,7 @@ impl Player {
         self.set_client_loaded(false);
         let current_world = self.living_entity.entity.world.read().await.clone();
         let uuid = self.gameprofile.id;
-        current_world.remove_player(self, false);
+        current_world.remove_player(self.clone(), false).await;
         *self.living_entity.entity.world.write().await = new_world.clone();
         new_world.players.lock().await.insert(uuid, self.clone());
         self.unload_watched_chunks(&current_world).await;
@@ -660,34 +660,8 @@ impl Player {
         let pitch = pitch.unwrap_or(10.0);
         self.request_teleport(position, yaw, pitch).await;
         self.living_entity.last_pos.store(position);
-        new_world
-            .worldborder
-            .lock()
-            .await
-            .init_client(&self.client)
-            .await;
-        self.client
-            .send_packet(&CGameEvent::new(GameEvent::StartWaitingChunks, 0.0))
-            .await;
-        new_world
-            .broadcast_packet_except(
-                &[self.gameprofile.id],
-                &CSpawnEntity::new(
-                    self.living_entity.entity.entity_id.into(),
-                    self.gameprofile.id,
-                    i32::from(EntityType::PLAYER.id).into(),
-                    position,
-                    pitch,
-                    yaw,
-                    yaw,
-                    0.into(),
-                    Vector3::new(0.0, 0.0, 0.0),
-                ),
-            )
-            .await;
-        self.send_client_information().await;
-        chunker::player_join(&self).await;
-        self.set_health(20.0).await;
+
+        new_world.send_world_info(&self, position, yaw, pitch).await;
     }
 
     /// Yaw and Pitch in degrees

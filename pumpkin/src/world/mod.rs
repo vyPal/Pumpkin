@@ -513,6 +513,52 @@ impl World {
         player.send_mobs(self).await;
     }
 
+    pub async fn send_world_info(
+        &self,
+        player: &Arc<Player>,
+        position: Vector3<f64>,
+        yaw: f32,
+        pitch: f32,
+    ) {
+        self.worldborder
+            .lock()
+            .await
+            .init_client(&player.client)
+            .await;
+
+        // TODO: World spawn (compass stuff)
+
+        player
+            .client
+            .send_packet(&CGameEvent::new(GameEvent::StartWaitingChunks, 0.0))
+            .await;
+
+        let entity = &player.living_entity.entity;
+
+        self.broadcast_packet_except(
+            &[player.gameprofile.id],
+            // TODO: add velo
+            &CSpawnEntity::new(
+                entity.entity_id.into(),
+                player.gameprofile.id,
+                i32::from(EntityType::PLAYER.id).into(),
+                position,
+                pitch,
+                yaw,
+                yaw,
+                0.into(),
+                Vector3::new(0.0, 0.0, 0.0),
+            ),
+        )
+        .await;
+        player.send_client_information().await;
+
+        chunker::player_join(player).await;
+        // update commands
+
+        player.set_health(20.0).await;
+    }
+
     pub async fn respawn_player(&self, player: &Arc<Player>, alive: bool) {
         let last_pos = player.living_entity.last_pos.load();
         let death_dimension = player.world().await.dimension_type.name();
@@ -566,43 +612,7 @@ impl World {
 
         // TODO: difficulty, exp bar, status effect
 
-        self.worldborder
-            .lock()
-            .await
-            .init_client(&player.client)
-            .await;
-
-        // TODO: world spawn (compass stuff)
-
-        player
-            .client
-            .send_packet(&CGameEvent::new(GameEvent::StartWaitingChunks, 0.0))
-            .await;
-
-        let entity = &player.living_entity.entity;
-
-        self.broadcast_packet_except(
-            &[player.gameprofile.id],
-            // TODO: add velo
-            &CSpawnEntity::new(
-                entity.entity_id.into(),
-                player.gameprofile.id,
-                i32::from(EntityType::PLAYER.id).into(),
-                position,
-                pitch,
-                yaw,
-                yaw,
-                0.into(),
-                Vector3::new(0.0, 0.0, 0.0),
-            ),
-        )
-        .await;
-        player.send_client_information().await;
-
-        chunker::player_join(player).await;
-        // update commands
-
-        player.set_health(20.0).await;
+        self.send_world_info(player, position, yaw, pitch).await;
     }
 
     /// IMPORTANT: Chunks have to be non-empty
