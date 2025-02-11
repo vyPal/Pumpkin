@@ -30,7 +30,7 @@ impl ItemEntity {
     }
     pub async fn send_meta_packet(&self) {
         self.entity
-            .send_meta_data(Metadata::new(8, MetaDataType::ItemStack, self.item.clone()))
+            .send_meta_data(Metadata::new(8, MetaDataType::ItemStack, &self.item))
             .await;
     }
 }

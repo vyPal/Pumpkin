@@ -65,7 +65,7 @@ use super::{
     combat::{self, player_attack_sound, AttackType},
     hunger::HungerManager,
     item::ItemEntity,
-    Entity, EntityId, NBTStorage,
+    Entity, EntityBase, EntityId, NBTStorage,
 };
 use crate::{
     command::{client_suggestions, dispatcher::CommandDispatcher},
@@ -271,9 +271,10 @@ impl Player {
         //self.world().level.list_cached();
     }
 
-    pub async fn attack(&self, victim: &Arc<Self>) {
+    pub async fn attack(&self, victim: Arc<dyn EntityBase>) {
         let world = self.world().await;
-        let victim_entity = &victim.living_entity.entity;
+        let victim_entity = victim.get_entity();
+        let victim_living_entity = victim.get_living_entity();
         let attacker_entity = &self.living_entity.entity;
         let config = &ADVANCED_CONFIG.pvp;
 
@@ -321,17 +322,17 @@ impl Player {
 
         let pos = victim_entity.pos.load();
 
-        if (config.protect_creative && victim.gamemode.load() == GameMode::Creative)
-            || !victim.living_entity.check_damage(damage as f32)
-        {
-            world
-                .play_sound(
-                    Sound::EntityPlayerAttackNodamage,
-                    SoundCategory::Players,
-                    &pos,
-                )
-                .await;
-            return;
+        if let Some(living) = victim_living_entity {
+            if !living.check_damage(damage as f32) {
+                world
+                    .play_sound(
+                        Sound::EntityPlayerAttackNodamage,
+                        SoundCategory::Players,
+                        &pos,
+                    )
+                    .await;
+                return;
+            }
         }
 
         world
@@ -346,10 +347,11 @@ impl Player {
             damage *= 1.5;
         }
 
-        victim
-            .living_entity
-            .damage(damage as f32, DamageType::PLAYER_ATTACK)
-            .await;
+        if let Some(living) = victim_living_entity {
+            living
+                .damage(damage as f32, DamageType::PLAYER_ATTACK)
+                .await;
+        }
 
         let mut knockback_strength = 1.0;
         match attack_type {
@@ -361,7 +363,7 @@ impl Player {
         };
 
         if config.knockback {
-            combat::handle_knockback(attacker_entity, victim, victim_entity, knockback_strength)
+            combat::handle_knockback(attacker_entity, world, victim_entity, knockback_strength)
                 .await;
         }
 
@@ -1035,6 +1037,17 @@ impl NBTStorage for Player {
         self.experience_level.store(level, Ordering::Relaxed);
         self.experience_progress.store(progress);
         self.experience_points.store(points, Ordering::Relaxed);
+    }
+}
+
+#[async_trait]
+impl EntityBase for Player {
+    fn get_entity(&self) -> &Entity {
+        &self.living_entity.entity
+    }
+
+    fn get_living_entity(&self) -> Option<&LivingEntity> {
+        Some(&self.living_entity)
     }
 }
 

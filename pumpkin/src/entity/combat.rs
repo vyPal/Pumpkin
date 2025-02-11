@@ -61,23 +61,18 @@ impl AttackType {
     }
 }
 
-pub async fn handle_knockback(
-    attacker_entity: &Entity,
-    victim: &Player,
-    victim_entity: &Entity,
-    strength: f64,
-) {
-    let yaw = attacker_entity.yaw.load();
+pub async fn handle_knockback(attacker: &Entity, world: &World, victim: &Entity, strength: f64) {
+    let yaw = attacker.yaw.load();
 
-    let saved_velo = victim_entity.velocity.load();
-    victim_entity.knockback(
+    let saved_velo = victim.velocity.load();
+    victim.knockback(
         strength * 0.5,
         f64::from((yaw.to_radians()).sin()),
         f64::from(-(yaw.to_radians()).cos()),
     );
 
-    let entity_id = VarInt(victim_entity.entity_id);
-    let victim_velocity = victim_entity.velocity.load();
+    let entity_id = VarInt(victim.entity_id);
+    let victim_velocity = victim.velocity.load();
 
     let packet = &CEntityVelocity::new(
         &entity_id,
@@ -85,13 +80,11 @@ pub async fn handle_knockback(
         victim_velocity.y,
         victim_velocity.z,
     );
-    let velocity = attacker_entity.velocity.load();
-    attacker_entity
-        .velocity
-        .store(velocity.multiply(0.6, 1.0, 0.6));
+    let velocity = attacker.velocity.load();
+    attacker.velocity.store(velocity.multiply(0.6, 1.0, 0.6));
 
-    victim_entity.velocity.store(saved_velo);
-    victim.client.send_packet(packet).await;
+    victim.velocity.store(saved_velo);
+    world.broadcast_packet_all(packet).await;
 }
 
 pub async fn spawn_sweep_particle(attacker_entity: &Entity, world: &World, pos: &Vector3<f64>) {

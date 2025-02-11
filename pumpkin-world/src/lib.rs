@@ -1,10 +1,4 @@
-use generation::{
-    aquifer_sampler::{FluidLevel, FluidLevelSampler},
-    chunk_noise::{ChunkNoiseGenerator, LAVA_BLOCK, WATER_BLOCK},
-    generation_shapes::GenerationShape,
-    noise::{config::NoiseConfig, router::OVERWORLD_NOISE_ROUTER},
-    proto_chunk::{ProtoChunk, StandardChunkFluidLevelSampler},
-};
+use generation::proto_chunk::ProtoChunk;
 use pumpkin_util::math::vector2::Vector2;
 
 pub mod biome;
@@ -18,6 +12,7 @@ pub mod item;
 pub mod level;
 mod lock;
 pub mod loot;
+mod noise_router;
 pub mod world_info;
 pub const WORLD_HEIGHT: usize = 384;
 pub const WORLD_LOWEST_Y: i16 = -64;
@@ -39,32 +34,18 @@ macro_rules! read_data_from_file {
             )
             .expect("no data file"),
         )
-        .expect("failed to decode array")
+        .expect("failed to decode data")
     };
 }
 
 // TODO: is there a way to do in-file benches?
-pub fn bench_create_chunk_noise_overworld() {
-    let config = NoiseConfig::new(0, &OVERWORLD_NOISE_ROUTER);
-    let generation_shape = GenerationShape::SURFACE;
-    let sampler = FluidLevelSampler::Chunk(StandardChunkFluidLevelSampler::new(
-        FluidLevel::new(63, WATER_BLOCK),
-        FluidLevel::new(-54, LAVA_BLOCK),
-    ));
+pub use generation::{noise_router::proto_noise_router::ProtoChunkNoiseRouter, GlobalRandomConfig};
+pub use noise_router::NOISE_ROUTER_ASTS;
 
-    ChunkNoiseGenerator::new(
-        16 / generation_shape.horizontal_cell_block_count(),
-        0,
-        0,
-        generation_shape,
-        &config,
-        sampler,
-        true,
-        true,
-    );
-}
-
-pub fn bench_create_and_populate_noise() {
-    let mut chunk = ProtoChunk::new(Vector2::new(0, 0), 0);
+pub fn bench_create_and_populate_noise(
+    base_router: &ProtoChunkNoiseRouter,
+    random_config: &GlobalRandomConfig,
+) {
+    let mut chunk = ProtoChunk::new(Vector2::new(0, 0), base_router, random_config);
     chunk.populate_noise();
 }

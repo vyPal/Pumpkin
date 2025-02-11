@@ -15,8 +15,20 @@ struct DamageTypeEntry {
 pub struct DamageTypeData {
     death_message_type: Option<DeathMessageType>,
     exhaustion: f32,
+    effects: Option<DamageEffects>,
     message_id: String,
     scaling: DamageScaling,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum DamageEffects {
+    Hurt,
+    Thorns,
+    Drowning,
+    Burning,
+    Poking,
+    Freezing,
 }
 
 #[derive(Deserialize, Debug)]
@@ -59,6 +71,14 @@ pub(crate) fn build() -> TokenStream {
             None => quote! { None },
         };
 
+        let effects = match &data.effects {
+            Some(msg) => {
+                let msg_ident = Ident::new(&format!("{:?}", msg), proc_macro2::Span::call_site());
+                quote! { Some(DamageEffects::#msg_ident) }
+            }
+            None => quote! { None },
+        };
+
         let exhaustion = data.exhaustion;
         let message_id = &data.message_id;
         let scaling_ident = Ident::new(
@@ -72,6 +92,7 @@ pub(crate) fn build() -> TokenStream {
             pub const #const_ident: DamageType = DamageType {
                 death_message_type: #death_message_type,
                 exhaustion: #exhaustion,
+                effects: #effects,
                 message_id: #message_id,
                 scaling: #scaling,
                 id: #id_lit,
@@ -93,6 +114,7 @@ pub(crate) fn build() -> TokenStream {
         pub struct DamageType {
             pub death_message_type: Option<DeathMessageType>,
             pub exhaustion: f32,
+            pub effects: Option<DamageEffects>,
             pub message_id: &'static str,
             pub scaling: DamageScaling,
             pub id: u32,
@@ -103,6 +125,16 @@ pub(crate) fn build() -> TokenStream {
             Default,
             FallVariants,
             IntentionalGameDesign,
+        }
+
+        #[derive(Clone, Copy, Debug, PartialEq)]
+        pub enum DamageEffects {
+            Hurt,
+            Thorns,
+            Drowning,
+            Burning,
+            Poking,
+            Freezing,
         }
 
         #[derive(Clone, Copy, Debug, PartialEq)]

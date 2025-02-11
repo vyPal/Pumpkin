@@ -1,6 +1,21 @@
-use blocks::chest::ChestBlock;
-use blocks::furnace::FurnaceBlock;
-use properties::BlockPropertiesManager;
+use blocks::{chest::ChestBlock, furnace::FurnaceBlock, lever::LeverBlock};
+use properties::{
+    age::Age,
+    attachment::Attachment,
+    axis::Axis,
+    cardinal::{Down, East, North, South, Up, West},
+    face::Face,
+    facing::Facing,
+    half::Half,
+    layers::Layers,
+    open::Open,
+    powered::Powered,
+    signal_fire::SignalFire,
+    slab_type::SlabType,
+    stair_shape::StairShape,
+    waterlog::Waterlogged,
+    BlockPropertiesManager,
+};
 use pumpkin_data::entity::EntityType;
 use pumpkin_data::item::Item;
 use pumpkin_util::math::position::BlockPos;
@@ -30,6 +45,7 @@ pub fn default_registry() -> Arc<BlockRegistry> {
     manager.register(CraftingTableBlock);
     manager.register(FurnaceBlock);
     manager.register(ChestBlock);
+    manager.register(LeverBlock);
 
     Arc::new(manager)
 }
@@ -55,6 +71,27 @@ pub async fn drop_loot(server: &Server, world: &Arc<World>, block: &Block, pos: 
 #[must_use]
 pub fn default_block_properties_manager() -> Arc<BlockPropertiesManager> {
     let mut manager = BlockPropertiesManager::default();
+
+    // This is the default state of the blocks
+    manager.register(Age::Age0);
+    manager.register(Attachment::Floor);
+    manager.register(Axis::Y);
+    manager.register(Down::False);
+    manager.register(East::False);
+    manager.register(Face::Floor);
+    manager.register(Facing::North);
+    manager.register(Half::Bottom);
+    manager.register(Layers::Lay1);
+    manager.register(North::False);
+    manager.register(Open::False());
+    manager.register(Powered::False());
+    manager.register(SignalFire::False());
+    manager.register(SlabType::Bottom);
+    manager.register(South::False);
+    manager.register(StairShape::Straight);
+    manager.register(Up::False);
+    manager.register(Waterlogged::False());
+    manager.register(West::False);
 
     manager.build_properties_registry();
 

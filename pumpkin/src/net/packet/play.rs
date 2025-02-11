@@ -13,8 +13,10 @@ use crate::{
     world::chunker,
 };
 use pumpkin_config::ADVANCED_CONFIG;
-use pumpkin_data::entity::{entity_from_egg, EntityPose, EntityType};
+use pumpkin_data::entity::{entity_from_egg, EntityType};
 use pumpkin_data::item::Item;
+use pumpkin_data::sound::Sound;
+use pumpkin_data::sound::SoundCategory;
 use pumpkin_data::world::CHAT;
 use pumpkin_inventory::player::PlayerInventory;
 use pumpkin_inventory::InventoryError;
@@ -745,27 +747,40 @@ impl Player {
                     return;
                 }
 
+                // TODO: set as camera entity when specator
+
                 let world = &entity.world.read().await;
                 let player_victim = world.get_player_by_id(entity_id.0).await;
-                let entity_victim = world.get_entity_by_id(entity_id.0).await;
+                if entity_id.0 == self.entity_id() {
+                    // this can't be triggered from a non-modded client.
+                    self.kick(TextComponent::translate(
+                        "multiplayer.disconnect.invalid_entity_attacked",
+                        [].into(),
+                    ))
+                    .await;
+                    return;
+                }
                 if let Some(player_victim) = player_victim {
                     if player_victim.living_entity.health.load() <= 0.0 {
                         // you can trigger this from a non-modded / innocent client client,
                         // so we shouldn't kick the player
                         return;
                     }
-                    self.attack(&player_victim).await;
-                } else if let Some(entity_victim) = entity_victim {
-                    // Checks if victim is a living entity
-                    if let Some(entity_victim) = entity_victim.get_living_entity() {
-                        if entity_victim.health.load() <= 0.0 {
-                            return;
-                        }
-                        entity_victim.entity.set_pose(EntityPose::Dying).await;
-                        entity_victim.kill().await;
-                        world.remove_entity(&entity_victim.entity).await;
+                    if config.protect_creative
+                        && player_victim.gamemode.load() == GameMode::Creative
+                    {
+                        world
+                            .play_sound(
+                                Sound::EntityPlayerAttackNodamage,
+                                SoundCategory::Players,
+                                &player_victim.position(),
+                            )
+                            .await;
+                        return;
                     }
-                    // TODO: block entities should be checked here (signs)
+                    self.attack(player_victim).await;
+                } else if let Some(entity_victim) = world.get_entity_by_id(entity_id.0).await {
+                    self.attack(entity_victim).await;
                 } else {
                     log::error!(
                         "Player id {} interacted with entity id {} which was not found.",
@@ -779,12 +794,6 @@ impl Player {
                     .await;
                     return;
                 };
-
-                if entity_id.0 == self.entity_id() {
-                    // this, however, can't be triggered from a non-modded client.
-                    self.kick(TextComponent::text("You can't attack yourself"))
-                        .await;
-                }
             }
             ActionType::Interact | ActionType::InteractAt => {
                 log::debug!("todo");
@@ -973,6 +982,15 @@ impl Player {
                     .block_registry
                     .on_use(block, self, location, server)
                     .await;
+                let block_state = world.get_block_state(&location).await?;
+                let new_state = server
+                    .block_properties_manager
+                    .on_interact(block, block_state, &ItemStack::new(0, Item::AIR))
+                    .await;
+                world.set_block_state(&location, new_state).await;
+                self.client
+                    .send_packet(&CAcknowledgeBlockChange::new(use_item_on.sequence))
+                    .await;
             }
             return Ok(());
         };
@@ -985,6 +1003,15 @@ impl Player {
             let action_result = server
                 .block_registry
                 .use_with_item(block, self, location, &stack.item, server)
+                .await;
+            let block_state = world.get_block_state(&location).await?;
+            let new_state = server
+                .block_properties_manager
+                .on_interact(block, block_state, &stack)
+                .await;
+            world.set_block_state(&location, new_state).await;
+            self.client
+                .send_packet(&CAcknowledgeBlockChange::new(use_item_on.sequence.clone()))
                 .await;
             match action_result {
                 BlockActionResult::Continue => {}
@@ -1210,6 +1237,7 @@ impl Player {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn run_is_block_place(
         &self,
         block: Block,
@@ -1223,6 +1251,7 @@ impl Player {
 
         let clicked_block_pos = BlockPos(location.0);
         let clicked_block_state = world.get_block_state(&clicked_block_pos).await?;
+        let clicked_block = world.get_block(&clicked_block_pos).await?;
 
         // check block under the world
         if location.0.y + face.to_offset().y < WORLD_LOWEST_Y.into() {
@@ -1259,34 +1288,31 @@ impl Player {
             _ => {}
         }
 
-        let (mut new_state, mut updateable) = server
+        let mut updateable = server
             .block_properties_manager
-            .get_state_data(
-                world,
-                &block,
+            .can_update(
+                clicked_block,
+                clicked_block_state,
                 face,
-                &clicked_block_pos,
                 &use_item_on,
-                &self.get_player_direction(),
-                true,
+                false,
             )
             .await;
 
-        let final_block_pos = if clicked_block_state.replaceable || updateable {
-            clicked_block_pos
+        let (final_block_pos, final_face) = if updateable {
+            (clicked_block_pos, face)
         } else {
             let block_pos = BlockPos(location.0 + face.to_offset());
+            let previous_block = world.get_block(&block_pos).await?;
             let previous_block_state = world.get_block_state(&block_pos).await?;
-            (new_state, updateable) = server
+            updateable = server
                 .block_properties_manager
-                .get_state_data(
-                    world,
-                    &block,
+                .can_update(
+                    previous_block,
+                    previous_block_state,
                     &face.opposite(),
-                    &block_pos,
                     &use_item_on,
-                    &self.get_player_direction(),
-                    false,
+                    true,
                 )
                 .await;
 
@@ -1294,8 +1320,22 @@ impl Player {
                 return Ok(true);
             }
 
-            block_pos
+            (block_pos, &face.opposite())
         };
+
+        let new_state = server
+            .block_registry
+            .on_place(
+                server,
+                world,
+                &block,
+                final_face,
+                &final_block_pos,
+                &use_item_on,
+                &self.get_player_direction(),
+                !(clicked_block_state.replaceable || updateable),
+            )
+            .await;
 
         // To this point we must have the new block state
         let shapes = get_block_collision_shapes(new_state).unwrap_or_default();
