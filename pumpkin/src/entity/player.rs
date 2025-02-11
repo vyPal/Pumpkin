@@ -611,9 +611,6 @@ impl Player {
         let current_world = self.living_entity.entity.world.read().await.clone();
         let uuid = self.gameprofile.id;
         current_world.remove_player(self, false);
-        self.client
-            .send_packet(&CGameEvent::new(GameEvent::StartWaitingChunks, 0.0))
-            .await;
         *self.living_entity.entity.world.write().await = new_world.clone();
         new_world.players.lock().await.insert(uuid, self.clone());
         self.unload_watched_chunks(&current_world).await;
