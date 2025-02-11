@@ -236,7 +236,7 @@ impl Player {
         let world = self.world().await;
         self.cancel_tasks.notify_waiters();
 
-        world.remove_player(self.clone()).await;
+        world.remove_player(self.clone(), true).await;
 
         let cylindrical = self.watched_section.load();
 
@@ -610,14 +610,7 @@ impl Player {
         self.set_client_loaded(false);
         let current_world = self.living_entity.entity.world.read().await.clone();
         let uuid = self.gameprofile.id;
-        current_world
-            .broadcast_packet_all(&CRemovePlayerInfo::new(1.into(), &[uuid]))
-            .await;
-        current_world
-            .players
-            .lock()
-            .await
-            .remove(&self.gameprofile.id);
+        current_world.remove_player(self, false);
         self.client
             .send_packet(&CGameEvent::new(GameEvent::StartWaitingChunks, 0.0))
             .await;
