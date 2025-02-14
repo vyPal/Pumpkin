@@ -73,7 +73,10 @@ use crate::{
     command::{client_suggestions, dispatcher::CommandDispatcher},
     data::op_data::OPERATOR_CONFIG,
     net::{Client, PlayerConfig},
-    plugin::player::player_change_world::PlayerChangeWorldEvent,
+    plugin::player::{
+        player_change_world::PlayerChangeWorldEvent,
+        player_gamemode_change::PlayerGamemodeChangeEvent,
+    },
     server::Server,
     world::World,
 };
@@ -832,46 +835,57 @@ impl Player {
             .await;
     }
 
-    pub async fn set_gamemode(&self, gamemode: GameMode) {
+    pub async fn set_gamemode(self: Arc<Self>, gamemode: GameMode) {
         // We could send the same gamemode without problems. But why waste bandwidth ?
         assert_ne!(
             self.gamemode.load(),
             gamemode,
             "Setting the same gamemode as already is"
         );
-        self.gamemode.store(gamemode);
-        {
-            // use another scope so we instantly unlock abilities
-            let mut abilities = self.abilities.lock().await;
-            abilities.set_for_gamemode(gamemode);
-        };
-        self.send_abilities_update().await;
+        send_cancellable! {{
+            PlayerGamemodeChangeEvent {
+                player: self.clone(),
+                new_gamemode: gamemode,
+                previous_gamemode: self.gamemode.load(),
+                cancelled: false,
+            };
 
-        self.living_entity.entity.invulnerable.store(
-            matches!(gamemode, GameMode::Creative | GameMode::Spectator),
-            std::sync::atomic::Ordering::Relaxed,
-        );
-        self.living_entity
-            .entity
-            .world
-            .read()
-            .await
-            .broadcast_packet_all(&CPlayerInfoUpdate::new(
-                0x04,
-                &[pumpkin_protocol::client::play::Player {
-                    uuid: self.gameprofile.id,
-                    actions: vec![PlayerAction::UpdateGameMode((gamemode as i32).into())],
-                }],
-            ))
-            .await;
+            'after: {
+                self.gamemode.store(gamemode);
+                {
+                    // use another scope so we instantly unlock abilities
+                    let mut abilities = self.abilities.lock().await;
+                    abilities.set_for_gamemode(gamemode);
+                };
+                self.send_abilities_update().await;
 
-        #[allow(clippy::cast_precision_loss)]
-        self.client
-            .send_packet(&CGameEvent::new(
-                GameEvent::ChangeGameMode,
-                gamemode as i32 as f32,
-            ))
-            .await;
+                self.living_entity.entity.invulnerable.store(
+                    matches!(gamemode, GameMode::Creative | GameMode::Spectator),
+                    std::sync::atomic::Ordering::Relaxed,
+                );
+                self.living_entity
+                    .entity
+                    .world
+                    .read()
+                    .await
+                    .broadcast_packet_all(&CPlayerInfoUpdate::new(
+                        0x04,
+                        &[pumpkin_protocol::client::play::Player {
+                            uuid: self.gameprofile.id,
+                            actions: vec![PlayerAction::UpdateGameMode((gamemode as i32).into())],
+                        }],
+                    ))
+                    .await;
+
+                #[allow(clippy::cast_precision_loss)]
+                self.client
+                    .send_packet(&CGameEvent::new(
+                        GameEvent::ChangeGameMode,
+                        gamemode as i32 as f32,
+                    ))
+                    .await;
+            }
+        }}
     }
 
     /// Send skin layers and used hand to all players
