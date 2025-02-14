@@ -669,6 +669,11 @@ impl Player {
             };
 
             'after: {
+                let position = event.position;
+                let yaw = event.yaw;
+                let pitch = event.pitch;
+                let new_world = event.new_world;
+
                 self.set_client_loaded(false);
                 let uuid = self.gameprofile.id;
                 current_world.remove_player(self.clone(), false).await;
@@ -851,6 +856,7 @@ impl Player {
             };
 
             'after: {
+                let gamemode = event.new_gamemode;
                 self.gamemode.store(gamemode);
                 {
                     // use another scope so we instantly unlock abilities
