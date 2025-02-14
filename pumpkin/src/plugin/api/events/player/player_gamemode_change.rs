@@ -26,7 +26,7 @@ impl PlayerGamemodeChangeEvent {
     /// Creates a new instance of `PlayerGamemodeChangeEvent`.
     ///
     /// # Arguments
-    /// - `player`: A reference to the player joining the game.
+    /// - `player`: A reference to the player who is changing gamemode.
     /// - `previous_gamemode`: The previous gamemode of the player.
     /// - `new_gamemode`: The new gamemode of the player.
     ///
