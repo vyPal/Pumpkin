@@ -6,9 +6,9 @@ use crate::{entity::player::Player, world::World};
 
 use super::PlayerEvent;
 
-/// An event that occurs when a player joins the game.
+/// An event that occurs when a player gets teleported to another world.
 ///
-/// This event contains information about the player joining and a message to display upon joining.
+/// This event contains information about the player changing worlds.
 #[cancellable]
 #[derive(Event, Clone)]
 pub struct PlayerChangeWorldEvent {
@@ -32,14 +32,18 @@ pub struct PlayerChangeWorldEvent {
 }
 
 impl PlayerChangeWorldEvent {
-    /// Creates a new instance of `PlayerJoinEvent`.
+    /// Creates a new instance of `PlayerChangeWorldEvent`.
     ///
     /// # Arguments
-    /// - `player`: A reference to the player joining the game.
-    /// - `join_message`: The message to display upon joining.
+    /// - `player`: A reference to the player changing worlds.
+    /// - `previous_world`: The previous world the player was in.
+    /// - `new_world`: The new world the player is in.
+    /// - `position`: Position the player is teleported to.
+    /// - `yaw`: Yaw of the player after teleportation.
+    /// - `pitch`: Pitch of the player after teleportation.
     ///
     /// # Returns
-    /// A new instance of `PlayerJoinEvent`.
+    /// A new instance of `PlayerChangeWorldEvent`.
     pub fn new(
         player: Arc<Player>,
         previous_world: Arc<World>,
