@@ -18,6 +18,7 @@ use pumpkin_data::{
     sound::{Sound, SoundCategory},
 };
 use pumpkin_inventory::player::PlayerInventory;
+use pumpkin_macros::send_cancellable;
 use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_protocol::{
     bytebuf::packet::Packet,
@@ -72,6 +73,7 @@ use crate::{
     command::{client_suggestions, dispatcher::CommandDispatcher},
     data::op_data::OPERATOR_CONFIG,
     net::{Client, PlayerConfig},
+    plugin::player::player_change_world::PlayerChangeWorldEvent,
     server::Server,
     world::World,
 };
@@ -630,37 +632,7 @@ impl Player {
         yaw: Option<f32>,
         pitch: Option<f32>,
     ) {
-        self.set_client_loaded(false);
         let current_world = self.living_entity.entity.world.read().await.clone();
-        let uuid = self.gameprofile.id;
-        current_world.remove_player(self.clone(), false).await;
-        *self.living_entity.entity.world.write().await = new_world.clone();
-        new_world.players.lock().await.insert(uuid, self.clone());
-        self.unload_watched_chunks(&current_world).await;
-        let last_pos = self.living_entity.last_pos.load();
-        let death_dimension = self.world().await.dimension_type.name();
-        let death_location = BlockPos(Vector3::new(
-            last_pos.x.round() as i32,
-            last_pos.y.round() as i32,
-            last_pos.z.round() as i32,
-        ));
-        self.client
-            .send_packet(&CRespawn::new(
-                (new_world.dimension_type as u8).into(),
-                new_world.dimension_type.name(),
-                0, // seed
-                self.gamemode.load() as u8,
-                self.gamemode.load() as i8,
-                false,
-                false,
-                Some((death_dimension, death_location)),
-                0.into(),
-                0.into(),
-                1,
-            ))
-            .await;
-        self.send_abilities_update().await;
-        self.send_permission_lvl_update().await;
         let info = &new_world.level.level_info;
         let position = if let Some(pos) = position {
             pos
@@ -681,10 +653,55 @@ impl Player {
         };
         let yaw = yaw.unwrap_or(info.spawn_angle);
         let pitch = pitch.unwrap_or(10.0);
-        self.request_teleport(position, yaw, pitch).await;
-        self.living_entity.last_pos.store(position);
 
-        new_world.send_world_info(&self, position, yaw, pitch).await;
+        send_cancellable! {{
+            PlayerChangeWorldEvent {
+                player: self.clone(),
+                previous_world: current_world.clone(),
+                new_world: new_world.clone(),
+                position,
+                yaw,
+                pitch,
+                cancelled: false,
+            };
+
+            'after: {
+                self.set_client_loaded(false);
+                let uuid = self.gameprofile.id;
+                current_world.remove_player(self.clone(), false).await;
+                *self.living_entity.entity.world.write().await = new_world.clone();
+                new_world.players.lock().await.insert(uuid, self.clone());
+                self.unload_watched_chunks(&current_world).await;
+                let last_pos = self.living_entity.last_pos.load();
+                let death_dimension = self.world().await.dimension_type.name();
+                let death_location = BlockPos(Vector3::new(
+                    last_pos.x.round() as i32,
+                    last_pos.y.round() as i32,
+                    last_pos.z.round() as i32,
+                ));
+                self.client
+                    .send_packet(&CRespawn::new(
+                        (new_world.dimension_type as u8).into(),
+                        new_world.dimension_type.name(),
+                        0, // seed
+                        self.gamemode.load() as u8,
+                        self.gamemode.load() as i8,
+                        false,
+                        false,
+                        Some((death_dimension, death_location)),
+                        0.into(),
+                        0.into(),
+                        1,
+                    ))
+                    .await;
+                self.send_abilities_update().await;
+                self.send_permission_lvl_update().await;
+                self.request_teleport(position, yaw, pitch).await;
+                self.living_entity.last_pos.store(position);
+
+                new_world.send_world_info(&self, position, yaw, pitch).await;
+            }
+        }}
     }
 
     /// Yaw and Pitch in degrees
