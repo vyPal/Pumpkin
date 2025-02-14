@@ -198,12 +198,12 @@ impl Server {
                     }
                 }
 
-                return Some((player, world.clone()))
+                Some((player, world.clone()))
             }
 
             'cancelled: {
                 player.kick(event.kick_message).await;
-                return None
+                None
             }
         }}
     }
