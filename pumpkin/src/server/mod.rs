@@ -6,6 +6,7 @@ use crate::command::commands::defaultgamemode::DefaultGamemode;
 use crate::entity::EntityId;
 use crate::item::registry::ItemRegistry;
 use crate::net::EncryptionError;
+use crate::plugin::player::player_login::PlayerLoginEvent;
 use crate::world::custom_bossbar::CustomBossbars;
 use crate::{
     command::dispatcher::CommandDispatcher, entity::player::Player, net::Client, world::World,
@@ -26,28 +27,13 @@ use pumpkin_world::block::registry::Block;
 use pumpkin_world::dimension::Dimension;
 use rand::prelude::SliceRandom;
 use std::collections::HashMap;
-use std::net::{IpAddr, SocketAddr};
+use std::net::IpAddr;
 use std::sync::atomic::AtomicU32;
 use std::{
     sync::{Arc, atomic::Ordering},
     time::Duration,
 };
 use tokio::sync::{Mutex, RwLock};
-
-use crate::block::default_block_properties_manager;
-use crate::block::properties::BlockPropertiesManager;
-use crate::block::registry::BlockRegistry;
-use crate::entity::{Entity, EntityId};
-use crate::item::registry::ItemRegistry;
-use crate::net::EncryptionError;
-use crate::plugin::player::player_login::PlayerLoginEvent;
-use crate::world::custom_bossbar::CustomBossbars;
-use crate::{
-    command::{default_dispatcher, dispatcher::CommandDispatcher},
-    entity::player::Player,
-    net::Client,
-    world::World,
-};
 
 mod connection_cache;
 mod key_store;
@@ -183,11 +169,7 @@ impl Server {
     /// # Note
     ///
     /// You still have to spawn the Player in the World to make then to let them Join and make them Visible
-    pub async fn add_player(
-        &self,
-        client: Arc<Client>,
-        ip_address: SocketAddr,
-    ) -> Option<(Arc<Player>, Arc<World>)> {
+    pub async fn add_player(&self, client: Arc<Client>) -> Option<(Arc<Player>, Arc<World>)> {
         let gamemode = BASIC_CONFIG.default_gamemode;
         // Basically the default world
         // TODO: select default from config
@@ -195,7 +177,7 @@ impl Server {
 
         let player = Arc::new(Player::new(client, world.clone(), gamemode).await);
         send_cancellable! {{
-            PlayerLoginEvent::new(player.clone(), TextComponent::text("You have been kicked from the server"), ip_address);
+            PlayerLoginEvent::new(player.clone(), TextComponent::text("You have been kicked from the server"));
 
             'after: {
                 world

@@ -1,6 +1,6 @@
-use pumpkin_macros::{cancellable, Event};
+use pumpkin_macros::{Event, cancellable};
 use pumpkin_util::text::TextComponent;
-use std::{net::SocketAddr, sync::Arc};
+use std::sync::Arc;
 
 use crate::entity::player::Player;
 
@@ -19,9 +19,6 @@ pub struct PlayerLoginEvent {
 
     /// The kick message to display if the event is cancelled.
     pub kick_message: TextComponent,
-
-    /// The IP address of the player.
-    pub ip_address: SocketAddr,
 }
 
 impl PlayerLoginEvent {
@@ -34,11 +31,10 @@ impl PlayerLoginEvent {
     ///
     /// # Returns
     /// A new instance of `PlayerLoginEvent`.
-    pub fn new(player: Arc<Player>, kick_message: TextComponent, ip_address: SocketAddr) -> Self {
+    pub fn new(player: Arc<Player>, kick_message: TextComponent) -> Self {
         Self {
             player,
             kick_message,
-            ip_address,
             cancelled: false,
         }
     }

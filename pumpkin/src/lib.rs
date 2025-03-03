@@ -335,21 +335,22 @@ impl PumpkinServer {
                     .make_player
                     .load(std::sync::atomic::Ordering::Relaxed)
                 {
-                    let (player, world) = server.add_player(client.clone()).await;
-                    world
-                        .spawn_player(&BASIC_CONFIG, player.clone(), &server)
-                        .await;
+                    if let Some((player, world)) = server.add_player(client.clone()).await {
+                        world
+                            .spawn_player(&BASIC_CONFIG, player.clone(), &server)
+                            .await;
 
-                    // poll Player
-                    while !player
-                        .client
-                        .closed
-                        .load(core::sync::atomic::Ordering::Relaxed)
-                    {
-                        let open = poll(&player.client, &mut connection_reader).await;
-                        if open {
-                            player.process_packets(&server).await;
-                        };
+                        // poll Player
+                        while !player
+                            .client
+                            .closed
+                            .load(core::sync::atomic::Ordering::Relaxed)
+                        {
+                            let open = poll(&player.client, &mut connection_reader).await;
+                            if open {
+                                player.process_packets(&server).await;
+                            };
+                        }
                     }
                 }
 
