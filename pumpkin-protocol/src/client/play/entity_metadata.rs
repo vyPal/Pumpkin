@@ -1,39 +1,37 @@
 use pumpkin_data::packet::clientbound::PLAY_SET_ENTITY_DATA;
-use pumpkin_macros::client_packet;
+use pumpkin_macros::packet;
 use serde::Serialize;
 
 use crate::VarInt;
 
 #[derive(Serialize)]
-#[client_packet(PLAY_SET_ENTITY_DATA)]
-pub struct CSetEntityMetadata<T> {
+#[packet(PLAY_SET_ENTITY_DATA)]
+pub struct CSetEntityMetadata {
     entity_id: VarInt,
-    metadata: Metadata<T>,
-    end: u8,
+    metadata: Vec<u8>,
 }
 
-impl<T> CSetEntityMetadata<T> {
-    pub fn new(entity_id: VarInt, metadata: Metadata<T>) -> Self {
+impl CSetEntityMetadata {
+    pub fn new(entity_id: VarInt, metadata: Vec<u8>) -> Self {
         Self {
             entity_id,
             metadata,
-            end: 255,
         }
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct Metadata<T> {
     index: u8,
-    typ: VarInt,
+    r#type: VarInt,
     value: T,
 }
 
 impl<T> Metadata<T> {
-    pub fn new(index: u8, typ: MetaDataType, value: T) -> Self {
+    pub fn new(index: u8, r#type: MetaDataType, value: T) -> Self {
         Self {
             index,
-            typ: VarInt(typ as i32),
+            r#type: VarInt(r#type as i32),
             value,
         }
     }

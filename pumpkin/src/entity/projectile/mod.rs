@@ -1,8 +1,10 @@
 use std::f32::{self};
 
+use async_trait::async_trait;
+use pumpkin_data::damage::DamageType;
 use pumpkin_util::math::vector3::Vector3;
 
-use super::{living::LivingEntity, Entity, EntityBase};
+use super::{Entity, EntityBase, living::LivingEntity};
 
 pub struct ThrownItemEntity {
     entity: Entity,
@@ -67,15 +69,20 @@ impl ThrownItemEntity {
         self.entity.velocity.store(velocity);
         let len = velocity.horizontal_length();
         self.entity.set_rotation(
-            velocity.x.atan2(velocity.z).to_degrees() as f32,
-            velocity.y.atan2(len).to_degrees() as f32,
+            velocity.x.atan2(velocity.z) as f32 * 57.295_776,
+            velocity.y.atan2(len) as f32 * 57.295_776,
         );
     }
 }
 
+#[async_trait]
 impl EntityBase for ThrownItemEntity {
     fn get_entity(&self) -> &Entity {
         &self.entity
+    }
+
+    async fn damage(&self, _amount: f32, _damage_type: DamageType) -> bool {
+        false
     }
 
     fn get_living_entity(&self) -> Option<&LivingEntity> {

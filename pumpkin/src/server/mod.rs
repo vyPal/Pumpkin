@@ -1,18 +1,26 @@
+use crate::block::default_block_properties_manager;
+use crate::block::properties::BlockPropertiesManager;
+use crate::block::registry::BlockRegistry;
+use crate::command::commands::default_dispatcher;
+use crate::command::commands::defaultgamemode::DefaultGamemode;
+use crate::entity::EntityId;
+use crate::item::registry::ItemRegistry;
+use crate::net::EncryptionError;
+use crate::world::custom_bossbar::CustomBossbars;
+use crate::{
+    command::dispatcher::CommandDispatcher, entity::player::Player, net::Client, world::World,
+};
 use connection_cache::{CachedBranding, CachedStatus};
-use crossbeam::atomic::AtomicCell;
 use key_store::KeyStore;
 use pumpkin_config::{ADVANCED_CONFIG, BASIC_CONFIG};
-use pumpkin_data::entity::EntityType;
 use pumpkin_inventory::drag_handler::DragHandler;
 use pumpkin_inventory::{Container, OpenContainer};
 use pumpkin_macros::send_cancellable;
 use pumpkin_protocol::client::login::CEncryptionRequest;
-use pumpkin_protocol::{client::config::CPluginMessage, ClientPacket};
+use pumpkin_protocol::{ClientPacket, client::config::CPluginMessage};
 use pumpkin_registry::{DimensionType, Registry};
-use pumpkin_util::math::boundingbox::{BoundingBox, EntityDimensions};
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_util::math::vector2::Vector2;
-use pumpkin_util::math::vector3::Vector3;
 use pumpkin_util::text::TextComponent;
 use pumpkin_world::block::registry::Block;
 use pumpkin_world::dimension::Dimension;
@@ -21,10 +29,7 @@ use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::atomic::AtomicU32;
 use std::{
-    sync::{
-        atomic::{AtomicI32, Ordering},
-        Arc,
-    },
+    sync::{Arc, atomic::Ordering},
     time::Duration,
 };
 use tokio::sync::{Mutex, RwLock};
@@ -76,14 +81,14 @@ pub struct Server {
     // TODO: should have per player open_containers
     pub open_containers: RwLock<HashMap<u64, OpenContainer>>,
     pub drag_handler: DragHandler,
-    /// Assigns unique IDs to entities.
-    entity_id: AtomicI32,
     /// Assigns unique IDs to containers.
     container_id: AtomicU32,
     /// Manages authentication with a authentication server, if enabled.
     pub auth_client: Option<reqwest::Client>,
     /// The server's custom bossbars
     pub bossbars: Mutex<CustomBossbars>,
+    /// The default gamemode when a player joins the server (reset every restart)
+    pub defaultgamemode: Mutex<DefaultGamemode>,
 }
 
 impl Server {
@@ -114,18 +119,14 @@ impl Server {
         );
 
         // Spawn chunks are never unloaded
-        for x in -1..=1 {
-            for z in -1..=1 {
-                world.level.mark_chunk_as_newly_watched(Vector2::new(x, z));
-            }
+        for chunk in Self::spawn_chunks() {
+            world.level.mark_chunk_as_newly_watched(chunk);
         }
 
         Self {
             cached_registry: Registry::get_synced(),
             open_containers: RwLock::new(HashMap::new()),
             drag_handler: DragHandler::new(),
-            // 0 is invalid
-            entity_id: 2.into(),
             container_id: 0.into(),
             worlds: RwLock::new(vec![Arc::new(world)]),
             dimensions: vec![
@@ -143,7 +144,18 @@ impl Server {
             server_listing: Mutex::new(CachedStatus::new()),
             server_branding: CachedBranding::new(),
             bossbars: Mutex::new(CustomBossbars::new()),
+            defaultgamemode: Mutex::new(DefaultGamemode {
+                gamemode: BASIC_CONFIG.default_gamemode,
+            }),
         }
+    }
+
+    const SPAWN_CHUNK_RADIUS: i32 = 1;
+
+    pub fn spawn_chunks() -> impl Iterator<Item = Vector2<i32>> {
+        (-Self::SPAWN_CHUNK_RADIUS..=Self::SPAWN_CHUNK_RADIUS).flat_map(|x| {
+            (-Self::SPAWN_CHUNK_RADIUS..=Self::SPAWN_CHUNK_RADIUS).map(move |z| Vector2::new(x, z))
+        })
     }
 
     /// Adds a new player to the server.
@@ -176,13 +188,12 @@ impl Server {
         client: Arc<Client>,
         ip_address: SocketAddr,
     ) -> Option<(Arc<Player>, Arc<World>)> {
-        let entity_id = self.new_entity_id();
         let gamemode = BASIC_CONFIG.default_gamemode;
         // Basically the default world
         // TODO: select default from config
         let world = &self.worlds.read().await[0];
 
-        let player = Arc::new(Player::new(client, world.clone(), entity_id, gamemode).await);
+        let player = Arc::new(Player::new(client, world.clone(), gamemode).await);
         send_cancellable! {{
             PlayerLoginEvent::new(player.clone(), TextComponent::text("You have been kicked from the server"), ip_address);
 
@@ -217,49 +228,8 @@ impl Server {
         for world in self.worlds.read().await.iter() {
             world.save().await;
         }
-    }
 
-    /// Adds a new living entity to the server. This does not Spawn the entity
-    ///
-    /// # Returns
-    ///
-    /// A tuple containing:
-    ///
-    /// - `Arc<LivingEntity>`: A reference to the newly created living entity.
-    /// - `Arc<World>`: A reference to the world that the living entity was added to.
-    /// - `Uuid`: The uuid of the newly created living entity to be used to send to the client.
-    pub fn add_entity(
-        &self,
-        position: Vector3<f64>,
-        entity_type: EntityType,
-        world: &Arc<World>,
-    ) -> Entity {
-        let entity_id = self.new_entity_id();
-
-        // TODO: this should be resolved to a integer using a macro when calling this function
-        let bounding_box_size = EntityDimensions {
-            width: entity_type.dimension[0],
-            height: entity_type.dimension[1],
-        };
-
-        // TODO: standing eye height should be per mob
-        let new_uuid = uuid::Uuid::new_v4();
-        Entity::new(
-            entity_id,
-            new_uuid,
-            world.clone(),
-            position,
-            entity_type,
-            entity_type.eye_height,
-            AtomicCell::new(BoundingBox::new_from_pos(
-                position.x,
-                position.y,
-                position.z,
-                &bounding_box_size,
-            )),
-            AtomicCell::new(bounding_box_size),
-            false,
-        )
+        log::info!("Completed world save");
     }
 
     pub async fn try_get_container(
@@ -374,7 +344,7 @@ impl Server {
         let mut players = Vec::<Arc<Player>>::new();
 
         for world in self.worlds.read().await.iter() {
-            for (_, player) in world.players.lock().await.iter() {
+            for (_, player) in world.players.read().await.iter() {
                 if player.client.address.lock().await.ip() == ip {
                     players.push(player.clone());
                 }
@@ -389,7 +359,7 @@ impl Server {
         let mut players = Vec::<Arc<Player>>::new();
 
         for world in self.worlds.read().await.iter() {
-            for (_, player) in world.players.lock().await.iter() {
+            for (_, player) in world.players.read().await.iter() {
                 players.push(player.clone());
             }
         }
@@ -435,7 +405,7 @@ impl Server {
     pub async fn get_player_count(&self) -> usize {
         let mut count = 0;
         for world in self.worlds.read().await.iter() {
-            count += world.players.lock().await.len();
+            count += world.players.read().await.len();
         }
         count
     }
@@ -444,18 +414,12 @@ impl Server {
     pub async fn has_n_players(&self, n: usize) -> bool {
         let mut count = 0;
         for world in self.worlds.read().await.iter() {
-            count += world.players.lock().await.len();
+            count += world.players.read().await.len();
             if count >= n {
                 return true;
             }
         }
         false
-    }
-
-    /// Generates a new entity id
-    /// This should be global
-    pub fn new_entity_id(&self) -> EntityId {
-        self.entity_id.fetch_add(1, Ordering::SeqCst)
     }
 
     /// Generates a new container id
@@ -490,7 +454,7 @@ impl Server {
 
     async fn tick(&self) {
         for world in self.worlds.read().await.iter() {
-            world.tick().await;
+            world.tick(self).await;
         }
     }
 }

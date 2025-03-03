@@ -2,7 +2,7 @@ use chunk::ChunkConfig;
 use log::warn;
 use logging::LoggingConfig;
 use pumpkin_util::{Difficulty, GameMode, PermissionLvl};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use std::{
     env, fs,
@@ -11,7 +11,6 @@ use std::{
     path::Path,
     sync::LazyLock,
 };
-
 pub mod logging;
 pub mod networking;
 
@@ -90,6 +89,8 @@ pub struct BasicConfiguration {
     pub tps: f32,
     /// The default game mode for players.
     pub default_gamemode: GameMode,
+    /// If the server force the gamemode on join
+    pub force_gamemode: bool,
     /// Whether to remove IPs from logs or not
     pub scrub_ips: bool,
     /// Whether to use a server favicon
@@ -115,6 +116,7 @@ impl Default for BasicConfiguration {
             motd: "A Blazing fast Pumpkin Server!".to_string(),
             tps: 20.0,
             default_gamemode: GameMode::Survival,
+            force_gamemode: false,
             scrub_ips: true,
             use_favicon: true,
             favicon_path: "icon.png".to_string(),
@@ -184,14 +186,15 @@ impl LoadConfiguration for BasicConfiguration {
     }
 
     fn validate(&self) {
+        let min = unsafe { NonZeroU8::new_unchecked(2) };
+        let max = unsafe { NonZeroU8::new_unchecked(32) };
+
         assert!(
-            self.view_distance
-                .ge(unsafe { &NonZeroU8::new_unchecked(2) }),
+            self.view_distance.ge(&min),
             "View distance must be at least 2"
         );
         assert!(
-            self.view_distance
-                .le(unsafe { &NonZeroU8::new_unchecked(32) }),
+            self.view_distance.le(&max),
             "View distance must be less than 32"
         );
         if self.online_mode {

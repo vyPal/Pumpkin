@@ -7,8 +7,9 @@ use pumpkin_data::item::Item;
 use pumpkin_inventory::OpenContainer;
 use pumpkin_protocol::server::play::SUseItemOn;
 use pumpkin_util::math::position::BlockPos;
-use pumpkin_world::block::registry::Block;
 use pumpkin_world::block::BlockDirection;
+use pumpkin_world::block::registry::Block;
+use std::sync::Arc;
 
 use super::properties::Direction;
 
@@ -30,6 +31,10 @@ pub trait PumpkinBlock: Send + Sync {
         _server: &Server,
     ) {
     }
+    fn should_drop_items_on_explosion(&self) -> bool {
+        true
+    }
+    async fn explode(&self, _block: &Block, _world: &Arc<World>, _location: BlockPos) {}
     async fn use_with_item(
         &self,
         _block: &Block,
