@@ -27,7 +27,6 @@ impl PlayerLoginEvent {
     /// # Arguments
     /// - `player`: A reference to the player joining the game.
     /// - `kick_message`: The message to display upon joining.
-    /// - `ip_address`: The IP address of the player.
     ///
     /// # Returns
     /// A new instance of `PlayerLoginEvent`.
