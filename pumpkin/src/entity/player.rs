@@ -1274,7 +1274,8 @@ impl Player {
                     .await;
             }
             SChatCommand::PACKET_ID => {
-                self.handle_chat_command(server, &(SChatCommand::read(bytebuf)?));
+                self.handle_chat_command(server, &(SChatCommand::read(bytebuf)?))
+                    .await;
             }
             SChatMessage::PACKET_ID => {
                 self.clone()

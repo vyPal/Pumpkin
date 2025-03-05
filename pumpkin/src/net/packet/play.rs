@@ -7,6 +7,7 @@ use crate::block::registry::BlockActionResult;
 use crate::entity::mob;
 use crate::net::PlayerConfig;
 use crate::plugin::player::player_chat::PlayerChatEvent;
+use crate::plugin::player::player_command_send::PlayerCommandSendEvent;
 use crate::plugin::player::player_move::PlayerMoveEvent;
 use crate::{
     command::CommandSender,
@@ -381,30 +382,44 @@ impl Player {
             .await;
     }
 
-    pub fn handle_chat_command(self: &Arc<Self>, server: &Arc<Server>, command: &SChatCommand) {
+    pub async fn handle_chat_command(
+        self: &Arc<Self>,
+        server: &Arc<Server>,
+        command: &SChatCommand,
+    ) {
         let player_clone = self.clone();
         let server_clone = server.clone();
-        let command_clone = command.command.clone();
-        // Some commands can take a long time to execute. If they do, they block packet processing for the player
-        // Thats why we will spawn a task instead
-        tokio::spawn(async move {
-            let dispatcher = server_clone.command_dispatcher.read().await;
-            dispatcher
-                .handle_command(
-                    &mut CommandSender::Player(player_clone),
-                    &server_clone,
-                    &command_clone,
-                )
-                .await;
-        });
+        send_cancellable! {{
+            PlayerCommandSendEvent {
+                player: self.clone(),
+                command: command.command.clone(),
+                cancelled: false
+            };
 
-        if ADVANCED_CONFIG.commands.log_console {
-            log::info!(
-                "Player ({}): executed command /{}",
-                self.gameprofile.name,
-                command.command
-            );
-        }
+            'after: {
+                let command_clone = command.command.clone();
+                // Some commands can take a long time to execute. If they do, they block packet processing for the player
+                // Thats why we will spawn a task instead
+                tokio::spawn(async move {
+                    let dispatcher = server_clone.command_dispatcher.read().await;
+                    dispatcher
+                        .handle_command(
+                            &mut CommandSender::Player(player_clone),
+                            &server_clone,
+                            &command_clone,
+                        )
+                        .await;
+                });
+
+                if ADVANCED_CONFIG.commands.log_console {
+                    log::info!(
+                        "Player ({}): executed command /{}",
+                        self.gameprofile.name,
+                        command.command
+                    );
+                }
+            }
+        }}
     }
 
     pub fn handle_player_ground(&self, ground: &SSetPlayerGround) {
