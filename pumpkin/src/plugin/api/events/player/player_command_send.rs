@@ -1,5 +1,4 @@
 use pumpkin_macros::{Event, cancellable};
-use pumpkin_util::text::TextComponent;
 use std::sync::Arc;
 
 use crate::entity::player::Player;
@@ -34,7 +33,7 @@ impl PlayerCommandSendEvent {
         Self {
             player,
             command,
-            is_cancelled: false,
+            cancelled: false,
         }
     }
 }
