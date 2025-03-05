@@ -5,6 +5,7 @@ pub mod player_gamemode_change;
 pub mod player_join;
 pub mod player_leave;
 pub mod player_login;
+pub mod player_move;
 
 use std::sync::Arc;
 
