@@ -7,6 +7,7 @@ use crate::entity::EntityId;
 use crate::item::registry::ItemRegistry;
 use crate::net::EncryptionError;
 use crate::plugin::player::player_login::PlayerLoginEvent;
+use crate::plugin::server::server_broadcast::ServerBroadcastEvent;
 use crate::world::custom_bossbar::CustomBossbars;
 use crate::{
     command::dispatcher::CommandDispatcher, entity::player::Player, net::Client, world::World,
@@ -294,11 +295,17 @@ impl Server {
         chat_type: u32,
         target_name: Option<&TextComponent>,
     ) {
-        for world in self.worlds.read().await.iter() {
-            world
-                .broadcast_message(message, sender_name, chat_type, target_name)
-                .await;
-        }
+        send_cancellable! {{
+            ServerBroadcastEvent::new(message.clone(), sender_name.clone());
+
+            'after: {
+                for world in self.worlds.read().await.iter() {
+                    world
+                        .broadcast_message(&event.message, &event.sender, chat_type, target_name)
+                        .await;
+                }
+            }
+        }}
     }
 
     /// Searches for a player by their username across all worlds.
