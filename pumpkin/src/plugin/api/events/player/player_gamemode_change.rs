@@ -12,7 +12,7 @@ use super::PlayerEvent;
 #[cancellable]
 #[derive(Event, Clone)]
 pub struct PlayerGamemodeChangeEvent {
-    /// The player who is joining the game.
+    /// The player who's gamemode is changing.
     pub player: Arc<Player>,
 
     /// Previous gamemode of the player.

@@ -14,7 +14,7 @@ use super::PlayerEvent;
 #[cancellable]
 #[derive(Event, Clone)]
 pub struct PlayerMoveEvent {
-    /// The player who is joining the game.
+    /// The player who moved.
     pub player: Arc<Player>,
 
     /// The position from which the player moved.
@@ -28,7 +28,7 @@ impl PlayerMoveEvent {
     /// Creates a new instance of `PlayerMoveEvent`.
     ///
     /// # Arguments
-    /// - `player`: A reference to the player joining the game.
+    /// - `player`: A reference to the player who moved.
     /// - `from`: The position from which the player moved.
     /// - `to`: The position to which the player moved.
     ///

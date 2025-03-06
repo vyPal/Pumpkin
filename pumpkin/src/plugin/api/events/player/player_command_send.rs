@@ -13,7 +13,7 @@ use super::PlayerEvent;
 #[cancellable]
 #[derive(Event, Clone)]
 pub struct PlayerCommandSendEvent {
-    /// The player who is joining the game.
+    /// The player who is executing the command.
     pub player: Arc<Player>,
 
     /// The command being executed
@@ -24,7 +24,7 @@ impl PlayerCommandSendEvent {
     /// Creates a new instance of `PlayerCommandSendEvent`.
     ///
     /// # Arguments
-    /// - `player`: A reference to the player joining the game.
+    /// - `player`: A reference to the player running a command.
     /// - `command`: The command being executed.
     ///
     /// # Returns

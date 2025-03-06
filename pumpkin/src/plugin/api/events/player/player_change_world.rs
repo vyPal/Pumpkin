@@ -12,7 +12,7 @@ use super::PlayerEvent;
 #[cancellable]
 #[derive(Event, Clone)]
 pub struct PlayerChangeWorldEvent {
-    /// The player who is joining the game.
+    /// The player who is teleporting to another world.
     pub player: Arc<Player>,
 
     /// The previous world the player was in.
