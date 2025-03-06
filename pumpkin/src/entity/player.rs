@@ -75,7 +75,7 @@ use crate::{
     net::{Client, PlayerConfig},
     plugin::player::{
         player_change_world::PlayerChangeWorldEvent,
-        player_gamemode_change::PlayerGamemodeChangeEvent,
+        player_gamemode_change::PlayerGamemodeChangeEvent, player_teleport::PlayerTeleportEvent,
     },
     server::Server,
     world::World,
@@ -756,7 +756,7 @@ impl Player {
                     .await;
                 self.send_abilities_update().await;
                 self.send_permission_lvl_update().await;
-                self.request_teleport(position, yaw, pitch).await;
+                self.clone().request_teleport(position, yaw, pitch).await;
                 self.living_entity.last_pos.store(position);
 
                 new_world.send_world_info(&self, position, yaw, pitch).await;
@@ -767,29 +767,41 @@ impl Player {
     /// Yaw and Pitch in degrees
     /// Rarly used, For example when waking up player from bed or first time spawn. Otherwise entity teleport is used
     /// Player should respond with the `SConfirmTeleport` packet
-    pub async fn request_teleport(&self, position: Vector3<f64>, yaw: f32, pitch: f32) {
+    pub async fn request_teleport(self: Arc<Self>, position: Vector3<f64>, yaw: f32, pitch: f32) {
         // this is the ultra special magic code used to create the teleport id
         // This returns the old value
         // This operation wraps around on overflow.
-        let i = self
-            .teleport_id_count
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let teleport_id = i + 1;
-        self.living_entity.set_pos(position);
-        let entity = &self.living_entity.entity;
-        entity.set_rotation(yaw, pitch);
-        *self.awaiting_teleport.lock().await = Some((teleport_id.into(), position));
-        self.client
-            .send_packet(&CPlayerPosition::new(
-                teleport_id.into(),
-                position,
-                Vector3::new(0.0, 0.0, 0.0),
-                yaw,
-                pitch,
-                // TODO
-                &[],
-            ))
-            .await;
+
+        send_cancellable! {{
+            PlayerTeleportEvent {
+                player: self.clone(),
+                from: self.living_entity.entity.pos.load(),
+                to: position,
+                cancelled: false,
+            };
+
+            'after: {
+                let i = self
+                    .teleport_id_count
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                let teleport_id = i + 1;
+                self.living_entity.set_pos(position);
+                let entity = &self.living_entity.entity;
+                entity.set_rotation(yaw, pitch);
+                *self.awaiting_teleport.lock().await = Some((teleport_id.into(), position));
+                self.client
+                    .send_packet(&CPlayerPosition::new(
+                        teleport_id.into(),
+                        position,
+                        Vector3::new(0.0, 0.0, 0.0),
+                        yaw,
+                        pitch,
+                        // TODO
+                        &[],
+                    ))
+                    .await;
+            }
+        }}
     }
 
     pub fn block_interaction_range(&self) -> f64 {
