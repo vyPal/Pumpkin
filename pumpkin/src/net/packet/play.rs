@@ -273,83 +273,106 @@ impl Player {
             Self::clamp_vertical(position.y),
             Self::clamp_horizontal(position.z),
         );
-        let entity = &self.living_entity.entity;
-        let last_pos = entity.pos.load();
-        self.living_entity.set_pos(position);
 
-        let height_difference = position.y - last_pos.y;
-        if entity.on_ground.load(std::sync::atomic::Ordering::Relaxed)
-            && !packet.ground
-            && height_difference > 0.0
-        {
-            self.jump().await;
-        }
-        entity
-            .on_ground
-            .store(packet.ground, std::sync::atomic::Ordering::Relaxed);
+        send_cancellable! {{
+            PlayerMoveEvent {
+                player: self.clone(),
+                from: self.living_entity.entity.pos.load(),
+                to: position,
+                cancelled: false,
+            };
 
-        entity.set_rotation(wrap_degrees(packet.yaw) % 360.0, wrap_degrees(packet.pitch));
+            'after: {
+                let entity = &self.living_entity.entity;
+                let last_pos = entity.pos.load();
+                self.living_entity.set_pos(position);
 
-        let entity_id = entity.entity_id;
-        let Vector3 { x, y, z } = position;
+                let height_difference = position.y - last_pos.y;
+                if entity.on_ground.load(std::sync::atomic::Ordering::Relaxed)
+                    && !packet.ground
+                    && height_difference > 0.0
+                {
+                    self.jump().await;
+                }
+                entity
+                    .on_ground
+                    .store(packet.ground, std::sync::atomic::Ordering::Relaxed);
 
-        let yaw = (entity.yaw.load() * 256.0 / 360.0).rem_euclid(256.0);
-        let pitch = (entity.pitch.load() * 256.0 / 360.0).rem_euclid(256.0);
-        // let head_yaw = (entity.head_yaw * 256.0 / 360.0).floor();
-        let world = &entity.world.read().await;
+                entity.set_rotation(wrap_degrees(packet.yaw) % 360.0, wrap_degrees(packet.pitch));
 
-        // let delta = Vector3::new(x - lastx, y - lasty, z - lastz);
-        // let velocity = self.velocity;
+                let entity_id = entity.entity_id;
+                let Vector3 { x, y, z } = position;
 
-        // // Player is falling down fast, we should account for that
-        // let max_speed = if self.fall_flying { 300.0 } else { 100.0 };
+                let yaw = (entity.yaw.load() * 256.0 / 360.0).rem_euclid(256.0);
+                let pitch = (entity.pitch.load() * 256.0 / 360.0).rem_euclid(256.0);
+                // let head_yaw = (entity.head_yaw * 256.0 / 360.0).floor();
+                let world = &entity.world.read().await;
 
-        // // teleport when more than 8 blocks (i guess 8 blocks)
-        // // TODO: REPLACE * 2.0 by movement packets. see vanilla for details
-        // if delta.length_squared() - velocity.length_squared() > max_speed * 2.0 {
-        //     self.teleport(x, y, z, yaw, pitch);
-        //     return;
-        // }
-        // send new position to all other players
+                // let delta = Vector3::new(x - lastx, y - lasty, z - lastz);
+                // let velocity = self.velocity;
 
-        world
-            .broadcast_packet_except(
-                &[self.gameprofile.id],
-                &CUpdateEntityPosRot::new(
-                    entity_id.into(),
-                    Vector3::new(
-                        x.mul_add(4096.0, -(last_pos.x * 4096.0)) as i16,
-                        y.mul_add(4096.0, -(last_pos.y * 4096.0)) as i16,
-                        z.mul_add(4096.0, -(last_pos.z * 4096.0)) as i16,
-                    ),
-                    yaw as u8,
-                    pitch as u8,
-                    packet.ground,
-                ),
-            )
-            .await;
-        world
-            .broadcast_packet_except(
-                &[self.gameprofile.id],
-                &CHeadRot::new(entity_id.into(), yaw as u8),
-            )
-            .await;
-        if !self.abilities.lock().await.flying {
-            self.living_entity
-                .update_fall_distance(
-                    height_difference,
-                    packet.ground,
-                    self.gamemode.load() == GameMode::Creative,
-                )
+                // // Player is falling down fast, we should account for that
+                // let max_speed = if self.fall_flying { 300.0 } else { 100.0 };
+
+                // // teleport when more than 8 blocks (i guess 8 blocks)
+                // // TODO: REPLACE * 2.0 by movement packets. see vanilla for details
+                // if delta.length_squared() - velocity.length_squared() > max_speed * 2.0 {
+                //     self.teleport(x, y, z, yaw, pitch);
+                //     return;
+                // }
+                // send new position to all other players
+
+                world
+                    .broadcast_packet_except(
+                        &[self.gameprofile.id],
+                        &CUpdateEntityPosRot::new(
+                            entity_id.into(),
+                            Vector3::new(
+                                x.mul_add(4096.0, -(last_pos.x * 4096.0)) as i16,
+                                y.mul_add(4096.0, -(last_pos.y * 4096.0)) as i16,
+                                z.mul_add(4096.0, -(last_pos.z * 4096.0)) as i16,
+                            ),
+                            yaw as u8,
+                            pitch as u8,
+                            packet.ground,
+                        ),
+                    )
+                    .await;
+                world
+                    .broadcast_packet_except(
+                        &[self.gameprofile.id],
+                        &CHeadRot::new(entity_id.into(), yaw as u8),
+                    )
+                    .await;
+                if !self.abilities.lock().await.flying {
+                    self.living_entity
+                        .update_fall_distance(
+                            height_difference,
+                            packet.ground,
+                            self.gamemode.load() == GameMode::Creative,
+                        )
+                        .await;
+                }
+                chunker::update_position(self).await;
+                self.progress_motion(Vector3::new(
+                    position.x - last_pos.x,
+                    position.y - last_pos.y,
+                    position.z - last_pos.z,
+                ))
                 .await;
-        }
-        chunker::update_position(self).await;
-        self.progress_motion(Vector3::new(
-            position.x - last_pos.x,
-            position.y - last_pos.y,
-            position.z - last_pos.z,
-        ))
-        .await;
+            }
+
+            'cancelled: {
+                self.client.send_packet(&CPlayerPosition::new(
+                    self.teleport_id_count.load(std::sync::atomic::Ordering::Relaxed).into(),
+                    self.living_entity.entity.pos.load(),
+                    Vector3::new(0.0, 0.0, 0.0),
+                    self.living_entity.entity.yaw.load(),
+                    self.living_entity.entity.pitch.load(),
+                    &[],
+                )).await;
+            }
+        }}
     }
 
     pub async fn handle_rotation(&self, rotation: SPlayerRotation) {
