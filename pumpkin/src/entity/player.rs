@@ -781,6 +781,7 @@ impl Player {
             };
 
             'after: {
+                let position = event.to;
                 let i = self
                     .teleport_id_count
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);

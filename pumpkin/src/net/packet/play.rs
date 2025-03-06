@@ -283,6 +283,7 @@ impl Player {
             };
 
             'after: {
+                let position = event.to;
                 let entity = &self.living_entity.entity;
                 let last_pos = entity.pos.load();
                 self.living_entity.set_pos(position);
@@ -428,7 +429,8 @@ impl Player {
             };
 
             'after: {
-                let command_clone = command.command.clone();
+                let command = event.command;
+                let command_clone = command.clone();
                 // Some commands can take a long time to execute. If they do, they block packet processing for the player
                 // Thats why we will spawn a task instead
                 tokio::spawn(async move {
@@ -446,7 +448,7 @@ impl Player {
                     log::info!(
                         "Player ({}): executed command /{}",
                         self.gameprofile.name,
-                        command.command
+                        command
                     );
                 }
             }
@@ -670,7 +672,7 @@ impl Player {
             PlayerChatEvent::new(self.clone(), message.clone(), vec![]);
 
             'after: {
-                log::info!("<chat>{}: {}", gameprofile.name, message);
+                log::info!("<chat>{}: {}", gameprofile.name, event.message);
 
                 let entity = &self.living_entity.entity;
                 if event.recipients.is_empty() {
