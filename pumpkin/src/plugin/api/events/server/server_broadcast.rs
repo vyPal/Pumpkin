@@ -18,10 +18,11 @@ impl ServerBroadcastEvent {
     ///
     /// # Arguments
     /// - `message`: The message being broadcast.
-    /// - `sender`: The name of the sender as a TextComponent.
+    /// - `sender`: The name of the sender as a `TextComponent`.
     ///
     /// # Returns
     /// A new instance of `ServerBroadcastEvent`.
+    #[must_use]
     pub fn new(message: TextComponent, sender: TextComponent) -> Self {
         Self {
             message,

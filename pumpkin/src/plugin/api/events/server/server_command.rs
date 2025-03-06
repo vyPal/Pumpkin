@@ -18,6 +18,7 @@ impl ServerCommandEvent {
     ///
     /// # Returns
     /// A new instance of `ServerCommandEvent`.
+    #[must_use]
     pub fn new(command: String) -> Self {
         Self {
             command,

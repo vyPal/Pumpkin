@@ -20,6 +20,7 @@ impl ServerPluginEnableEvent {
     ///
     /// # Returns
     /// A new instance of `ServerPluginEnableEvent`.
+    #[must_use]
     pub fn new(metadata: PluginMetadata<'static>) -> Self {
         Self {
             metadata,

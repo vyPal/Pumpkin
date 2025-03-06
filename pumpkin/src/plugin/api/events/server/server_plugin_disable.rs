@@ -20,6 +20,7 @@ impl ServerPluginDisableEvent {
     ///
     /// # Returns
     /// A new instance of `ServerPluginDisableEvent`.
+    #[must_use]
     pub fn new(metadata: PluginMetadata<'static>) -> Self {
         Self {
             metadata,

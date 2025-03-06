@@ -275,12 +275,11 @@ impl Player {
         );
 
         send_cancellable! {{
-            PlayerMoveEvent {
-                player: self.clone(),
-                from: self.living_entity.entity.pos.load(),
-                to: position,
-                cancelled: false,
-            };
+            PlayerMoveEvent::new(
+                self.clone(),
+                self.living_entity.entity.pos.load(),
+                position,
+            );
 
             'after: {
                 let position = event.to;
@@ -364,16 +363,27 @@ impl Player {
             }
 
             'cancelled: {
-                self.client.send_packet(&CPlayerPosition::new(
-                    self.teleport_id_count.load(std::sync::atomic::Ordering::Relaxed).into(),
-                    self.living_entity.entity.pos.load(),
-                    Vector3::new(0.0, 0.0, 0.0),
-                    self.living_entity.entity.yaw.load(),
-                    self.living_entity.entity.pitch.load(),
-                    &[],
-                )).await;
+                self.force_tp(position).await;
             }
         }}
+    }
+
+    pub async fn force_tp(&self, position: Vector3<f64>) {
+        let teleport_id = self
+            .teleport_id_count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
+        *self.awaiting_teleport.lock().await = Some((teleport_id.into(), position));
+        self.client
+            .send_packet(&CPlayerPosition::new(
+                teleport_id.into(),
+                self.living_entity.entity.pos.load(),
+                Vector3::new(0.0, 0.0, 0.0),
+                self.living_entity.entity.yaw.load(),
+                self.living_entity.entity.pitch.load(),
+                &[],
+            ))
+            .await;
     }
 
     pub async fn handle_rotation(&self, rotation: SPlayerRotation) {
