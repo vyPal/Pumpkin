@@ -27,9 +27,11 @@ use pumpkin_protocol::{
     client::play::{
         CAcknowledgeBlockChange, CActionBar, CCombatDeath, CDisguisedChatMessage, CGameEvent,
         CKeepAlive, CParticle, CPlayDisconnect, CPlayerAbilities, CPlayerInfoUpdate,
-        CPlayerPosition, CRespawn, CSetExperience, CSetHealth, CSubtitle, CSystemChatMessage,
-        CTitleText, CUnloadChunk, CUpdateMobEffect, GameEvent, MetaDataType, PlayerAction,
+        CPlayerPosition, CRespawn, CSetExperience, CSetHealth, CStopSound, CSubtitle,
+        CSystemChatMessage, CTitleText, CUnloadChunk, CUpdateMobEffect, GameEvent, MetaDataType,
+        PlayerAction,
     },
+    codec::identifier::Identifier,
     server::play::{
         SChatCommand, SChatMessage, SClientCommand, SClientInformationPlay, SClientTickEnd,
         SCommandSuggestion, SConfirmTeleport, SInteract, SPickItemFromBlock, SPlayerAbilities,
@@ -418,6 +420,18 @@ impl Player {
                 pitch,
                 seed,
             ))
+            .await;
+    }
+
+    /// Stops a sound playing on the client.
+    ///
+    /// # Arguments
+    ///
+    /// * `sound_id`: An optional `Identifier` specifying the sound to stop. If `None`, all sounds in the specified category (if any) will be stopped.
+    /// * `category`: An optional `SoundCategory` specifying the sound category to stop. If `None`, all sounds with the specified identifier (if any) will be stopped.
+    pub async fn stop_sound(&self, sound_id: Option<Identifier>, category: Option<SoundCategory>) {
+        self.client
+            .send_packet(&CStopSound::new(sound_id, category))
             .await;
     }
 
@@ -1059,7 +1073,7 @@ impl Player {
             .create_entity(self.living_entity.entity.pos.load(), EntityType::ITEM);
 
         // TODO: Merge stacks together
-        let item_entity = Arc::new(ItemEntity::new(entity, item_id, count));
+        let item_entity = Arc::new(ItemEntity::new(entity, item_id, count).await);
         self.world().await.spawn_entity(item_entity.clone()).await;
         item_entity.send_meta_packet().await;
     }
