@@ -28,7 +28,8 @@ use pumpkin_inventory::player::{
 };
 use pumpkin_macros::{block_entity, send_cancellable};
 use pumpkin_protocol::client::play::{
-    CBlockEntityData, COpenSignEditor, CSetContainerSlot, CSetHeldItem, EquipmentSlot,
+    CBlockEntityData, COpenSignEditor, CPlayerPosition, CSetContainerSlot, CSetHeldItem,
+    EquipmentSlot,
 };
 use pumpkin_protocol::codec::slot::Slot;
 use pumpkin_protocol::codec::var_int::VarInt;
@@ -235,7 +236,14 @@ impl Player {
             }
 
             'cancelled: {
-                // TODO: Tell the player that their movement was cancelled
+                self.client.send_packet(&CPlayerPosition::new(
+                    self.teleport_id_count.load(std::sync::atomic::Ordering::Relaxed).into(),
+                    self.living_entity.entity.pos.load(),
+                    Vector3::new(0.0, 0.0, 0.0),
+                    self.living_entity.entity.yaw.load(),
+                    self.living_entity.entity.pitch.load(),
+                    &[],
+                )).await;
             }
         }}
     }
