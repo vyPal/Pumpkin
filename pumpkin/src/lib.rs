@@ -6,7 +6,9 @@ use crate::server::{Server, ticker::Ticker};
 use log::{Level, LevelFilter, Log};
 use net::PacketHandlerState;
 use plugin::PluginManager;
+use plugin::server::server_command::ServerCommandEvent;
 use pumpkin_config::{ADVANCED_CONFIG, BASIC_CONFIG};
+use pumpkin_macros::send_cancellable;
 use pumpkin_util::text::TextComponent;
 use rustyline_async::{Readline, ReadlineEvent};
 use std::collections::HashMap;
@@ -422,12 +424,18 @@ fn setup_console(rl: Readline, server: Arc<Server>) -> JoinHandle<()> {
 
             match result {
                 Ok(ReadlineEvent::Line(line)) => {
-                    let dispatcher = server.command_dispatcher.read().await;
+                    send_cancellable! {{
+                        ServerCommandEvent::new(line.clone());
 
-                    dispatcher
-                        .handle_command(&mut command::CommandSender::Console, &server, &line)
-                        .await;
-                    rl.add_history_entry(line).unwrap();
+                        'after: {
+                            let dispatcher = server.command_dispatcher.read().await;
+
+                            dispatcher
+                                .handle_command(&mut command::CommandSender::Console, &server, &line)
+                                .await;
+                            rl.add_history_entry(line).unwrap();
+                        }
+                    }}
                 }
                 Ok(ReadlineEvent::Interrupted) => {
                     stop_server();
