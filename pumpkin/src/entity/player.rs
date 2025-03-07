@@ -28,8 +28,8 @@ use pumpkin_protocol::{
         CAcknowledgeBlockChange, CActionBar, CCombatDeath, CDisguisedChatMessage, CGameEvent,
         CKeepAlive, CParticle, CPlayDisconnect, CPlayerAbilities, CPlayerInfoUpdate,
         CPlayerPosition, CRespawn, CSetExperience, CSetHealth, CStopSound, CSubtitle,
-        CSystemChatMessage, CTitleText, CUnloadChunk, CUpdateMobEffect, GameEvent, MetaDataType,
-        PlayerAction,
+        CSystemChatMessage, CTeleportEntity, CTitleText, CUnloadChunk, CUpdateMobEffect, GameEvent,
+        MetaDataType, PlayerAction,
     },
     codec::identifier::Identifier,
     server::play::{
@@ -779,7 +779,7 @@ impl Player {
     }
 
     /// Yaw and Pitch in degrees
-    /// Rarly used, For example when waking up player from bed or first time spawn. Otherwise entity teleport is used
+    /// Rarly used, For example when waking up player from bed or first time spawn. Otherwise the teleport method should be used
     /// Player should respond with the `SConfirmTeleport` packet
     pub async fn request_teleport(self: Arc<Self>, position: Vector3<f64>, yaw: f32, pitch: f32) {
         // this is the ultra special magic code used to create the teleport id
@@ -815,6 +815,43 @@ impl Player {
                         &[],
                     ))
                     .await;
+            }
+        }}
+    }
+
+    /// Teleports the player to a different position with an optional yaw and pitch.
+    /// This method is identical to `entity.teleport()` but emits a `PlayerTeleportEvent` instead of a `EntityTeleportEvent`.
+    pub async fn teleport(self: Arc<Self>, position: Vector3<f64>, yaw: f32, pitch: f32) {
+        send_cancellable! {{
+            PlayerTeleportEvent {
+                player: self.clone(),
+                from: self.living_entity.entity.pos.load(),
+                to: position,
+                cancelled: false,
+            };
+
+            'after: {
+                self.living_entity
+                    .entity
+                    .world
+                    .read()
+                    .await
+                    .broadcast_packet_all(&CTeleportEntity::new(
+                        self.living_entity.entity.entity_id.into(),
+                        position,
+                        Vector3::new(0.0, 0.0, 0.0),
+                        yaw,
+                        pitch,
+                        // TODO
+                        &[],
+                        self.living_entity
+                            .entity
+                            .on_ground
+                            .load(std::sync::atomic::Ordering::SeqCst),
+                    ))
+                    .await;
+                self.living_entity.entity.set_pos(position);
+                self.living_entity.entity.set_rotation(yaw, pitch);
             }
         }}
     }
