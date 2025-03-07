@@ -831,6 +831,7 @@ impl Player {
             };
 
             'after: {
+                let position = event.to;
                 self.living_entity
                     .entity
                     .world
