@@ -663,7 +663,7 @@ impl Player {
             .await;
     }
 
-    pub async fn handle_chat_message(self: Arc<Self>, chat_message: SChatMessage) {
+    pub async fn handle_chat_message(self: &Arc<Self>, chat_message: SChatMessage) {
         let message = chat_message.message;
         if message.len() > 256 {
             self.kick(TextComponent::text("Oversized message")).await;
@@ -818,10 +818,7 @@ impl Player {
                 if self.living_entity.health.load() > 0.0 {
                     return;
                 }
-                self.world()
-                    .await
-                    .respawn_player(&self.clone(), false)
-                    .await;
+                self.world().await.respawn_player(self, false).await;
 
                 // Restore abilities based on gamemode after respawn
                 let mut abilities = self.abilities.lock().await;
@@ -920,7 +917,7 @@ impl Player {
 
     #[expect(clippy::too_many_lines)]
     pub async fn handle_player_action(
-        self: Arc<Self>,
+        self: &Arc<Self>,
         player_action: SPlayerAction,
         server: &Server,
     ) {
@@ -945,7 +942,7 @@ impl Player {
                     let state = world.get_block_state(&location).await.unwrap();
 
                     if let Some(held) = self.inventory.lock().await.held_item() {
-                        if !server.item_registry.can_mine(&held.item, &self) {
+                        if !server.item_registry.can_mine(&held.item, self) {
                             self.client
                                 .send_packet(&CBlockUpdate::new(
                                     &location,
@@ -967,7 +964,7 @@ impl Player {
                             .await;
                         server
                             .block_registry
-                            .broken(block, &self, location, server)
+                            .broken(block, self, location, server)
                             .await;
                         return;
                     }
@@ -976,13 +973,13 @@ impl Player {
                         std::sync::atomic::Ordering::Relaxed,
                     );
                     if !state.air {
-                        let speed = block::calc_block_breaking(&self, state, &block.name).await;
+                        let speed = block::calc_block_breaking(self, state, &block.name).await;
                         // Instant break
                         if speed >= 1.0 {
                             world.break_block(&location, Some(self.clone()), true).await;
                             server
                                 .block_registry
-                                .broken(block, &self, location, server)
+                                .broken(block, self, location, server)
                                 .await;
                         } else {
                             self.mining
@@ -1041,7 +1038,7 @@ impl Player {
                         }
                         server
                             .block_registry
-                            .broken(block, &self, location, server)
+                            .broken(block, self, location, server)
                             .await;
                     }
                     self.update_sequence(player_action.sequence.0);

@@ -315,11 +315,11 @@ impl Player {
 
     /// Removes the Player out of the current World
     #[allow(unused_variables)]
-    pub async fn remove(self: Arc<Self>) {
+    pub async fn remove(self: &Arc<Self>) {
         let world = self.world().await;
         self.cancel_tasks.notify_waiters();
 
-        world.remove_player(self.clone(), true).await;
+        world.remove_player(self, true).await;
 
         let cylindrical = self.watched_section.load();
 
@@ -794,7 +794,7 @@ impl Player {
 
     /// Teleports the player to a different world or dimension with an optional position, yaw, and pitch.
     pub async fn teleport_world(
-        self: Arc<Self>,
+        self: &Arc<Self>,
         new_world: Arc<World>,
         position: Option<Vector3<f64>>,
         yaw: Option<f32>,
@@ -841,7 +841,7 @@ impl Player {
 
                 self.set_client_loaded(false);
                 let uuid = self.gameprofile.id;
-                current_world.remove_player(self.clone(), false).await;
+                current_world.remove_player(self, false).await;
                 *self.living_entity.entity.world.write().await = new_world.clone();
                 new_world.players.write().await.insert(uuid, self.clone());
                 self.unload_watched_chunks(&current_world).await;
@@ -872,7 +872,7 @@ impl Player {
                 self.clone().request_teleport(position, yaw, pitch).await;
                 self.living_entity.last_pos.store(position);
 
-                new_world.send_world_info(&self, position, yaw, pitch).await;
+                new_world.send_world_info(self, position, yaw, pitch).await;
             }
         }}
     }
@@ -880,7 +880,7 @@ impl Player {
     /// Yaw and Pitch in degrees
     /// Rarly used, For example when waking up player from bed or first time spawn. Otherwise the teleport method should be used
     /// Player should respond with the `SConfirmTeleport` packet
-    pub async fn request_teleport(self: Arc<Self>, position: Vector3<f64>, yaw: f32, pitch: f32) {
+    pub async fn request_teleport(self: &Arc<Self>, position: Vector3<f64>, yaw: f32, pitch: f32) {
         // this is the ultra special magic code used to create the teleport id
         // This returns the old value
         // This operation wraps around on overflow.
@@ -920,7 +920,7 @@ impl Player {
 
     /// Teleports the player to a different position with an optional yaw and pitch.
     /// This method is identical to `entity.teleport()` but emits a `PlayerTeleportEvent` instead of a `EntityTeleportEvent`.
-    pub async fn teleport(self: Arc<Self>, position: Vector3<f64>, yaw: f32, pitch: f32) {
+    pub async fn teleport(self: &Arc<Self>, position: Vector3<f64>, yaw: f32, pitch: f32) {
         send_cancellable! {{
             PlayerTeleportEvent {
                 player: self.clone(),
@@ -1058,7 +1058,7 @@ impl Player {
             .await;
     }
 
-    pub async fn set_gamemode(self: Arc<Self>, gamemode: GameMode) {
+    pub async fn set_gamemode(self: &Arc<Self>, gamemode: GameMode) {
         // We could send the same gamemode without problems. But why waste bandwidth ?
         assert_ne!(
             self.gamemode.load(),
@@ -1442,9 +1442,7 @@ impl Player {
                     .await;
             }
             SChatMessage::PACKET_ID => {
-                self.clone()
-                    .handle_chat_message(SChatMessage::read(bytebuf)?)
-                    .await;
+                self.handle_chat_message(SChatMessage::read(bytebuf)?).await;
             }
             SClientInformationPlay::PACKET_ID => {
                 self.handle_client_information(SClientInformationPlay::read(bytebuf)?)
@@ -1488,8 +1486,7 @@ impl Player {
                     .await;
             }
             SPlayerAction::PACKET_ID => {
-                self.clone()
-                    .handle_player_action(SPlayerAction::read(bytebuf)?, server)
+                self.handle_player_action(SPlayerAction::read(bytebuf)?, server)
                     .await;
             }
             SPlayerCommand::PACKET_ID => {
