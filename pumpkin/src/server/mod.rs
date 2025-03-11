@@ -1,5 +1,3 @@
-use crate::block::default_block_properties_manager;
-use crate::block::properties::BlockPropertiesManager;
 use crate::block::registry::BlockRegistry;
 use crate::command::commands::default_dispatcher;
 use crate::command::commands::defaultgamemode::DefaultGamemode;
@@ -15,6 +13,7 @@ use crate::{
 use connection_cache::{CachedBranding, CachedStatus};
 use key_store::KeyStore;
 use pumpkin_config::{ADVANCED_CONFIG, BASIC_CONFIG};
+use pumpkin_data::block::Block;
 use pumpkin_inventory::drag_handler::DragHandler;
 use pumpkin_inventory::{Container, OpenContainer};
 use pumpkin_macros::send_cancellable;
@@ -24,7 +23,6 @@ use pumpkin_registry::{DimensionType, Registry};
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_util::math::vector2::Vector2;
 use pumpkin_util::text::TextComponent;
-use pumpkin_world::block::registry::Block;
 use pumpkin_world::dimension::Dimension;
 use rand::prelude::SliceRandom;
 use std::collections::HashMap;
@@ -56,8 +54,6 @@ pub struct Server {
     pub block_registry: Arc<BlockRegistry>,
     /// Item Behaviour
     pub item_registry: Arc<ItemRegistry>,
-    /// Creates and stores block property registry and managed behaviours.
-    pub block_properties_manager: Arc<BlockPropertiesManager>,
     /// Manages multiple worlds within the server.
     pub worlds: RwLock<Vec<Arc<World>>>,
     // All the dimensions that exists on the server,
@@ -120,7 +116,6 @@ impl Server {
             command_dispatcher,
             block_registry: super::block::default_registry(),
             item_registry: super::item::items::default_registry(),
-            block_properties_manager: default_block_properties_manager(),
             auth_client,
             key_store: KeyStore::new(),
             server_listing: Mutex::new(CachedStatus::new()),
