@@ -967,7 +967,7 @@ impl Player {
                             .broken(
                                 Arc::clone(world),
                                 &block,
-                                &self,
+                                self,
                                 location,
                                 server,
                                 broken_state,
@@ -980,7 +980,7 @@ impl Player {
                         std::sync::atomic::Ordering::Relaxed,
                     );
                     if !state.air {
-                        let speed = block::calc_block_breaking(&self, &state, block.name).await;
+                        let speed = block::calc_block_breaking(self, &state, block.name).await;
                         // Instant break
                         if speed >= 1.0 {
                             let broken_state = world.get_block_state(&location).await.unwrap();
@@ -992,7 +992,7 @@ impl Player {
                                 .broken(
                                     Arc::clone(world),
                                     &block,
-                                    &self,
+                                    self,
                                     location,
                                     server,
                                     broken_state,
@@ -1061,7 +1061,7 @@ impl Player {
                             .broken(
                                 Arc::clone(world),
                                 &block,
-                                &self,
+                                self,
                                 location,
                                 server,
                                 broken_state,
