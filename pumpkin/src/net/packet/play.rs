@@ -687,23 +687,23 @@ impl Player {
 
                 let entity = &self.living_entity.entity;
                 if event.recipients.is_empty() {
-                let world = &entity.world.read().await;
-                world
-                    .broadcast_packet_all(&CPlayerChatMessage::new(
-                        gameprofile.id,
-                        1.into(),
-                        chat_message.signature.as_deref(),
-                        &event.message,
-                        chat_message.timestamp,
-                        chat_message.salt,
-                        &[],
-                        Some(TextComponent::text(event.message.clone())),
-                        FilterType::PassThrough,
-                        (CHAT + 1).into(),
-                        TextComponent::text(gameprofile.name.clone()),
-                        None,
-                    ))
-                    .await;
+                    let world = &entity.world.read().await;
+                    world
+                        .broadcast_packet_all(&CPlayerChatMessage::new(
+                            gameprofile.id,
+                            1.into(),
+                            chat_message.signature.as_deref(),
+                            &event.message,
+                            chat_message.timestamp,
+                            chat_message.salt,
+                            &[],
+                            Some(TextComponent::text(event.message.clone())),
+                            FilterType::PassThrough,
+                            (CHAT + 1).into(),
+                            TextComponent::text(gameprofile.name.clone()),
+                            None,
+                        ))
+                        .await;
                 } else {
                     for recipient in event.recipients {
                         recipient.client.send_packet(
