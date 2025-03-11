@@ -165,7 +165,7 @@ impl Server {
     ///
     /// You still have to spawn the Player in the World to make then to let them Join and make them Visible
     pub async fn add_player(&self, client: Arc<Client>) -> Option<(Arc<Player>, Arc<World>)> {
-        let gamemode = BASIC_CONFIG.default_gamemode;
+        let gamemode = self.defaultgamemode.lock().await.gamemode;
         // Basically the default world
         // TODO: select default from config
         let world = &self.worlds.read().await[0];
