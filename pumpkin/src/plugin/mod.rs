@@ -1,11 +1,7 @@
 pub mod api;
 
-use api::server::{
-    server_plugin_disable::ServerPluginDisableEvent, server_plugin_enable::ServerPluginEnableEvent,
-};
 pub use api::*;
 use async_trait::async_trait;
-use pumpkin_macros::send_cancellable;
 use std::{collections::HashMap, fs, path::Path, sync::Arc};
 use tokio::sync::RwLock;
 
@@ -297,23 +293,14 @@ impl PluginManager {
             .find(|(metadata, _, _, _)| metadata.name == name);
 
         if let Some((metadata, plugin, _, loaded)) = plugin {
-            send_cancellable! {{
-                ServerPluginDisableEvent {
-                    metadata: metadata.clone(),
-                    cancelled: false,
-                };
-
-                'after: {
-                    let context = Context::new(
-                        metadata.clone(),
-                        self.server.clone().expect("Server not set"),
-                        self.handlers.clone(),
-                    );
-                    let res = plugin.on_unload(&context).await;
-                    res?;
-                    *loaded = false;
-                }
-            }}
+            let context = Context::new(
+                metadata.clone(),
+                self.server.clone().expect("Server not set"),
+                self.handlers.clone(),
+            );
+            let res = plugin.on_unload(&context).await;
+            res?;
+            *loaded = false;
             Ok(())
         } else {
             Err(format!("Plugin {name} not found"))
