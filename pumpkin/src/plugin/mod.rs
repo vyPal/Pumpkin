@@ -223,29 +223,15 @@ impl PluginManager {
             self.handlers.clone(),
         );
         let mut plugin_box = plugin_fn();
-        send_cancellable! {{
-            ServerPluginEnableEvent {
-                metadata: metadata.clone(),
-                cancelled: false,
-            };
+        let res = plugin_box.on_load(&context).await;
+        let mut loaded = true;
+        if let Err(e) = res {
+            log::error!("Error loading plugin: {}", e);
+            loaded = false;
+        }
 
-            'after: {
-                let res = plugin_box.on_load(&context).await;
-                let mut loaded = true;
-                if let Err(e) = res {
-                    log::error!("Error loading plugin: {}", e);
-                    loaded = false;
-                }
-
-                self.plugins
-                    .push((metadata.clone(), plugin_box, library, loaded));
-            }
-
-            'cancelled: {
-                self.plugins
-                    .push((metadata.clone(), plugin_box, library, false));
-            }
-        }}
+        self.plugins
+            .push((metadata.clone(), plugin_box, library, loaded));
 
         Ok(())
     }
@@ -282,23 +268,15 @@ impl PluginManager {
                 return Err(format!("Plugin {name} is already loaded"));
             }
 
-            send_cancellable! {{
-                ServerPluginEnableEvent {
-                    metadata: metadata.clone(),
-                    cancelled: false,
-                };
+            let context = Context::new(
+                metadata.clone(),
+                self.server.clone().expect("Server not set"),
+                self.handlers.clone(),
+            );
+            let res = plugin.on_load(&context).await;
+            res?;
+            *loaded = true;
 
-                'after: {
-                    let context = Context::new(
-                        metadata.clone(),
-                        self.server.clone().expect("Server not set"),
-                        self.handlers.clone(),
-                    );
-                    let res = plugin.on_load(&context).await;
-                    res?;
-                    *loaded = true;
-                }
-            }}
             Ok(())
         } else {
             Err(format!("Plugin {name} not found"))
