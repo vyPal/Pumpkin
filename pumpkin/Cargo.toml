@@ -14,6 +14,7 @@ LegalCopyright = "Copyright © 2025 Aleksander Medvedev"
 # Required to expose pumpkin plugin API
 [lib]
 doctest = false
+crate-type = ["dylib", "rlib"]
 
 [dependencies]
 # pumpkin
