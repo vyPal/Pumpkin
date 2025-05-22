@@ -20,9 +20,9 @@ use super::{Event, EventPriority, PluginMetadata};
 /// - `server`: A reference to the server on which the plugin operates.
 /// - `handlers`: A map of event handlers, protected by a read-write lock for safe access across threads.
 pub struct Context {
-    metadata: PluginMetadata<'static>,
+    pub metadata: PluginMetadata<'static>,
     pub server: Arc<Server>,
-    handlers: Arc<RwLock<HandlerMap>>,
+    pub handlers: Arc<RwLock<HandlerMap>>,
 }
 impl Context {
     /// Creates a new instance of `Context`.
