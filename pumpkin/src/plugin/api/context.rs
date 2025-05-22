@@ -5,7 +5,6 @@ use pumpkin_util::PermissionLvl;
 use tokio::sync::RwLock;
 
 use crate::{
-    entity::player::Player,
     plugin::{EventHandler, HandlerMap, TypedEventHandler},
     server::Server,
 };
@@ -58,17 +57,6 @@ impl Context {
             fs::create_dir_all(&path).unwrap();
         }
         path
-    }
-
-    /// Asynchronously retrieves a player by their name.
-    ///
-    /// # Arguments
-    /// - `player_name`: The name of the player to retrieve.
-    ///
-    /// # Returns
-    /// An optional reference to the player if found, or `None` if not.
-    pub async fn get_player_by_name(&self, player_name: String) -> Option<Arc<Player>> {
-        self.server.get_player_by_name(&player_name).await
     }
 
     /// Asynchronously registers a command with the server.
