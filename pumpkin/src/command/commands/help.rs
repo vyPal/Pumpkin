@@ -139,7 +139,7 @@ impl CommandExecutor for BaseHelpExecutor {
                 if let Some(perm) = dispatcher.permissions.get(&tree.names[0]) {
                     return sender.has_permission(perm.as_str()).await;
                 }
-                return false;
+                false
             })
             .collect()
             .await;

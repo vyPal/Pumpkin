@@ -82,15 +82,15 @@ impl Context {
         permission_node: &str,
     ) {
         let plugin_name = self.metadata.name;
-        let full_permission_node = if !permission_node.contains(':') {
-            format!("{}:{}", plugin_name, permission_node)
-        } else {
+        let full_permission_node = if permission_node.contains(':') {
             permission_node.to_string()
+        } else {
+            format!("{plugin_name}:{permission_node}")
         };
 
         {
             let mut dispatcher_lock = self.server.command_dispatcher.write().await;
-            dispatcher_lock.register(tree, full_permission_node);
+            dispatcher_lock.register(tree, full_permission_node.as_str());
         };
 
         for world in self.server.worlds.read().await.iter() {
@@ -124,7 +124,7 @@ impl Context {
         // Ensure the permission has the correct namespace
         let plugin_name = self.metadata.name;
 
-        if !permission.node.starts_with(&format!("{}:", plugin_name)) {
+        if !permission.node.starts_with(&format!("{plugin_name}:")) {
             return Err(format!(
                 "Permission {} must use the plugin's namespace ({})",
                 permission.node, plugin_name
@@ -140,12 +140,8 @@ impl Context {
         let permission_manager = PERMISSION_MANAGER.read().await;
 
         // If the player isn't online, we need to find their op level
-        let player_op_level =
-            if let Some(player) = self.server.get_player_by_uuid(player_uuid.clone()).await {
-                player.permission_lvl.load()
-            } else {
-                PermissionLvl::Zero // Default to zero if player not found
-            };
+        let player_op_level = (self.server.get_player_by_uuid(*player_uuid).await)
+            .map_or(PermissionLvl::Zero, |player| player.permission_lvl.load());
 
         permission_manager
             .has_permission(player_uuid, permission, player_op_level)

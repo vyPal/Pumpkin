@@ -411,8 +411,9 @@ impl CommandDispatcher {
     }
 
     /// Register a command with the dispatcher.
-    pub(crate) fn register(&mut self, tree: CommandTree, permission: String) {
+    pub(crate) fn register(&mut self, tree: CommandTree, permission: &str) {
         let mut names = tree.names.iter();
+        let permission = permission.to_string();
 
         let primary_name = names.next().expect("at least one name must be provided");
 
@@ -456,6 +457,6 @@ mod test {
     async fn test_dynamic_command() {
         let mut dispatcher = default_dispatcher().await;
         let tree = CommandTree::new(["test"], "test_desc");
-        dispatcher.register(tree, "minecraft:test".to_string());
+        dispatcher.register(tree, "minecraft:test");
     }
 }

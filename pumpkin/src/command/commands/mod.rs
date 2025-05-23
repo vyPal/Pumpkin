@@ -59,176 +59,71 @@ pub async fn default_dispatcher() -> CommandDispatcher {
     register_permissions().await;
 
     // Zero
-    dispatcher.register(
-        pumpkin::init_command_tree(),
-        "pumpkin:command.pumpkin".to_string(),
-    );
-    dispatcher.register(
-        help::init_command_tree(),
-        "minecraft:command.help".to_string(),
-    );
-    dispatcher.register(
-        list::init_command_tree(),
-        "minecraft:command.list".to_string(),
-    );
-    dispatcher.register(
-        transfer::init_command_tree(),
-        "minecraft:command.transfer".to_string(),
-    );
-    dispatcher.register(me::init_command_tree(), "minecraft:command.me".to_string());
-    dispatcher.register(
-        msg::init_command_tree(),
-        "minecraft:command.msg".to_string(),
-    );
+    dispatcher.register(pumpkin::init_command_tree(), "pumpkin:command.pumpkin");
+    dispatcher.register(help::init_command_tree(), "minecraft:command.help");
+    dispatcher.register(list::init_command_tree(), "minecraft:command.list");
+    dispatcher.register(transfer::init_command_tree(), "minecraft:command.transfer");
+    dispatcher.register(me::init_command_tree(), "minecraft:command.me");
+    dispatcher.register(msg::init_command_tree(), "minecraft:command.msg");
     // Two
-    dispatcher.register(
-        kill::init_command_tree(),
-        "minecraft:command.kill".to_string(),
-    );
+    dispatcher.register(kill::init_command_tree(), "minecraft:command.kill");
     dispatcher.register(
         worldborder::init_command_tree(),
-        "minecraft:command.worldborder".to_string(),
+        "minecraft:command.worldborder",
     );
-    dispatcher.register(
-        effect::init_command_tree(),
-        "minecraft:command.effect".to_string(),
-    );
-    dispatcher.register(
-        teleport::init_command_tree(),
-        "minecraft:command.teleport".to_string(),
-    );
-    dispatcher.register(
-        time::init_command_tree(),
-        "minecraft:command.time".to_string(),
-    );
-    dispatcher.register(
-        give::init_command_tree(),
-        "minecraft:command.give".to_string(),
-    );
-    dispatcher.register(
-        clear::init_command_tree(),
-        "minecraft:command.clear".to_string(),
-    );
-    dispatcher.register(
-        setblock::init_command_tree(),
-        "minecraft:command.setblock".to_string(),
-    );
-    dispatcher.register(
-        seed::init_command_tree(),
-        "minecraft:command.seed".to_string(),
-    );
-    dispatcher.register(
-        fill::init_command_tree(),
-        "minecraft:command.fill".to_string(),
-    );
+    dispatcher.register(effect::init_command_tree(), "minecraft:command.effect");
+    dispatcher.register(teleport::init_command_tree(), "minecraft:command.teleport");
+    dispatcher.register(time::init_command_tree(), "minecraft:command.time");
+    dispatcher.register(give::init_command_tree(), "minecraft:command.give");
+    dispatcher.register(clear::init_command_tree(), "minecraft:command.clear");
+    dispatcher.register(setblock::init_command_tree(), "minecraft:command.setblock");
+    dispatcher.register(seed::init_command_tree(), "minecraft:command.seed");
+    dispatcher.register(fill::init_command_tree(), "minecraft:command.fill");
     dispatcher.register(
         playsound::init_command_tree(),
-        "minecraft:command.playsound".to_string(),
+        "minecraft:command.playsound",
     );
-    dispatcher.register(
-        tellraw::init_command_tree(),
-        "minecraft:command.tellraw".to_string(),
-    );
-    dispatcher.register(
-        title::init_command_tree(),
-        "minecraft:command.title".to_string(),
-    );
-    dispatcher.register(
-        summon::init_command_tree(),
-        "minecraft:command.summon".to_string(),
-    );
+    dispatcher.register(tellraw::init_command_tree(), "minecraft:command.tellraw");
+    dispatcher.register(title::init_command_tree(), "minecraft:command.title");
+    dispatcher.register(summon::init_command_tree(), "minecraft:command.summon");
     dispatcher.register(
         experience::init_command_tree(),
-        "minecraft:command.experience".to_string(),
+        "minecraft:command.experience",
     );
-    dispatcher.register(
-        weather::init_command_tree(),
-        "minecraft:command.weather".to_string(),
-    );
-    dispatcher.register(
-        particle::init_command_tree(),
-        "minecraft:command.particle".to_string(),
-    );
-    dispatcher.register(
-        damage::init_command_tree(),
-        "minecraft:command.damage".to_string(),
-    );
-    dispatcher.register(
-        bossbar::init_command_tree(),
-        "minecraft:command.bossbar".to_string(),
-    );
-    dispatcher.register(
-        say::init_command_tree(),
-        "minecraft:command.say".to_string(),
-    );
-    dispatcher.register(
-        gamemode::init_command_tree(),
-        "minecraft:command.gamemode".to_string(),
-    );
+    dispatcher.register(weather::init_command_tree(), "minecraft:command.weather");
+    dispatcher.register(particle::init_command_tree(), "minecraft:command.particle");
+    dispatcher.register(damage::init_command_tree(), "minecraft:command.damage");
+    dispatcher.register(bossbar::init_command_tree(), "minecraft:command.bossbar");
+    dispatcher.register(say::init_command_tree(), "minecraft:command.say");
+    dispatcher.register(gamemode::init_command_tree(), "minecraft:command.gamemode");
     dispatcher.register(
         stopsound::init_command_tree(),
-        "minecraft:command.stopsound".to_string(),
+        "minecraft:command.stopsound",
     );
     dispatcher.register(
         defaultgamemode::init_command_tree(),
-        "minecraft:command.defaultgamemode".to_string(),
+        "minecraft:command.defaultgamemode",
     );
     // Three
-    dispatcher.register(
-        op::init_command_tree(),
-        "minecraft:command.op".to_string(),
-    );
-    dispatcher.register(
-        deop::init_command_tree(),
-        "minecraft:command.deop".to_string(),
-    );
-    dispatcher.register(
-        kick::init_command_tree(),
-        "minecraft:command.kick".to_string(),
-    );
-    dispatcher.register(
-        plugin::init_command_tree(),
-        "pumpkin:command.plugin".to_string(),
-    );
-    dispatcher.register(
-        plugins::init_command_tree(),
-        "pumpkin:command.plugins".to_string(),
-    );
-    dispatcher.register(
-        ban::init_command_tree(),
-        "minecraft:command.ban".to_string(),
-    );
-    dispatcher.register(
-        banip::init_command_tree(),
-        "minecraft:command.banip".to_string(),
-    );
-    dispatcher.register(
-        banlist::init_command_tree(),
-        "minecraft:command.banlist".to_string(),
-    );
-    dispatcher.register(
-        pardon::init_command_tree(),
-        "minecraft:command.pardon".to_string(),
-    );
-    dispatcher.register(
-        pardonip::init_command_tree(),
-        "minecraft:command.pardonip".to_string(),
-    );
+    dispatcher.register(op::init_command_tree(), "minecraft:command.op");
+    dispatcher.register(deop::init_command_tree(), "minecraft:command.deop");
+    dispatcher.register(kick::init_command_tree(), "minecraft:command.kick");
+    dispatcher.register(plugin::init_command_tree(), "pumpkin:command.plugin");
+    dispatcher.register(plugins::init_command_tree(), "pumpkin:command.plugins");
+    dispatcher.register(ban::init_command_tree(), "minecraft:command.ban");
+    dispatcher.register(banip::init_command_tree(), "minecraft:command.banip");
+    dispatcher.register(banlist::init_command_tree(), "minecraft:command.banlist");
+    dispatcher.register(pardon::init_command_tree(), "minecraft:command.pardon");
+    dispatcher.register(pardonip::init_command_tree(), "minecraft:command.pardonip");
     dispatcher.register(
         whitelist::init_command_tree(),
-        "minecraft:command.whitelist".to_string(),
+        "minecraft:command.whitelist",
     );
     // Four
-    dispatcher.register(
-        stop::init_command_tree(),
-        "minecraft:command.stop".to_string(),
-    );
+    dispatcher.register(stop::init_command_tree(), "minecraft:command.stop");
 
     #[cfg(feature = "dhat-heap")]
-    dispatcher.register(
-        profile::init_command_tree(),
-        "pumpkin:command.profile".to_string(),
-    );
+    dispatcher.register(profile::init_command_tree(), "pumpkin:command.profile");
 
     dispatcher
 }
@@ -295,6 +190,7 @@ fn register_level_0_permissions(registry: &mut PermissionRegistry) {
         .unwrap();
 }
 
+#[allow(clippy::too_many_lines)]
 fn register_level_2_permissions(registry: &mut PermissionRegistry) {
     // Register permissions for commands with PermissionLvl::Two
     registry
