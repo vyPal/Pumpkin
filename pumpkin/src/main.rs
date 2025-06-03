@@ -40,13 +40,13 @@ use plugin::PluginManager;
 use pumpkin_data::packet::CURRENT_MC_PROTOCOL;
 use std::{
     io::{self},
-    sync::LazyLock,
+    sync::{Arc, LazyLock},
 };
 #[cfg(not(unix))]
 use tokio::signal::ctrl_c;
 #[cfg(unix)]
 use tokio::signal::unix::{SignalKind, signal};
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
 use crate::server::CURRENT_MC_VERSION;
 use pumpkin::{PumpkinServer, SHOULD_STOP, STOP_INTERRUPT, init_log, stop_server};
@@ -72,8 +72,15 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 #[cfg(feature = "dhat-heap")]
 use pumpkin::HEAP_PROFILER;
 
-pub static PLUGIN_MANAGER: LazyLock<Mutex<PluginManager>> =
-    LazyLock::new(|| Mutex::new(PluginManager::new()));
+pub static PLUGIN_MANAGER: LazyLock<Arc<RwLock<PluginManager>>> = LazyLock::new(|| {
+    let manager = PluginManager::new();
+    let arc_manager = Arc::new(RwLock::new(manager));
+    let clone = Arc::clone(&arc_manager);
+    let arc_manager_clone = arc_manager.clone();
+    let mut manager = futures::executor::block_on(arc_manager_clone.write());
+    manager.set_self_ref(clone);
+    arc_manager
+});
 
 const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 const GIT_VERSION: &str = env!("GIT_VERSION");

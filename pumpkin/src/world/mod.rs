@@ -1222,9 +1222,9 @@ impl World {
             let event = PlayerJoinEvent::new(player.clone(), msg_comp);
 
             let event = PLUGIN_MANAGER
-                .lock()
+                .read()
                 .await
-                .fire::<PlayerJoinEvent>(event)
+                .fire(event)
                 .await;
 
             if !event.cancelled {
@@ -1279,9 +1279,9 @@ impl World {
             let event = PlayerLeaveEvent::new(player.clone(), msg_comp);
 
             let event = PLUGIN_MANAGER
-                .lock()
+                .read()
                 .await
-                .fire::<PlayerLeaveEvent>(event)
+                .fire(event)
                 .await;
 
             if !event.cancelled {
@@ -1521,7 +1521,7 @@ impl World {
         let event = BlockBreakEvent::new(cause.clone(), broken_block.clone(), *position, 0, false);
 
         let event = PLUGIN_MANAGER
-            .lock()
+            .read()
             .await
             .fire::<BlockBreakEvent>(event)
             .await;
