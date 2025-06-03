@@ -63,7 +63,7 @@ use crate::{block::blocks::crafting_table::CraftingTableBlock, entity::player::P
 use crate::{block::blocks::jukebox::JukeboxBlock, entity::experience_orb::ExperienceOrbEntity};
 use std::sync::Arc;
 
-pub(crate) mod blocks;
+pub mod blocks;
 mod fluid;
 mod loot;
 pub mod pumpkin_block;

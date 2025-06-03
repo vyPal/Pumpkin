@@ -22,7 +22,7 @@ use super::{Event, EventPriority, PluginMetadata};
 pub struct Context {
     metadata: PluginMetadata<'static>,
     pub server: Arc<Server>,
-    handlers: Arc<RwLock<HandlerMap>>,
+    pub handlers: Arc<RwLock<HandlerMap>>,
 }
 impl Context {
     /// Creates a new instance of `Context`.

@@ -23,6 +23,7 @@ impl FireBlockBase {
         Block::FIRE
     }
 
+    #[must_use]
     pub fn can_place_on(_block: &Block) -> bool {
         // TODO: make sure the block can be lit
         // block

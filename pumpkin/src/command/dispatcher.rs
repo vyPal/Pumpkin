@@ -58,8 +58,8 @@ impl CommandError {
 
 #[derive(Default)]
 pub struct CommandDispatcher {
-    pub(crate) commands: HashMap<String, Command>,
-    pub(crate) permissions: HashMap<String, PermissionLvl>,
+    pub commands: HashMap<String, Command>,
+    pub permissions: HashMap<String, PermissionLvl>,
 }
 
 /// Stores registered [`CommandTree`]s and dispatches commands to them.
@@ -284,7 +284,7 @@ impl CommandDispatcher {
         )))
     }
 
-    pub(crate) fn get_tree<'a>(&'a self, key: &str) -> Result<&'a CommandTree, CommandError> {
+    pub fn get_tree<'a>(&'a self, key: &str) -> Result<&'a CommandTree, CommandError> {
         let command = self
             .commands
             .get(key)
@@ -306,7 +306,8 @@ impl CommandDispatcher {
         }
     }
 
-    pub(crate) fn get_permission_lvl(&self, key: &str) -> Option<PermissionLvl> {
+    #[must_use]
+    pub fn get_permission_lvl(&self, key: &str) -> Option<PermissionLvl> {
         self.permissions.get(key).copied()
     }
 
@@ -412,7 +413,7 @@ impl CommandDispatcher {
     }
 
     /// Register a command with the dispatcher.
-    pub(crate) fn register(&mut self, tree: CommandTree, permission: PermissionLvl) {
+    pub fn register(&mut self, tree: CommandTree, permission: PermissionLvl) {
         let mut names = tree.names.iter();
 
         let primary_name = names.next().expect("at least one name must be provided");
@@ -430,7 +431,7 @@ impl CommandDispatcher {
     }
 
     /// Remove a command from the dispatcher by its primary name.
-    pub(crate) fn unregister(&mut self, name: &str) {
+    pub fn unregister(&mut self, name: &str) {
         let mut to_remove = Vec::new();
         for (key, value) in &self.commands {
             if key == name {
