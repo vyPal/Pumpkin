@@ -274,7 +274,16 @@ impl PumpkinServer {
         };
     }
 
-    pub async fn start(self) {
+    pub async fn unload_plugins(&self) {
+        let mut loader_lock = PLUGIN_MANAGER.write().await;
+        if let Err(err) = loader_lock.unload_all_plugins().await {
+            log::error!("Error unloading plugins: {err}");
+        } else {
+            log::info!("All plugins unloaded successfully");
+        }
+    }
+
+    pub async fn start(&self) {
         let mut master_client_id: usize = 0;
         let tasks = TaskTracker::new();
 
@@ -377,6 +386,8 @@ impl PumpkinServer {
 
         tasks.close();
         tasks.wait().await;
+
+        self.unload_plugins().await;
 
         log::info!("Starting save.");
 

@@ -190,6 +190,24 @@ impl PluginManager {
         Self::default()
     }
 
+    /// Unload all loaded plugins
+    pub async fn unload_all_plugins(&mut self) -> Result<(), ManagerError> {
+        let plugin_names: Vec<&str> = self
+            .plugins
+            .iter()
+            .filter(|p| p.is_active)
+            .map(|p| p.metadata.name)
+            .collect();
+
+        for name in plugin_names {
+            if let Err(e) = self.unload_plugin(name).await {
+                log::error!("Failed to unload plugin {name}: {e}");
+            }
+        }
+
+        Ok(())
+    }
+
     /// Add a new plugin loader implementation
     pub async fn add_loader(&mut self, loader: Arc<dyn PluginLoader>) {
         self.loaders.push(loader);
