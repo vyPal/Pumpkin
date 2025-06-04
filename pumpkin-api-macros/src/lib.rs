@@ -4,33 +4,17 @@ use std::sync::LazyLock;
 use std::sync::Mutex;
 use syn::{ImplItem, ItemFn, ItemImpl, ItemStruct, parse_macro_input, parse_quote};
 
-// Store function information for Plugin impl generation
-struct PluginMethodInfo {
-    name: String,
-    fn_sig: String,
-    fn_body: String,
-}
-
-static PLUGIN_METHODS: LazyLock<Mutex<Vec<PluginMethodInfo>>> =
-    LazyLock::new(|| Mutex::new(Vec::new()));
+// Store function names that should be included in the plugin impl
+static PLUGIN_METHOD_NAMES: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
 #[proc_macro_attribute]
 pub fn plugin_method(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input_fn = parse_macro_input!(item as ItemFn);
-    let fn_name = &input_fn.sig.ident;
-    let fn_sig = &input_fn.sig;
-    let fn_body = &input_fn.block;
+    let item_clone = item.clone();
+    let input_fn = parse_macro_input!(item_clone as ItemFn);
+    let fn_name = input_fn.sig.ident.to_string();
 
-    // Store the function information for later use in plugin_impl
-    let method_info = PluginMethodInfo {
-        name: fn_name.to_string(),
-        fn_sig: quote!(#fn_sig).to_string(),
-        fn_body: quote!(#fn_body).to_string(),
-    };
+    PLUGIN_METHOD_NAMES.lock().unwrap().push(fn_name);
 
-    PLUGIN_METHODS.lock().unwrap().push(method_info);
-
-    // Return the original function unchanged
     item
 }
 
@@ -40,27 +24,19 @@ pub fn plugin_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input_struct = parse_macro_input!(item as ItemStruct);
     let struct_ident = &input_struct.ident;
 
-    let methods = PLUGIN_METHODS.lock().unwrap();
+    let method_names = PLUGIN_METHOD_NAMES.lock().unwrap().clone();
 
-    // Generate wrapper methods for the Plugin trait
-    let wrapper_methods: Vec<proc_macro2::TokenStream> = methods
-        .iter()
-        .filter_map(|method_info| {
-            let fn_name = syn::Ident::new(&method_info.name, proc_macro2::Span::call_site());
-            let fn_sig: syn::Signature = syn::parse_str(&method_info.fn_sig).ok()?;
+    let wrapper_methods = method_names.iter().map(|name| {
+        let fn_ident = syn::Ident::new(name, proc_macro2::Span::call_site());
 
-            let wrapper = quote! {
-                #[allow(unused_mut)]
-                async fn #fn_name(#(#fn_sig.inputs)*) #fn_sig.output {
-                    crate::GLOBAL_RUNTIME.block_on(async move {
-                        Self::#fn_name(#(#fn_sig.inputs.iter().map(|arg| &arg.pat))*).await
-                    })
-                }
-            };
-
-            Some(wrapper)
-        })
-        .collect();
+        quote! {
+            async fn #fn_ident(&self, args: serde_json::Value) -> Result<serde_json::Value, pumpkin::plugin::Error> {
+                crate::GLOBAL_RUNTIME.block_on(async move {
+                    self.#fn_ident(args).await
+                })
+            }
+        }
+    });
 
     // Combine the original struct definition with the impl block and plugin() function
     let expanded = quote! {
