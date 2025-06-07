@@ -1,5 +1,4 @@
 use pumpkin_protocol::client::play::CommandSuggestion;
-use pumpkin_util::permission::PermissionLvl;
 use pumpkin_util::text::TextComponent;
 
 use super::args::ConsumedArgs;
@@ -59,7 +58,7 @@ impl CommandError {
 #[derive(Default)]
 pub struct CommandDispatcher {
     pub commands: HashMap<String, Command>,
-    pub permissions: HashMap<String, PermissionLvl>,
+    pub permissions: HashMap<String, String>,
 }
 
 /// Stores registered [`CommandTree`]s and dispatches commands to them.
@@ -267,7 +266,7 @@ impl CommandDispatcher {
             ));
         };
 
-        if !src.has_permission_lvl(*permission) {
+        if !src.has_permission(permission.as_str()).await {
             return Err(PermissionDenied);
         }
 
@@ -307,8 +306,8 @@ impl CommandDispatcher {
     }
 
     #[must_use]
-    pub fn get_permission_lvl(&self, key: &str) -> Option<PermissionLvl> {
-        self.permissions.get(key).copied()
+    pub fn get_permission(&self, key: &str) -> Option<&String> {
+        self.permissions.get(key)
     }
 
     async fn try_is_fitting_path<'a>(
@@ -413,15 +412,17 @@ impl CommandDispatcher {
     }
 
     /// Register a command with the dispatcher.
-    pub fn register(&mut self, tree: CommandTree, permission: PermissionLvl) {
+    pub fn register(&mut self, tree: CommandTree, permission: &str) {
         let mut names = tree.names.iter();
+        let permission = permission.to_string();
 
         let primary_name = names.next().expect("at least one name must be provided");
 
         for name in names {
             self.commands
                 .insert(name.to_string(), Command::Alias(primary_name.to_string()));
-            self.permissions.insert(name.to_string(), permission);
+            self.permissions
+                .insert(name.to_string(), permission.clone());
         }
 
         self.permissions
@@ -453,11 +454,10 @@ impl CommandDispatcher {
 #[cfg(test)]
 mod test {
     use crate::command::{commands::default_dispatcher, tree::CommandTree};
-    use pumpkin_util::permission::PermissionLvl;
-    #[test]
-    fn test_dynamic_command() {
-        let mut dispatcher = default_dispatcher();
+    #[tokio::test]
+    async fn test_dynamic_command() {
+        let mut dispatcher = default_dispatcher().await;
         let tree = CommandTree::new(["test"], "test_desc");
-        dispatcher.register(tree, PermissionLvl::Zero);
+        dispatcher.register(tree, "minecraft:test");
     }
 }

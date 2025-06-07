@@ -9,6 +9,7 @@ use plugin::PluginManager;
 use plugin::server::server_command::ServerCommandEvent;
 use pumpkin_config::{BASIC_CONFIG, advanced_config};
 use pumpkin_macros::send_cancellable;
+use pumpkin_util::permission::{PermissionManager, PermissionRegistry};
 use pumpkin_util::text::TextComponent;
 use rustyline_async::{Readline, ReadlineEvent};
 use std::io::{IsTerminal, stdin};
@@ -22,8 +23,7 @@ use tokio::net::TcpListener;
 use tokio::select;
 #[cfg(feature = "dhat-heap")]
 use tokio::sync::Mutex;
-use tokio::sync::Notify;
-use tokio::sync::RwLock;
+use tokio::sync::{Notify, RwLock};
 use tokio_util::task::TaskTracker;
 
 pub mod block;
@@ -52,6 +52,12 @@ pub static PLUGIN_MANAGER: LazyLock<Arc<RwLock<PluginManager>>> = LazyLock::new(
     manager.set_self_ref(clone);
     arc_manager
 });
+
+pub static PERMISSION_REGISTRY: LazyLock<Arc<RwLock<PermissionRegistry>>> =
+    LazyLock::new(|| Arc::new(RwLock::new(PermissionRegistry::new())));
+
+pub static PERMISSION_MANAGER: LazyLock<RwLock<PermissionManager>> =
+    LazyLock::new(|| RwLock::new(PermissionManager::new(PERMISSION_REGISTRY.clone())));
 
 /// A wrapper for our logger to hold the terminal input while no input is expected in order to
 /// properly flush logs to the output while they happen instead of batched
@@ -193,7 +199,7 @@ pub struct PumpkinServer {
 
 impl PumpkinServer {
     pub async fn new() -> Self {
-        let server = Arc::new(Server::new());
+        let server = Arc::new(Server::new().await);
 
         for world in &*server.worlds.read().await {
             world.level.read_spawn_chunks(&Server::spawn_chunks()).await;
