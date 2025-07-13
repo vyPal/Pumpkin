@@ -149,6 +149,7 @@ struct LoadedPlugin {
     loader: Arc<dyn PluginLoader>,
     loader_data: Box<dyn Any + Send + Sync>,
     is_active: bool,
+    context: Arc<Context>,
 }
 
 /// Error types for plugin management
@@ -311,18 +312,18 @@ impl PluginManager {
             .as_ref()
             .ok_or(ManagerError::ServerNotInitialized)?;
 
-        let context = Context::new(
+        let context = Arc::new(Context::new(
             metadata.clone(),
             Arc::clone(server),
             Arc::clone(&self.handlers),
             Arc::clone(self_ref),
             Arc::clone(&PERMISSION_MANAGER),
-        );
+        ));
 
-        if let Err(e) = instance.on_load(&context).await {
+        if let Err(e) = instance.on_load(context.clone()).await {
             let data = loader_data;
             let loader = loader.clone();
-            let _ = instance.on_unload(&context).await;
+            let _ = instance.on_unload(context).await;
             tokio::spawn(async move {
                 loader.unload(data).await.ok();
             });
@@ -337,6 +338,7 @@ impl PluginManager {
             loader: loader.clone(),
             loader_data,
             is_active: true,
+            context,
         })
     }
 
@@ -379,26 +381,8 @@ impl PluginManager {
             .ok_or_else(|| ManagerError::PluginNotFound(name.to_string()))?;
 
         let mut plugin = self.plugins.remove(index);
-        let server = self
-            .server
-            .as_ref()
-            .ok_or(ManagerError::ServerNotInitialized)?;
 
-        // Get a self_ref for the context or fail if not set
-        let self_ref = self
-            .self_ref
-            .as_ref()
-            .ok_or(ManagerError::ServerNotInitialized)?;
-
-        let context = Context::new(
-            plugin.metadata.clone(),
-            Arc::clone(server),
-            Arc::clone(&self.handlers),
-            Arc::clone(self_ref),
-            Arc::clone(&PERMISSION_MANAGER),
-        );
-
-        plugin.instance.on_unload(&context).await.ok();
+        plugin.instance.on_unload(plugin.context.clone()).await.ok();
 
         if plugin.loader.can_unload() {
             plugin.loader.unload(plugin.loader_data).await?;
