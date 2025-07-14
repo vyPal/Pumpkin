@@ -137,6 +137,7 @@ pub struct PluginManager {
     unloaded_files: HashSet<PathBuf>,
     // Self-reference for sharing with contexts
     self_ref: Option<Arc<RwLock<PluginManager>>>,
+    services: Arc<RwLock<HashMap<String, Arc<dyn Any + Send + Sync>>>>,
 }
 
 /// Represents a successfully loaded plugin
@@ -180,6 +181,7 @@ impl Default for PluginManager {
             handlers: Arc::new(RwLock::new(HashMap::new())),
             unloaded_files: HashSet::new(),
             self_ref: None,
+            services: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }
