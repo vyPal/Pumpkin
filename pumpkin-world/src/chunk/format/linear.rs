@@ -1,16 +1,17 @@
-use std::io::ErrorKind;
+use std::io::{ErrorKind, Read};
 use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::chunk::format::anvil::{AnvilChunkFile, SingleChunkDataSerializer};
 use crate::chunk::io::{ChunkSerializer, LoadedData};
-use crate::chunk::{ChunkData, ChunkReadingError, ChunkWritingError};
+use crate::chunk::{ChunkReadingError, ChunkWritingError};
 use async_trait::async_trait;
 use bytes::{Buf, BufMut, Bytes};
 use log::error;
-use pumpkin_config::advanced_config;
 use pumpkin_util::math::vector2::Vector2;
+use ruzstd::decoding::StreamingDecoder;
+use ruzstd::encoding::{CompressionLevel, compress_to_vec};
 use tokio::io::{AsyncWriteExt, BufWriter};
 
 use super::anvil::CHUNK_COUNT;
@@ -164,7 +165,7 @@ impl<S: SingleChunkDataSerializer> Default for LinearFile<S> {
 
 #[async_trait]
 impl<S: SingleChunkDataSerializer> ChunkSerializer for LinearFile<S> {
-    type Data = ChunkData;
+    type Data = S;
     type WriteBackend = PathBuf;
 
     fn should_write(&self, is_watched: bool) -> bool {
@@ -201,17 +202,13 @@ impl<S: SingleChunkDataSerializer> ChunkSerializer for LinearFile<S> {
             data_buffer.extend_from_slice(chunk);
         }
 
-        // TODO: maybe zstd lib has memory leaks
-        let compressed_buffer = zstd::bulk::compress(
-            data_buffer.as_slice(),
-            advanced_config().chunk.compression.level as i32,
-        )
-        .expect("Failed to compress the data buffer")
-        .into_boxed_slice();
+        // TODO: Currently ruzstd only supports fastest
+        let compressed_buffer =
+            compress_to_vec(data_buffer.as_slice(), CompressionLevel::Fastest).into_boxed_slice();
 
         let file_header = LinearFileHeader {
             chunks_bytes: compressed_buffer.len(),
-            compression_level: advanced_config().chunk.compression.level as u8,
+            compression_level: 1, // TODO: Currently ruzstd only supports fastest
             chunks_count: self
                 .chunks_headers
                 .iter()
@@ -260,7 +257,7 @@ impl<S: SingleChunkDataSerializer> ChunkSerializer for LinearFile<S> {
         let file_header = LinearFileHeader::from_bytes(header_bytes);
         file_header.check_version()?;
 
-        let Some((raw_file_bytes, signature)) =
+        let Some((mut raw_file_bytes, signature)) =
             raw_file_bytes.split_at_checked(file_header.chunks_bytes)
         else {
             return Err(ChunkReadingError::IoError(ErrorKind::UnexpectedEof));
@@ -268,10 +265,14 @@ impl<S: SingleChunkDataSerializer> ChunkSerializer for LinearFile<S> {
 
         Self::check_signature(signature)?;
 
-        // TODO: Review the buffer size limit or find ways to improve performance (maybe zstd lib has memory leaks)
-        let mut buffer: Bytes = zstd::bulk::decompress(raw_file_bytes, 200 * 1024 * 1024) // 200MB limit for the decompression buffer size
-            .map_err(|err| ChunkReadingError::IoError(err.kind()))?
-            .into();
+        let mut decoder = StreamingDecoder::new(&mut raw_file_bytes)
+            .map_err(|_| ChunkReadingError::RegionIsInvalid)?;
+
+        let mut buffer = Vec::new();
+        decoder
+            .read_to_end(&mut buffer)
+            .map_err(|err| ChunkReadingError::IoError(err.kind()))?;
+        let mut buffer: Bytes = buffer.into();
 
         let headers_buffer = buffer.split_to(LinearChunkHeader::CHUNK_HEADER_SIZE * CHUNK_COUNT);
 
@@ -320,7 +321,7 @@ impl<S: SingleChunkDataSerializer> ChunkSerializer for LinearFile<S> {
         })
     }
 
-    async fn update_chunk(&mut self, chunk: &ChunkData) -> Result<(), ChunkWritingError> {
+    async fn update_chunk(&mut self, chunk: &Self::Data) -> Result<(), ChunkWritingError> {
         let index = LinearFile::<S>::get_chunk_index(chunk.position());
         let chunk_raw: Bytes = chunk
             .to_bytes()
@@ -343,7 +344,7 @@ impl<S: SingleChunkDataSerializer> ChunkSerializer for LinearFile<S> {
     async fn get_chunks(
         &self,
         chunks: &[Vector2<i32>],
-        stream: tokio::sync::mpsc::Sender<LoadedData<ChunkData, ChunkReadingError>>,
+        stream: tokio::sync::mpsc::Sender<LoadedData<Self::Data, ChunkReadingError>>,
     ) {
         // Don't par iter here so we can prevent backpressure with the await in the async
         // runtime
@@ -352,9 +353,7 @@ impl<S: SingleChunkDataSerializer> ChunkSerializer for LinearFile<S> {
             let linear_chunk_data = &self.chunks_data[index];
 
             let result = if let Some(data) = linear_chunk_data {
-                match ChunkData::internal_from_bytes(data, chunk)
-                    .map_err(ChunkReadingError::ParsingError)
-                {
+                match S::from_bytes(data.clone(), chunk) {
                     Ok(chunk) => LoadedData::Loaded(chunk),
                     Err(err) => LoadedData::Error((chunk, err)),
                 }
@@ -396,7 +395,7 @@ mod tests {
 
     #[async_trait]
     impl BlockRegistryExt for BlockRegistry {
-        async fn can_place_at(
+        fn can_place_at(
             &self,
             _block: &pumpkin_data::Block,
             _block_accessor: &dyn BlockAccessor,
@@ -420,6 +419,7 @@ mod tests {
                 &LevelFolder {
                     root_folder: PathBuf::from(""),
                     region_folder: region_path,
+                    entities_folder: PathBuf::from(""),
                 },
                 &[Vector2::new(0, 0)],
                 send,
@@ -443,6 +443,7 @@ mod tests {
         let level_folder = LevelFolder {
             root_folder: temp_dir.path().to_path_buf(),
             region_folder: temp_dir.path().join("region"),
+            entities_folder: PathBuf::from("entities"),
         };
         fs::create_dir(&level_folder.region_folder).expect("couldn't create region folder");
         let chunk_saver = ChunkFileManager::<LinearFile<ChunkData>>::default();
@@ -458,9 +459,7 @@ mod tests {
         for x in -5..5 {
             for y in -5..5 {
                 let position = Vector2::new(x, y);
-                let chunk = generator
-                    .generate_chunk(&level, block_registry.as_ref(), &position)
-                    .await;
+                let chunk = generator.generate_chunk(&level, block_registry.as_ref(), &position);
                 chunks.push((position, Arc::new(RwLock::new(chunk))));
             }
         }

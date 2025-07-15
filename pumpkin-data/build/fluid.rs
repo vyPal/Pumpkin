@@ -111,7 +111,7 @@ impl ToTokens for PropertyStruct {
                 fn from_index(index: u16) -> Self {
                     match index {
                         #(#values_index => Self::#values_3,)*
-                        _ => panic!("Invalid index: {}", index),
+                        _ => panic!("Invalid index: {index}"),
                     }
                 }
 
@@ -124,7 +124,7 @@ impl ToTokens for PropertyStruct {
                 fn from_value(value: &str) -> Self {
                     match value {
                         #(#from_values),*,
-                        _ => panic!("Invalid value: {:?}", value),
+                        _ => panic!("Invalid value: {value:?}"),
                     }
                 }
             }
@@ -173,7 +173,7 @@ impl ToTokens for FluidPropertyStruct {
             let key2 = Ident::new_raw(&entry.original_name, Span::call_site());
 
             quote! {
-                props.push((#key.to_string(), self.#key2.to_value().to_string()));
+                (#key.to_string(), self.#key2.to_value().to_string()),
             }
         });
 
@@ -255,13 +255,8 @@ impl ToTokens for FluidPropertyStruct {
                     Self::from_state_id(fluid.default_state_index, fluid)
                 }
 
-                #[allow(clippy::vec_init_then_push)]
                 fn to_props(&self) -> Vec<(String, String)> {
-                    let mut props = vec![];
-
-                    #(#to_props_values)*
-
-                    props
+                   vec![#(#to_props_values)*]
                 }
 
                 fn from_props(props: Vec<(String, String)>, fluid: &Fluid) -> Self {
@@ -274,7 +269,7 @@ impl ToTokens for FluidPropertyStruct {
                     for (key, value) in props {
                         match key.as_str() {
                             #(#from_props_values),*,
-                            _ => panic!("Invalid key: {}", key),
+                            _ => panic!("Invalid key: {key}"),
                         }
                     }
 
@@ -447,15 +442,15 @@ pub(crate) fn build() -> TokenStream {
             ));
         }
         fluid_from_state_id.extend(quote! {
-            #state_id_start..=#state_id_end => Some(Fluid::#const_ident),
+            #state_id_start..=#state_id_end => Some(&Fluid::#const_ident),
         });
 
         type_from_name.extend(quote! {
-            #id_name => Some(Self::#const_ident),
+            #id_name => Some(&Self::#const_ident),
         });
 
         type_from_raw_id_arms.extend(quote! {
-            #id_lit => Some(Self::#const_ident),
+            #id_lit => Some(&Self::#const_ident),
         });
 
         let fluid_states = fluid.states.iter().map(|state| {
@@ -599,7 +594,9 @@ pub(crate) fn build() -> TokenStream {
     let properties = property_enums.values().map(|prop| prop.to_token_stream());
 
     quote! {
+        use std::hash::{Hash, Hasher};
         use crate::tag::{Tagable, RegistryKey};
+        use pumpkin_util::resource_location::{FromResourceLocation, ResourceLocation, ToResourceLocation};
 
         #[derive(Clone, Debug)]
         pub struct PartialFluidState {
@@ -643,6 +640,20 @@ pub(crate) fn build() -> TokenStream {
             pub can_convert_to_source: bool,
         }
 
+        impl Hash for Fluid {
+            fn hash<H: Hasher>(&self, state: &mut H) {
+                self.id.hash(state);
+            }
+        }
+
+        impl PartialEq for Fluid {
+            fn eq(&self, other: &Self) -> bool {
+                self.id == other.id
+            }
+        }
+
+        impl Eq for Fluid {}
+
         pub static FLUID_STATES: &[PartialFluidState] = &[
             #(#unique_fluid_states),*
         ];
@@ -675,24 +686,29 @@ pub(crate) fn build() -> TokenStream {
             fn from_props(props: Vec<(String, String)>, fluid: &Fluid) -> Self where Self: Sized;
         }
 
+        pub fn get_fluid(registry_id: &str) -> Option<&'static Fluid> {
+           let key = registry_id.strip_prefix("minecraft:").unwrap_or(registry_id);
+           Fluid::from_registry_key(key)
+        }
+
         impl Fluid {
             #constants
 
-            pub fn from_registry_key(name: &str) -> Option<Self> {
+            pub fn from_registry_key(name: &str) -> Option<&'static Self> {
                 match name {
                     #type_from_name
                     _ => None
                 }
             }
 
-            pub const fn from_id(id: u16) -> Option<Self> {
+            pub const fn from_id(id: u16) -> Option<&'static Self> {
                 match id {
                     #type_from_raw_id_arms
                     _ => None
                 }
             }
             #[allow(unreachable_patterns)]
-            pub const fn from_state_id(id: u16) -> Option<Self> {
+            pub const fn from_state_id(id: u16) -> Option<&'static Self> {
                 match id {
                     #fluid_from_state_id
                     _ => None
@@ -742,6 +758,18 @@ pub(crate) fn build() -> TokenStream {
             pub fn get_height(&self, state_id: u16) -> f32 {
                 let idx = (state_id as usize) % self.states.len();
                 self.states[idx].height
+            }
+        }
+
+        impl ToResourceLocation for &'static Fluid {
+            fn to_resource_location(&self) -> ResourceLocation {
+                ResourceLocation::vanilla(self.name)
+            }
+        }
+
+        impl FromResourceLocation for &'static Fluid {
+            fn from_resource_location(resource_location: &ResourceLocation) -> Option<Self> {
+                Fluid::from_registry_key(&resource_location.path)
             }
         }
 

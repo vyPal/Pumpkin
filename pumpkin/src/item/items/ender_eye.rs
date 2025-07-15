@@ -34,16 +34,20 @@ impl PumpkinItem for EnderEyeItem {
 
         let world = player.world().await;
         let state_id = world.get_block_state_id(&location).await;
-        let original_props = &block.properties(state_id).unwrap().to_props();
-        let mut props_vec: Vec<(&str, &str)> = Vec::with_capacity(original_props.len());
-        for (key, value) in original_props {
-            if key == "eye" {
-                props_vec.push((key.as_str(), "true"));
-            } else {
-                props_vec.push((key.as_str(), value.as_str()));
-            }
-        }
-        let new_state_id = block.from_properties(props_vec).unwrap().to_state_id(block);
+        let original_props = block.properties(state_id).unwrap().to_props();
+
+        let props = original_props
+            .iter()
+            .map(|(key, value)| {
+                if key == "eye" {
+                    (key.as_str(), "true")
+                } else {
+                    (key.as_str(), value.as_str())
+                }
+            })
+            .collect();
+
+        let new_state_id = block.from_properties(props).unwrap().to_state_id(block);
         world
             .set_block_state(&location, new_state_id, BlockFlags::empty())
             .await;
@@ -67,7 +71,7 @@ impl PumpkinItem for EnderEyeItem {
 
         let (block, _) = world.get_block_and_block_state(&block_pos).await;
 
-        if block.id == Block::END_PORTAL_FRAME.id {
+        if block == &Block::END_PORTAL_FRAME {
             return;
         }
         //TODO Throw the Ender Eye in the direction of the stronghold.

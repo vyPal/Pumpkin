@@ -61,7 +61,7 @@ pub trait SimpleWorld: BlockAccessor + Send + Sync {
 
 #[async_trait]
 pub trait BlockRegistryExt: Send + Sync {
-    async fn can_place_at(
+    fn can_place_at(
         &self,
         block: &pumpkin_data::Block,
         block_accessor: &dyn BlockAccessor,
@@ -72,12 +72,15 @@ pub trait BlockRegistryExt: Send + Sync {
 
 #[async_trait]
 pub trait BlockAccessor: Send + Sync {
-    async fn get_block(&self, position: &BlockPos) -> pumpkin_data::Block;
+    async fn get_block(&self, position: &BlockPos) -> &'static pumpkin_data::Block;
 
-    async fn get_block_state(&self, position: &BlockPos) -> pumpkin_data::BlockState;
+    async fn get_block_state(&self, position: &BlockPos) -> &'static pumpkin_data::BlockState;
 
     async fn get_block_and_block_state(
         &self,
         position: &BlockPos,
-    ) -> (pumpkin_data::Block, pumpkin_data::BlockState);
+    ) -> (
+        &'static pumpkin_data::Block,
+        &'static pumpkin_data::BlockState,
+    );
 }

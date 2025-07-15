@@ -27,7 +27,7 @@ struct Layer {
 
 impl BlockColumnFeature {
     #[expect(clippy::too_many_arguments)]
-    pub async fn generate(
+    pub fn generate(
         &self,
         chunk: &mut ProtoChunk<'_>,
         block_registry: &dyn BlockRegistryExt,
@@ -55,11 +55,9 @@ impl BlockColumnFeature {
 
         let mut l = 0;
         while l < j {
-            if !Box::pin(
-                self.allowed_placement
-                    .test(block_registry, chunk, &mutable2),
-            )
-            .await
+            if !self
+                .allowed_placement
+                .test(block_registry, chunk, &mutable2)
             {
                 Self::adjust_layer_heights(&mut is, j, l, self.prioritize_tip);
                 break;
@@ -75,7 +73,7 @@ impl BlockColumnFeature {
             let layer = &self.layers[l];
             for _n in 0..*m {
                 let state = layer.provider.get(random, mutable);
-                chunk.set_block_state(&mutable.0, &state);
+                chunk.set_block_state(&mutable.0, state);
                 mutable = mutable.offset(self.direction.to_offset());
             }
         }

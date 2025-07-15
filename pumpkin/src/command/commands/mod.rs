@@ -20,6 +20,7 @@ mod effect;
 mod experience;
 mod fill;
 mod gamemode;
+mod gamerule;
 mod give;
 mod help;
 mod kick;
@@ -64,7 +65,6 @@ pub async fn default_dispatcher() -> CommandDispatcher {
     dispatcher.register(pumpkin::init_command_tree(), "pumpkin:command.pumpkin");
     dispatcher.register(help::init_command_tree(), "minecraft:command.help");
     dispatcher.register(list::init_command_tree(), "minecraft:command.list");
-    dispatcher.register(transfer::init_command_tree(), "minecraft:command.transfer");
     dispatcher.register(me::init_command_tree(), "minecraft:command.me");
     dispatcher.register(msg::init_command_tree(), "minecraft:command.msg");
     // Two
@@ -99,6 +99,7 @@ pub async fn default_dispatcher() -> CommandDispatcher {
     dispatcher.register(bossbar::init_command_tree(), "minecraft:command.bossbar");
     dispatcher.register(say::init_command_tree(), "minecraft:command.say");
     dispatcher.register(gamemode::init_command_tree(), "minecraft:command.gamemode");
+    dispatcher.register(gamerule::init_command_tree(), "minecraft:command.gamerule");
     dispatcher.register(
         difficulty::init_command_tree(),
         "minecraft:command.difficulty",
@@ -126,6 +127,7 @@ pub async fn default_dispatcher() -> CommandDispatcher {
         whitelist::init_command_tree(),
         "minecraft:command.whitelist",
     );
+    dispatcher.register(transfer::init_command_tree(), "minecraft:command.transfer");
     // Four
     dispatcher.register(stop::init_command_tree(), "minecraft:command.stop");
 
@@ -171,13 +173,6 @@ fn register_level_0_permissions(registry: &mut PermissionRegistry) {
         .register_permission(Permission::new(
             "minecraft:command.list",
             "Lists players that are currently online",
-            PermissionDefault::Allow,
-        ))
-        .unwrap();
-    registry
-        .register_permission(Permission::new(
-            "minecraft:command.transfer",
-            "Transfers the player to another server",
             PermissionDefault::Allow,
         ))
         .unwrap();
@@ -349,6 +344,13 @@ fn register_level_2_permissions(registry: &mut PermissionRegistry) {
         .unwrap();
     registry
         .register_permission(Permission::new(
+            "minecraft:command.gamerule",
+            "Sets a player's game mode",
+            PermissionDefault::Op(PermissionLvl::Two),
+        ))
+        .unwrap();
+    registry
+        .register_permission(Permission::new(
             "minecraft:command.stopsound",
             "Stops sounds from playing",
             PermissionDefault::Op(PermissionLvl::Two),
@@ -453,6 +455,13 @@ fn register_level_3_permissions(registry: &mut PermissionRegistry) {
         .register_permission(Permission::new(
             "minecraft:command.tick",
             "Triggers the tick event",
+            PermissionDefault::Op(PermissionLvl::Three),
+        ))
+        .unwrap();
+    registry
+        .register_permission(Permission::new(
+            "minecraft:command.transfer",
+            "Transfers the player to another server",
             PermissionDefault::Op(PermissionLvl::Three),
         ))
         .unwrap();

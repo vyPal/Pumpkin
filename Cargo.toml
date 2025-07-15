@@ -14,12 +14,8 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0-dev+1.21.6"
+version = "0.1.0-dev+1.21.7"
 edition = "2024"
-
-
-[profile.dev]
-opt-level = 1
 
 [profile.release]
 lto = true
@@ -34,7 +30,7 @@ debug = true
 
 [workspace.dependencies]
 log = "0.4"
-tokio = { version = "1.45", features = [
+tokio = { version = "1.46", features = [
     "macros",
     "net",
     "rt-multi-thread",
@@ -43,6 +39,7 @@ tokio = { version = "1.45", features = [
     "signal",
     "fs",
     "io-util",
+    "time",
 ] }
 
 thiserror = "2.0"
@@ -50,16 +47,15 @@ thiserror = "2.0"
 bytes = "1.10"
 
 # Concurrency/Parallelism and Synchronization
-futures = "0.3"
+futures = { version = "0.3", default-features = false, features = ["executor"] }
 rayon = "1.10"
 crossbeam = "0.8"
 
 uuid = { version = "1.17", features = ["serde", "v3", "v4"] }
-derive_more = { version = "2.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 async-trait = "0.1"
 
-tempfile = "3.20.0"
+tempfile = { version = "3.20.0", default-features = false }
 proc-macro-error2 = "2"

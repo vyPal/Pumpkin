@@ -37,6 +37,7 @@
 compile_error!("Compiling for WASI targets is not supported!");
 
 use plugin::PluginManager;
+use pumpkin_config::BASIC_CONFIG;
 use pumpkin_data::packet::CURRENT_MC_PROTOCOL;
 use std::{
     io::{self},
@@ -95,13 +96,14 @@ pub static PERMISSION_MANAGER: LazyLock<Arc<RwLock<PermissionManager>>> = LazyLo
 });
 
 const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
-const GIT_VERSION: &str = env!("GIT_VERSION");
 
 // WARNING: All rayon calls from the tokio runtime must be non-blocking! This includes things
 // like `par_iter`. These should be spawned in the the rayon pool and then passed to the tokio
 // runtime with a channel! See `Level::fetch_chunks` as an example!
 #[tokio::main]
 async fn main() {
+    #[cfg(feature = "console-subscriber")]
+    console_subscriber::init();
     #[cfg(feature = "dhat-heap")]
     {
         let profiler = dhat::Profiler::new_heap();
@@ -120,13 +122,8 @@ async fn main() {
         // We need to abide by the panic rules here.
         std::process::exit(1);
     }));
-
-    rayon::ThreadPoolBuilder::new()
-        .thread_name(|_| "rayon-worker".to_string())
-        .build_global()
-        .expect("Rayon thread pool can only be initialized once");
     log::info!(
-        "Starting Pumpkin {CARGO_PKG_VERSION} ({GIT_VERSION}) for Minecraft {CURRENT_MC_VERSION} (Protocol {CURRENT_MC_PROTOCOL})",
+        "Starting Pumpkin {CARGO_PKG_VERSION} for Minecraft {CURRENT_MC_VERSION} (Protocol {CURRENT_MC_PROTOCOL})",
     );
 
     log::debug!(
@@ -156,8 +153,25 @@ async fn main() {
 
     log::info!("Started server; took {}ms", time.elapsed().as_millis());
     log::info!(
-        "You now can connect to the server; listening on {}",
-        pumpkin_server.server_addr
+        "Server is now running. Connect using: {}{}{}",
+        if BASIC_CONFIG.java_edition {
+            format!("Java Edition: {}", BASIC_CONFIG.java_edition_address)
+        } else {
+            String::new()
+        },
+        if BASIC_CONFIG.java_edition && BASIC_CONFIG.bedrock_edition {
+            " | " // Separator if both are enabled
+        } else {
+            ""
+        },
+        if BASIC_CONFIG.bedrock_edition {
+            format!(
+                "Bedrock/Pocket Edition: {}",
+                BASIC_CONFIG.bedrock_edition_address
+            )
+        } else {
+            String::new()
+        }
     );
 
     pumpkin_server.start().await;
@@ -187,17 +201,21 @@ async fn setup_sighandler() -> io::Result<()> {
 // Unix signal handling
 #[cfg(unix)]
 async fn setup_sighandler() -> io::Result<()> {
-    if signal(SignalKind::interrupt())?.recv().await.is_some() {
-        handle_interrupt();
-    }
+    let mut interrupt = signal(SignalKind::interrupt())?;
+    let mut hangup = signal(SignalKind::hangup())?;
+    let mut terminate = signal(SignalKind::terminate())?;
 
-    if signal(SignalKind::hangup())?.recv().await.is_some() {
-        handle_interrupt();
+    loop {
+        tokio::select! {
+            _ = interrupt.recv() => {
+                handle_interrupt();
+            }
+            _ = hangup.recv() => {
+                handle_interrupt();
+            }
+            _ = terminate.recv() => {
+                handle_interrupt();
+            }
+        }
     }
-
-    if signal(SignalKind::terminate())?.recv().await.is_some() {
-        handle_interrupt();
-    }
-
-    Ok(())
 }

@@ -1,56 +1,59 @@
-use std::sync::Arc;
-
 use async_trait::async_trait;
-use pumpkin_data::{Block, BlockDirection, BlockState};
+use pumpkin_data::Block;
 use pumpkin_macros::pumpkin_block;
-use pumpkin_protocol::server::play::SUseItemOn;
 use pumpkin_util::math::position::BlockPos;
-use pumpkin_world::world::{BlockAccessor, BlockFlags};
-
-use crate::{
-    block::pumpkin_block::PumpkinBlock,
-    entity::{EntityBase, player::Player},
-    server::Server,
-    world::World,
+use pumpkin_world::{
+    BlockStateId,
+    world::{BlockAccessor, BlockFlags},
 };
+
+use crate::block::{blocks::plant::PlantBlockBase, pumpkin_block::GetStateForNeighborUpdateArgs};
+
+use crate::block::pumpkin_block::{CanPlaceAtArgs, OnEntityCollisionArgs, PumpkinBlock};
 
 #[pumpkin_block("minecraft:lily_pad")]
 pub struct LilyPadBlock;
 
 #[async_trait]
 impl PumpkinBlock for LilyPadBlock {
-    async fn on_entity_collision(
-        &self,
-        world: &Arc<World>,
-        entity: &dyn EntityBase,
-        pos: BlockPos,
-        _block: Block,
-        _state: BlockState,
-        _server: &Server,
-    ) {
+    async fn on_entity_collision(&self, args: OnEntityCollisionArgs<'_>) {
         // Proberbly not the best solution, but works
-        if entity
+        if args
+            .entity
             .get_entity()
             .entity_type
             .resource_name
             .ends_with("_boat")
         {
-            world.break_block(&pos, None, BlockFlags::empty()).await;
+            args.world
+                .break_block(args.position, None, BlockFlags::empty())
+                .await;
         }
     }
 
-    async fn can_place_at(
+    async fn can_place_at(&self, args: CanPlaceAtArgs<'_>) -> bool {
+        <Self as PlantBlockBase>::can_place_at(self, args.block_accessor, args.position).await
+    }
+
+    async fn get_state_for_neighbor_update(
         &self,
-        _server: Option<&Server>,
-        _world: Option<&World>,
-        block_accessor: &dyn BlockAccessor,
-        _player: Option<&Player>,
-        _block: &Block,
-        block_pos: &BlockPos,
-        _face: BlockDirection,
-        _use_item_on: Option<&SUseItemOn>,
-    ) -> bool {
-        let block_below = block_accessor.get_block(&block_pos.down()).await;
-        block_below == Block::WATER || block_below == Block::ICE
+        args: GetStateForNeighborUpdateArgs<'_>,
+    ) -> BlockStateId {
+        <Self as PlantBlockBase>::get_state_for_neighbor_update(
+            self,
+            args.world,
+            args.position,
+            args.state_id,
+        )
+        .await
+    }
+}
+
+impl PlantBlockBase for LilyPadBlock {
+    async fn can_plant_on_top(&self, block_accessor: &dyn BlockAccessor, pos: &BlockPos) -> bool {
+        let block = block_accessor.get_block(pos).await;
+        let above_fluid = block_accessor.get_block(&pos.up()).await;
+        (block == &Block::WATER || block == &Block::ICE)
+            && (above_fluid != &Block::WATER && above_fluid != &Block::LAVA)
     }
 }

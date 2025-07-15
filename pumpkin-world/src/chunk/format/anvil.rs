@@ -37,8 +37,8 @@ pub const CHUNK_COUNT: usize = REGION_SIZE * REGION_SIZE;
 /// The number of bytes in a sector (4 KiB)
 const SECTOR_BYTES: usize = 4096;
 
-// 1.21.6
-pub const WORLD_DATA_VERSION: i32 = 4435;
+// 1.21.7
+pub const WORLD_DATA_VERSION: i32 = 4438;
 
 #[derive(Clone, Default)]
 pub struct AnvilChunkFormat;
@@ -343,12 +343,12 @@ impl AnvilChunkData {
 impl<S: SingleChunkDataSerializer> AnvilChunkFile<S> {
     pub const fn get_region_coords(at: &Vector2<i32>) -> (i32, i32) {
         // Divide by 32 for the region coordinates
-        (at.x >> SUBREGION_BITS, at.z >> SUBREGION_BITS)
+        (at.x >> SUBREGION_BITS, at.y >> SUBREGION_BITS)
     }
 
     pub const fn get_chunk_index(pos: &Vector2<i32>) -> usize {
         let local_x = pos.x & SUBREGION_AND;
-        let local_z = pos.z & SUBREGION_AND;
+        let local_z = pos.y & SUBREGION_AND;
         let index = (local_z << SUBREGION_BITS) + local_x;
         index as usize
     }
@@ -845,7 +845,7 @@ mod tests {
 
     #[async_trait]
     impl BlockRegistryExt for BlockRegistry {
-        async fn can_place_at(
+        fn can_place_at(
             &self,
             _block: &pumpkin_data::Block,
             _block_accessor: &dyn BlockAccessor,
@@ -904,6 +904,7 @@ mod tests {
                 &LevelFolder {
                     root_folder: PathBuf::from(""),
                     region_folder: region_path,
+                    entities_folder: PathBuf::from(""),
                 },
                 &[Vector2::new(0, 0)],
                 send,
@@ -932,6 +933,7 @@ mod tests {
         let level_folder = LevelFolder {
             root_folder: temp_dir.path().to_path_buf(),
             region_folder: temp_dir.path().join("region"),
+            entities_folder: PathBuf::from("entities"),
         };
         fs::create_dir(&level_folder.region_folder).expect("couldn't create region folder");
         let chunk_saver = ChunkFileManager::<AnvilChunkFile<ChunkData>>::default();
@@ -948,9 +950,7 @@ mod tests {
         for x in -5..5 {
             for y in -5..5 {
                 let position = Vector2::new(x, y);
-                let chunk = generator
-                    .generate_chunk(&level, block_registry.as_ref(), &position)
-                    .await;
+                let chunk = generator.generate_chunk(&level, block_registry.as_ref(), &position);
                 chunks.push((position, Arc::new(RwLock::new(chunk))));
             }
         }
@@ -1209,6 +1209,7 @@ mod tests {
         let level_folder = LevelFolder {
             root_folder: temp_dir.path().to_path_buf(),
             region_folder: temp_dir.path().join("region"),
+            entities_folder: PathBuf::from("entities"),
         };
         fs::create_dir(&level_folder.region_folder).expect("couldn't create region folder");
         let chunk_saver = ChunkFileManager::<AnvilChunkFile<ChunkData>>::default();
@@ -1225,9 +1226,7 @@ mod tests {
         for x in -5..5 {
             for y in -5..5 {
                 let position = Vector2::new(x, y);
-                let chunk = generator
-                    .generate_chunk(&level, block_registry.as_ref(), &position)
-                    .await;
+                let chunk = generator.generate_chunk(&level, block_registry.as_ref(), &position);
                 chunks.push((position, Arc::new(RwLock::new(chunk))));
             }
         }

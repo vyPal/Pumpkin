@@ -4,7 +4,7 @@ use crate::entity::{EntityBase, player::Player};
 use async_trait::async_trait;
 use pumpkin_data::BlockDirection;
 use pumpkin_data::{fluid::Fluid, item::Item};
-use pumpkin_protocol::server::play::SUseItemOn;
+use pumpkin_protocol::java::server::play::SUseItemOn;
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_world::BlockStateId;
 
@@ -32,7 +32,7 @@ pub trait PumpkinFluid: Send + Sync {
         _server: &Server,
         _world: &Arc<World>,
     ) -> BlockActionResult {
-        BlockActionResult::Continue
+        BlockActionResult::Pass
     }
 
     async fn placed(
@@ -82,6 +82,8 @@ pub trait PumpkinFluid: Send + Sync {
     async fn on_entity_collision(&self, _entity: &dyn EntityBase) {}
 
     async fn on_scheduled_tick(&self, _world: &Arc<World>, _fluid: &Fluid, _block_pos: &BlockPos) {}
+
+    async fn random_tick(&self, _fluid: &Fluid, _world: &Arc<World>, _block_pos: &BlockPos) {}
 
     async fn create_legacy_block(&self, _world: &Arc<World>, _block_pos: &BlockPos) {}
 }
