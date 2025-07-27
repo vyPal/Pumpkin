@@ -1,9 +1,4 @@
-use std::{
-    any::Any,
-    fs,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{any::Any, fs, path::Path, path::PathBuf, sync::Arc};
 
 use crate::command::client_suggestions;
 use pumpkin_util::{
@@ -31,7 +26,7 @@ pub struct Context {
     metadata: PluginMetadata<'static>,
     pub server: Arc<Server>,
     pub handlers: Arc<RwLock<HandlerMap>>,
-    pub plugin_manager: Arc<RwLock<PluginManager>>,
+    pub plugin_manager: Arc<PluginManager>,
     pub permission_manager: Arc<RwLock<PermissionManager>>,
 }
 impl Context {
@@ -49,7 +44,7 @@ impl Context {
         metadata: PluginMetadata<'static>,
         server: Arc<Server>,
         handlers: Arc<RwLock<HandlerMap>>,
-        plugin_manager: Arc<RwLock<PluginManager>>,
+        plugin_manager: Arc<PluginManager>,
         permission_manager: Arc<RwLock<PermissionManager>>,
     ) -> Self {
         Self {
@@ -102,8 +97,7 @@ impl Context {
     /// context.register_service("my_service".to_string(), Arc::new(MyService::new())).await;
     /// ```
     pub async fn register_service<T: Any + Send + Sync>(&self, name: String, service: Arc<T>) {
-        let manager = self.plugin_manager.read().await;
-        let mut services = manager.services.write().await;
+        let mut services = self.plugin_manager.services.write().await;
         services.insert(name, service);
     }
 
@@ -129,8 +123,7 @@ impl Context {
     /// }
     /// ```
     pub async fn get_service<T: Any + Send + Sync>(&self, name: &str) -> Option<Arc<T>> {
-        let manager = self.plugin_manager.read().await;
-        let services = manager.services.read().await;
+        let services = self.plugin_manager.services.read().await;
         services.get(name)?.clone().downcast::<T>().ok()
     }
 
@@ -225,12 +218,14 @@ impl Context {
     ///
     /// # Constraints
     /// The handler must implement the `EventHandler<E>` trait.
-    pub async fn register_event<E: Event + 'static, H: EventHandler<E> + 'static>(
+    pub async fn register_event<E: Event + 'static, H>(
         &self,
         handler: Arc<H>,
         priority: EventPriority,
         blocking: bool,
-    ) {
+    ) where
+        H: EventHandler<E> + 'static,
+    {
         let mut handlers = self.handlers.write().await;
 
         let handlers_vec = handlers
@@ -270,10 +265,9 @@ impl Context {
         &self,
         loader: Arc<dyn crate::plugin::loader::PluginLoader>,
     ) -> bool {
-        let mut manager = self.plugin_manager.write().await;
-        let before_count = manager.loaded_plugins().len();
-        manager.add_loader(loader).await;
-        let after_count = manager.loaded_plugins().len();
+        let before_count = self.plugin_manager.loaded_plugins().await.len();
+        self.plugin_manager.add_loader(loader).await;
+        let after_count = self.plugin_manager.loaded_plugins().await.len();
 
         // Return true if any new plugins were loaded
         after_count > before_count
