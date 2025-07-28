@@ -94,7 +94,7 @@ pub struct ChunkEntityData {
 #[derive(Debug, Clone)]
 pub struct ChunkSections {
     pub sections: Box<[SubChunk]>,
-    min_y: i32,
+    pub min_y: i32,
 }
 
 impl ChunkSections {
@@ -179,18 +179,19 @@ impl ChunkSections {
         }
     }
 
+    /// Returns the replaced block state ID
     pub fn set_block_absolute_y(
         &mut self,
         relative_x: usize,
         y: i32,
         relative_z: usize,
         block_state: BlockStateId,
-    ) {
+    ) -> BlockStateId {
         let y = y - self.min_y;
         debug_assert!(y >= 0);
         let relative_y = y as usize;
 
-        self.set_relative_block(relative_x, relative_y, relative_z, block_state);
+        self.set_relative_block(relative_x, relative_y, relative_z, block_state)
     }
 
     /// Gets the given block in the chunk
@@ -210,7 +211,7 @@ impl ChunkSections {
             .map(|section| section.block_states.get(relative_x, relative_y, relative_z))
     }
 
-    /// Sets the given block in the chunk, returning the old block
+    /// Sets the given block in the chunk, returning the old block state ID
     #[inline]
     pub fn set_relative_block(
         &mut self,
@@ -218,9 +219,9 @@ impl ChunkSections {
         relative_y: usize,
         relative_z: usize,
         block_state_id: BlockStateId,
-    ) {
+    ) -> BlockStateId {
         // TODO @LUK_ESC? update the heightmap
-        self.set_block_no_heightmap_update(relative_x, relative_y, relative_z, block_state_id);
+        self.set_block_no_heightmap_update(relative_x, relative_y, relative_z, block_state_id)
     }
 
     /// Sets the given block in the chunk, returning the old block
@@ -234,20 +235,20 @@ impl ChunkSections {
         relative_y: usize,
         relative_z: usize,
         block_state_id: BlockStateId,
-    ) {
+    ) -> BlockStateId {
         debug_assert!(relative_x < BlockPalette::SIZE);
         debug_assert!(relative_z < BlockPalette::SIZE);
 
         let section_index = relative_y / BlockPalette::SIZE;
         let relative_y = relative_y % BlockPalette::SIZE;
         if let Some(section) = self.sections.get_mut(section_index) {
-            section
+            return section
                 .block_states
                 .set(relative_x, relative_y, relative_z, block_state_id);
         }
+        0
     }
 
-    /// Sets the given block in the chunk, returning the old block
     pub fn set_relative_biome(
         &mut self,
         relative_x: usize,
@@ -260,9 +261,11 @@ impl ChunkSections {
 
         let section_index = relative_y / BiomePalette::SIZE;
         let relative_y = relative_y % BiomePalette::SIZE;
-        self.sections[section_index]
-            .biomes
-            .set(relative_x, relative_y, relative_z, biome_id);
+        if let Some(section) = self.sections.get_mut(section_index) {
+            section
+                .biomes
+                .set(relative_x, relative_y, relative_z, biome_id);
+        }
     }
 }
 
