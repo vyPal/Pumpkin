@@ -132,6 +132,10 @@ where
     fn get_living_entity(&self) -> Option<&LivingEntity> {
         Some(&self.get_mob_entity().living_entity)
     }
+
+    fn get_gravity(&self) -> f64 {
+        self.get_mob_entity().living_entity.get_gravity()
+    }
 }
 
 #[allow(dead_code)]
