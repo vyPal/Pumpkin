@@ -53,6 +53,7 @@ pub mod ai;
 pub mod decoration;
 pub mod effect;
 pub mod experience_orb;
+pub mod falling;
 pub mod hunger;
 pub mod item;
 pub mod living;
