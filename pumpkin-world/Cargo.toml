@@ -2,7 +2,7 @@
 name = "pumpkin-world"
 version.workspace = true
 edition.workspace = true
-rust-version = "1.88"
+rust-version = "1.89"
 
 [dependencies]
 pumpkin-nbt = { path = "../pumpkin-nbt" }
@@ -38,7 +38,6 @@ lz4-java-wrc = "0.2.0"
 ruzstd = "0.8.1"
 
 itertools = "0.14.0"
-file-guard = "0.2"
 enum_dispatch = "0.3"
 derive-getters = "0.5.0"
 
