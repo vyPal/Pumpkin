@@ -48,9 +48,12 @@ jobs:
       - run: rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --verbose
+
+  # Job to create the release draft. This runs first.
   github-release-draft:
     name: 'Create GitHub Release Draft'
     runs-on: ubuntu-latest
+    # This job only runs on a successful push to the master branch
     if: success() && github.ref == 'refs/heads/master'
     env:
       NIGHTLY_REPO: ${{ github.repository_owner }}/pumpkin-commit-builds
@@ -58,11 +61,10 @@ jobs:
       release-id: ${{ steps.create-release.outputs.release-id }}
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Create Release Draft
         id: create-release
         env:
-          NIGHTLY_REPO: ${{ github.repository_owner }}/pumpkin-commit-builds
           GITHUB_TOKEN: ${{ secrets.COMMIT_REPO_TOKEN }}
         run: |
           RELEASE_TAG="per-commit-${{ github.sha }}"
@@ -75,8 +77,9 @@ jobs:
             --notes "Per-commit build based on ${{ github.repository }}@${{ github.sha }}" \
             --repo "${REPO_NAME}")
           RELEASE_ID=$(gh release view "${RELEASE_TAG}" --repo "${REPO_NAME}" --json id | jq -r '.id')
-
           echo "release-id=${RELEASE_ID}" >> ${GITHUB_OUTPUT}
+
+  # Job to build the project in release mode and upload the artifacts
   build_release:
     name: Build project in release (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -91,13 +94,53 @@ jobs:
       - run: rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --verbose --release
-      - name: Upload Commit
+      - name: Export executable as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pumpkin-${{ matrix.os }}
+          compression-level: 9
+          path: target/release/pumpkin*
+
+  # New job to download and upload the artifacts to the release
+  upload_release_assets:
+    name: 'Upload Release Assets'
+    runs-on: ubuntu-latest
+    needs: [build_release, github-release-draft]
+    if: success()
+    env:
+      NIGHTLY_REPO: ${{ github.repository_owner }}/pumpkin-commit-builds
+    steps:
+      - name: Download all executables
+        uses: actions/download-artifact@v5
+        with:
+          path: ./downloads
+      - name: Upload Linux executable
         env:
-          NIGHTLY_REPO: ${{ github.repository_owner }}/pumpkin-commit-builds
           GITHUB_TOKEN: ${{ secrets.COMMIT_REPO_TOKEN }}
         run: |
-          gh release upload ${{ needs.github-release-draft.outputs.release-id }} \
-            pumpkin-${{ matrix.os }} --repo ${{ env.NIGHTLY_REPO }}
+          gh release upload ${{ needs.github-release-draft.outputs.release-id }} ./downloads/pumpkin-ubuntu-latest/pumpkin --repo ${{ env.NIGHTLY_REPO }}
+      - name: Upload Windows executable
+        env:
+          GITHUB_TOKEN: ${{ secrets.COMMIT_REPO_TOKEN }}
+        run: |
+          gh release upload ${{ needs.github-release-draft.outputs.release-id }} ./downloads/pumpkin-windows-latest/pumpkin.exe --repo ${{ env.NIGHTLY_REPO }}
+      - name: Upload macOS executable
+        env:
+          GITHUB_TOKEN: ${{ secrets.COMMIT_REPO_TOKEN }}
+        run: |
+          gh release upload ${{ needs.github-release-draft.outputs.release-id }} ./downloads/pumpkin-macos-latest/pumpkin --repo ${{ env.NIGHTLY_REPO }}
+      - name: Publish as latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.COMMIT_REPO_TOKEN }}
+          RELEASE_ID: ${{ needs.github-release-draft.outputs.release-id }}
+        run: |
+          gh api \
+            --method PATCH \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${NIGHTLY_REPO}/releases/${RELEASE_ID}" \
+            -F draft=false -F prerelease=true
+
+  # Job to run Clippy in release mode
   clippy_release:
     name: Run lints in release mode
     runs-on: ubuntu-latest
