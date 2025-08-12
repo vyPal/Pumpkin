@@ -114,7 +114,8 @@ jobs:
             | jq '.id' \
           )
           
-          echo "RELEASE_ID=${RELEASE_ID}" >> ${GITHUB_OUTPUT}
+          echo "Release ID obtained: ${RELEASE_ID}"
+          echo "release-id=${RELEASE_ID}" >> ${GITHUB_OUTPUT}
         env:
           GITHUB_TOKEN: ${{ secrets.COMMIT_REPO_TOKEN }}
 
