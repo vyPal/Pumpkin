@@ -55,8 +55,6 @@ jobs:
     runs-on: ubuntu-latest
     # This job only runs on a successful push to the master branch
     if: success() && github.ref == 'refs/heads/master'
-    env:
-      NIGHTLY_REPO: ${{ github.repository_owner }}/pumpkin-commit-builds
     outputs:
       release-id: ${{ steps.create-release.outputs.release-id }}
     steps:
@@ -65,18 +63,27 @@ jobs:
       - name: Create Release Draft
         id: create-release
         env:
+          NIGHTLY_REPO: ${{ github.repository_owner }}/pumpkin-commit-builds
           GITHUB_TOKEN: ${{ secrets.COMMIT_REPO_TOKEN }}
         run: |
           RELEASE_TAG="per-commit-${{ github.sha }}"
           RELEASE_TITLE="Build ${{ github.sha }}"
           REPO_NAME="${{ env.NIGHTLY_REPO }}"
           echo "Creating draft release with tag: ${RELEASE_TAG} in repo: ${REPO_NAME}"
-          RELEASE_URL=$(gh release create "${RELEASE_TAG}" \
+
+          # Create the release and get the ID in a single, reliable command
+          RELEASE_ID=$(gh release create "${RELEASE_TAG}" \
             --draft \
             --title "${RELEASE_TITLE}" \
             --notes "Per-commit build based on ${{ github.repository }}@${{ github.sha }}" \
             --repo "${REPO_NAME}")
-          RELEASE_ID=$(gh release view "${RELEASE_TAG}" --repo "${REPO_NAME}" --json id | jq -r '.id')
+          
+          if [ -z "$RELEASE_ID" ]; then
+            echo "Failed to create release or retrieve release ID."
+            exit 1
+          fi
+
+          echo "Release-ID:${RELEASE_ID}"
           echo "release-id=${RELEASE_ID}" >> ${GITHUB_OUTPUT}
 
   # Job to build the project in release mode and upload the artifacts
