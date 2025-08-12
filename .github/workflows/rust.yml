@@ -97,7 +97,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.COMMIT_REPO_TOKEN }}
         run: |
           gh release upload ${{ needs.github-release-draft.outputs.release-id }} \
-            pumpkin-${{ matrix.os }} --repo ${{ env.NIGHTLY_REPO }
+            pumpkin-${{ matrix.os }} --repo ${{ env.NIGHTLY_REPO }}
   clippy_release:
     name: Run lints in release mode
     runs-on: ubuntu-latest
