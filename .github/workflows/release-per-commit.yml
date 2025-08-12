@@ -6,9 +6,41 @@ on:
     types:
       - completed
 
+env:
+  RUST_BACKTRACE: 1
+  SHELL: /bin/bash
+
 jobs:
-  upload-artifacts:
+  create-draft-release:
     if: success() && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'master'
+    name: Create Draft GH Release
+    runs-on: ubuntu-latest
+    outputs:
+      release-id: ${{ steps.create-release.outputs.RELEASE_ID }}
+    steps:
+      - id: create-release
+        run: |
+          RELEASE_TAG="per-commit-${{ github.sha }}"
+          RELEASE_TITLE="Build ${{ github.sha }}"
+          RELEASE_URL=$(gh release create "${RELEASE_TAG}" \
+            --draft \
+            --title "${RELEASE_TITLE}" \
+            --notes 'Per-commit build based on Pumpkin-MC/Pumpkin@${{ github.sha }}' \
+            --repo ${NIGHTLY_REPO})
+          TEMP_TAG=$(basename "$RELEASE_URL")
+          RELEASE_ID=$( \
+            gh api -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${NIGHTLY_REPO}/releases/tags/${TEMP_TAG}" \
+            | jq '.id' \
+          )
+          echo "RELEASE_ID=${RELEASE_ID}" >> ${GITHUB_OUTPUT}
+        env:
+          GITHUB_TOKEN: ${{ secrets.COMMIT_REPO_TOKEN }}
+          NIGHTLY_REPO: ${{ github.repository_owner }}/pumpkin-commit-builds
+  
+  upload-artifacts:
+    if: always() && (github.repository == 'Pumpkin-MC/Pumpkin' || github.event_name == 'workflow_dispatch')
     name: Download & Upload Builds
     runs-on: ubuntu-latest
     needs:
@@ -53,3 +85,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.COMMIT_REPO_TOKEN }}
           NIGHTLY_REPO: ${{ github.repository_owner }}/pumpkin-commit-builds
+          
+  publish-per-commit-release:
+    if: always() && (github.repository == 'Pumpkin-MC/Pumpkin' || github.event_name == 'workflow_dispatch')
+    name: Publish GH Release
+    runs-on: ubuntu-latest
+    needs:
+      - create-draft-release
+      - upload-artifacts
+    steps:
+      - name: Publish as latest
+        run: |
+          gh api \
+            --method PATCH \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/${NIGHTLY_REPO}/releases/${RELEASE_ID} \
+            -F draft=false -F prerelease=true
+        env:
+          GITHUB_TOKEN: ${{ secrets.COMMIT_REPO_TOKEN }}
+          NIGHTLY_REPO: ${{ github.repository_owner }}/pumpkin-commit-builds
+          RELEASE_ID: ${{ needs.create-draft-release.outputs.release-id }}
