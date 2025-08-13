@@ -19,6 +19,7 @@ pub mod rule;
 mod rule_test;
 mod seed;
 pub mod settings;
+pub mod structure;
 mod surface;
 pub mod y_offset;
 
