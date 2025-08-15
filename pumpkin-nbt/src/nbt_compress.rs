@@ -16,7 +16,7 @@ pub fn read_gzip_compound_tag(input: impl Read + Seek) -> Result<NbtCompound, Er
     // Create a GZip decoder and directly chain it to the NBT reader
     let mut decoder = GzDecoder::new(input);
     let mut buf = Vec::new();
-    decoder.read_to_end(&mut buf).unwrap();
+    decoder.read_to_end(&mut buf).map_err(Error::Incomplete)?;
     let mut reader = NbtReadHelper::new(Cursor::new(buf));
 
     // Read the NBT data directly from the decoder stream
@@ -71,7 +71,7 @@ pub fn from_gzip_bytes<'a, T: serde::Deserialize<'a>, R: Read>(input: R) -> Resu
     // Create a GZip decoder and directly use it for deserialization
     let mut decoder = GzDecoder::new(input);
     let mut buf = Vec::new();
-    decoder.read_to_end(&mut buf).unwrap();
+    decoder.read_to_end(&mut buf).map_err(Error::Incomplete)?;
     deserializer::from_bytes(Cursor::new(buf))
 }
 
