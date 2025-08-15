@@ -1,6 +1,3 @@
-use std::{cell::RefCell, num::NonZeroUsize};
-
-use lru::LruCache;
 use pumpkin_data::chunk::Biome;
 use pumpkin_util::{
     math::{lerp2, vector2::Vector2, vector3::Vector3, vertical_surface_type::VerticalSurfaceType},
@@ -398,7 +395,7 @@ pub struct VerticalGradientMaterialCondition {
     true_at_and_below: YOffset,
     false_at_and_above: YOffset,
     #[serde(skip)]
-    random_deriver: ThreadLocal<RefCell<LruCache<usize, RandomDeriver>>>,
+    random_deriver: ThreadLocal<RandomDeriver>,
 }
 
 impl VerticalGradientMaterialCondition {
@@ -406,21 +403,9 @@ impl VerticalGradientMaterialCondition {
         let true_at = self.true_at_and_below.get_y(context.min_y, context.height);
         let false_at = self.false_at_and_above.get_y(context.min_y, context.height);
 
-        let context_pointer: *const RandomDeriver = context.random_deriver;
-        let key = context_pointer.addr();
-
-        let mut cache = self
-            .random_deriver
-            .get_or(|| {
-                let cache_size = NonZeroUsize::new(128).unwrap();
-                let cache = LruCache::new(cache_size);
-                RefCell::new(cache)
-            })
-            .borrow_mut();
-
-        let splitter = cache.get_or_insert(key, || {
-            context
-                .random_deriver
+        let splitter = self.random_deriver.get_or(|| {
+            let random_deriver_clone = context.random_deriver;
+            random_deriver_clone
                 .split_string(&self.random_name)
                 .next_splitter()
         });

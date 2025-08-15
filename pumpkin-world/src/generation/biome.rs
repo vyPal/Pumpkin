@@ -1,4 +1,4 @@
-use pumpkin_util::math::{floor_mod, square, vector3::Vector3};
+use pumpkin_util::math::{square, vector3::Vector3};
 
 use super::biome_coords;
 
@@ -134,7 +134,14 @@ fn score_permutation(
 
 #[inline]
 fn scale_mix(l: i64) -> f64 {
-    let d = floor_mod(l >> 24, 1024i32 as i64) as i32 as f64 / 1024.0;
+    const RECIPROCAL_1024: f64 = 1.0 / 1024.0;
+
+    // Use a bitwise AND for a faster modulus by a power of two
+    let scaled_l = (l >> 24) & 1023;
+
+    // Use a multiplication instead of a division
+    let d = scaled_l as f64 * RECIPROCAL_1024;
+
     (d - 0.5) * 0.9
 }
 
