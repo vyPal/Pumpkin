@@ -47,7 +47,7 @@ impl StructureType {
             StructureType::BuriedTreasure(generator) => generator.get_structure_position(chunk),
             StructureType::NetherFortress(generator) => generator.get_structure_position(chunk),
         };
-        if let Some(structure) = STRUCTURS.get(name) {
+        if let Some(structure) = STRUCTURES.get(name) {
             let current_biome = chunk.get_biome(&position.position.0);
             if Biome::get_tag_values(&structure.biomes)
                 .unwrap()
@@ -74,7 +74,7 @@ pub struct Structure {
     biomes: String,
 }
 
-pub static STRUCTURS: LazyLock<HashMap<String, Structure>> =
+pub static STRUCTURES: LazyLock<HashMap<String, Structure>> =
     LazyLock::new(|| read_data_from_file!("../../../assets/structure.json"));
 
 pub static STRUCTURE_SETS: LazyLock<HashMap<String, StructureSet>> =
