@@ -3,19 +3,21 @@ use pumpkin_util::math::position::BlockPos;
 use crate::ProtoChunk;
 
 pub mod buried_treasure;
+pub mod nether_fortress;
 
-pub trait Structure {
+pub trait StructureGenerator {
     fn get_structure_position(&self, chunk: &ProtoChunk) -> StructurePosition;
 
-    fn generate(&self, chunk: &mut crate::ProtoChunk);
+    fn generate(&self, position: BlockPos, chunk: &mut crate::ProtoChunk);
 }
 
+#[derive(Clone)]
 pub struct StructurePosition {
-    position: BlockPos,
-    generator: StructurePiecesCollector,
+    pub position: BlockPos,
+    pub generator: StructurePiecesCollector,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct StructurePiecesCollector {
-    pieces_positions: Vec<BlockPos>,
+    pub pieces_positions: Vec<BlockPos>,
 }
