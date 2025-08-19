@@ -35,6 +35,10 @@ pub struct ItemComponents {
     pub food: Option<FoodComponent>,
     #[serde(rename = "minecraft:equippable")]
     pub equippable: Option<EquippableComponent>,
+    #[serde(rename = "minecraft:consumable")]
+    pub consumable: Option<Consumable>,
+    #[serde(rename = "minecraft:blocks_attacks")]
+    pub blocks_attacks: Option<BlocksAttacks>,
 }
 
 impl ToTokens for ItemComponents {
@@ -218,6 +222,21 @@ impl ToTokens for ItemComponents {
             }), });
         };
 
+        if let Some(consumable) = &self.consumable {
+            let consume_seconds = LitFloat::new(
+                &format!("{:.1}", consumable.consume_seconds.unwrap_or(1.6)),
+                Span::call_site(),
+            );
+
+            tokens.extend(quote! { (Consumable, &ConsumableImpl {
+                consume_seconds: #consume_seconds,
+            }), });
+        };
+
+        if self.blocks_attacks.is_some() {
+            tokens.extend(quote! { (Consumable, &BlocksAttacksImpl), });
+        };
+
         if let Some(equippable) = &self.equippable {
             let slot = match equippable.slot.as_str() {
                 "mainhand" => quote! { &EquipmentSlot::MAIN_HAND },
@@ -371,6 +390,16 @@ pub struct Modifier {
 
 fn _true() -> bool {
     true
+}
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct Consumable {
+    consume_seconds: Option<f32>, // TODO
+}
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct BlocksAttacks {
+    // TODO
 }
 
 #[allow(dead_code)]

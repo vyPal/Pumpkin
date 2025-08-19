@@ -1,7 +1,7 @@
 use pumpkin_data::Block;
 use pumpkin_data::data_component::DataComponent;
 use pumpkin_data::data_component_impl::{
-    DataComponentImpl, IDSet, MaxStackSizeImpl, ToolImpl, get, read_data,
+    ConsumableImpl, DataComponentImpl, IDSet, MaxStackSizeImpl, ToolImpl, get, read_data,
 };
 use pumpkin_data::item::Item;
 use pumpkin_data::recipes::RecipeResultStruct;
@@ -87,6 +87,17 @@ impl ItemStack {
         }
     }
 
+    pub fn get_max_use_time(&self) -> i32 {
+        if let Some(value) = self.get_data_component::<ConsumableImpl>() {
+            return value.consume_ticks();
+        }
+        // TODO: this causes a panic
+        // if self.get_data_component::<BlocksAttacksImpl>().is_some() {
+        //     return 72000;
+        // }
+        0
+    }
+
     pub fn get_item(&self) -> &Item {
         if self.is_empty() {
             &Item::AIR
@@ -127,6 +138,12 @@ impl ItemStack {
 
     pub fn set_count(&mut self, count: u8) {
         self.item_count = count;
+    }
+
+    pub fn decrement_unless_creative(&mut self, gamemode: GameMode, amount: u8) {
+        if gamemode != GameMode::Creative {
+            self.item_count = self.item_count.saturating_sub(amount);
+        }
     }
 
     pub fn decrement(&mut self, amount: u8) {

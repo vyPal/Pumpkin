@@ -77,6 +77,20 @@ impl HungerManager {
         }
     }
 
+    pub async fn add_modifier(&self, player: &Player, food: u8, saturation_modifier: f32) {
+        let saturation = f32::from(food) * saturation_modifier * 2.0;
+        self.level.store(food + self.level.load());
+        self.saturation.store(saturation + self.saturation.load());
+        player.send_health().await;
+    }
+
+    pub async fn eat(&self, player: &Player, food: u8, saturation: f32) {
+        self.level.store(food + self.level.load());
+        self.saturation.store(saturation + self.saturation.load());
+
+        player.send_health().await;
+    }
+
     pub fn add_exhaustion(&self, exhaustion: f32) {
         self.exhaustion
             .store((self.exhaustion.load() + exhaustion).min(40.0));

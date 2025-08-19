@@ -1,6 +1,7 @@
 use pumpkin_data::potion::Effect;
 use pumpkin_util::math::position::BlockPos;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::sync::atomic::{
     AtomicBool, AtomicU8,
     Ordering::{Relaxed, SeqCst},
@@ -9,6 +10,7 @@ use std::{collections::HashMap, sync::atomic::AtomicI32};
 
 use super::{Entity, NBTStorage};
 use super::{EntityBase, NBTStorageInit};
+use crate::entity::player::Hand;
 use crate::server::Server;
 use crate::world::loot::{LootContextParameters, LootTableExt};
 use async_trait::async_trait;
@@ -16,7 +18,7 @@ use crossbeam::atomic::AtomicCell;
 use pumpkin_config::advanced_config;
 use pumpkin_data::Block;
 use pumpkin_data::damage::DeathMessageType;
-use pumpkin_data::data_component_impl::EquipmentSlot;
+use pumpkin_data::data_component_impl::{EquipmentSlot, FoodImpl};
 use pumpkin_data::effect::StatusEffect;
 use pumpkin_data::entity::{EntityPose, EntityStatus, EntityType};
 use pumpkin_data::sound::SoundCategory;
@@ -47,6 +49,8 @@ pub struct LivingEntity {
     pub last_damage_taken: AtomicCell<f32>,
     /// The current health level of the entity.
     pub health: AtomicCell<f32>,
+    pub item_use_time: AtomicI32,
+    pub item_in_use: Mutex<Option<ItemStack>>,
     pub death_time: AtomicU8,
     /// Indicates whether the entity is dead. (`on_death` called)
     pub dead: AtomicBool,
@@ -68,6 +72,7 @@ pub struct LivingEntity {
     pub climbing_pos: AtomicCell<Option<BlockPos>>,
 
     water_movement_speed_multiplier: f32,
+    livings_flags: AtomicU8,
 }
 
 #[async_trait]
@@ -78,6 +83,11 @@ pub trait LivingEntityTrait: EntityBase {
 }
 
 impl LivingEntity {
+    const USING_ITEM_FLAG: i32 = 1;
+    const OFF_HAND_ACTIVE_FLAG: i32 = 2;
+    #[allow(dead_code)]
+    const USING_RIPTIDE_FLAG: i32 = 4;
+
     pub fn new(entity: Entity) -> Self {
         let water_movement_speed_multiplier = if entity.entity_type == &EntityType::POLAR_BEAR {
             0.98
@@ -97,6 +107,9 @@ impl LivingEntity {
             fall_distance: AtomicCell::new(0.0),
             death_time: AtomicU8::new(0),
             dead: AtomicBool::new(false),
+            item_use_time: AtomicI32::new(0),
+            item_in_use: Mutex::new(None),
+            livings_flags: AtomicU8::new(0),
             active_effects: Mutex::new(HashMap::new()),
             entity_equipment: Arc::new(Mutex::new(EntityEquipment::new())),
             jumping: AtomicBool::new(false),
@@ -139,6 +152,35 @@ impl LivingEntity {
                 stack_amount.try_into().unwrap(),
             ))
             .await;
+    }
+
+    /// Sends the Hand animation to all others, used when Eating for example
+    pub async fn set_active_hand(&self, hand: Hand, stack: ItemStack) {
+        self.item_use_time
+            .store(stack.get_max_use_time(), Ordering::Relaxed);
+        *self.item_in_use.lock().await = Some(stack);
+        self.set_living_flag(Self::USING_ITEM_FLAG, true).await;
+        self.set_living_flag(Self::OFF_HAND_ACTIVE_FLAG, hand == Hand::Left)
+            .await;
+    }
+
+    async fn set_living_flag(&self, flag: i32, value: bool) {
+        let index = flag as u8;
+        let mut b = self.livings_flags.load(Ordering::Relaxed);
+        if value {
+            b |= index;
+        } else {
+            b &= !index;
+        }
+        self.livings_flags.store(b, Ordering::Relaxed);
+        self.entity
+            .send_meta_data(&[Metadata::new(8, MetaDataType::Byte, b)])
+            .await;
+    }
+
+    pub async fn clear_active_hand(&self) {
+        self.set_living_flag(Self::USING_ITEM_FLAG, false).await;
+        self.item_use_time.store(0, Ordering::Relaxed);
     }
 
     pub async fn heal(&self, additional_health: f32) {
@@ -973,6 +1015,35 @@ impl EntityBase for LivingEntity {
             self.entity.send_velocity().await;
         }
         self.tick_effects().await;
+        // Current active item
+        {
+            let mut item_in_use = self.item_in_use.lock().await;
+            if let Some(item) = item_in_use.as_ref()
+                && self.item_use_time.fetch_sub(1, Ordering::Relaxed) <= 0
+            {
+                // Consume item
+                if let Some(food) = item.get_data_component::<FoodImpl>()
+                    && let Some(player) = caller.get_player()
+                {
+                    player
+                        .hunger_manager
+                        .eat(player, food.nutrition as u8, food.saturation)
+                        .await;
+                }
+                if let Some(player) = caller.get_player() {
+                    player
+                        .inventory
+                        .held_item()
+                        .lock()
+                        .await
+                        .decrement_unless_creative(player.gamemode.load(), 1);
+                }
+
+                self.clear_active_hand().await;
+                *item_in_use = None;
+            }
+        }
+
         if self.hurt_cooldown.load(Relaxed) > 0 {
             self.hurt_cooldown.fetch_sub(1, Relaxed);
         }

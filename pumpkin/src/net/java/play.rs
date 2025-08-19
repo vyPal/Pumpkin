@@ -27,7 +27,7 @@ use crate::server::{Server, seasonal_events};
 use crate::world::{World, chunker};
 use pumpkin_config::{BASIC_CONFIG, advanced_config};
 use pumpkin_data::block_properties::{BlockProperties, WaterLikeProperties};
-use pumpkin_data::data_component_impl::EquipmentSlot;
+use pumpkin_data::data_component_impl::{ConsumableImpl, EquipmentSlot, FoodImpl};
 use pumpkin_data::entity::{EntityType, entity_from_egg};
 use pumpkin_data::item::Item;
 use pumpkin_data::sound::{Sound, SoundCategory};
@@ -1296,8 +1296,8 @@ impl JavaClient {
                 Status::DropItemStack => {
                     player.drop_held_item(true).await;
                 }
-                Status::ShootArrowOrFinishEating => {
-                    log::debug!("todo");
+                Status::ReleaseItemInUse => {
+                    player.living_entity.clear_active_hand().await;
                 }
                 Status::SwapItem => {
                     player.swap_item().await;
@@ -1603,11 +1603,30 @@ impl JavaClient {
                 None,
             )
         };
+        let held = item_in_hand.lock().await;
+        if held.get_data_component::<ConsumableImpl>().is_some() {
+            // If its food we want to make sure we can actually consume it
+            if let Some(food) = held.get_data_component::<FoodImpl>() {
+                if player.abilities.lock().await.invulnerable
+                    || food.can_always_eat
+                    || player.hunger_manager.level.load() < 20
+                {
+                    player
+                        .living_entity
+                        .set_active_hand(hand, held.clone())
+                        .await;
+                }
+            } else {
+                player
+                    .living_entity
+                    .set_active_hand(hand, held.clone())
+                    .await;
+            }
+        }
 
         send_cancellable! {{
             event;
             'after: {
-                let held = item_in_hand.lock().await;
                 let item = held.item;
                 drop(held);
                 server.item_registry.on_use(item, player).await;
