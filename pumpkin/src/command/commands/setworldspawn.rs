@@ -98,7 +98,7 @@ async fn setworldspawn(
     block_pos: BlockPos,
     yaw: f32,
 ) -> Result<(), CommandError> {
-    let Some(world) = sender.world().await else {
+    let Some(world) = sender.world() else {
         return Err(CommandError::CommandFailed(Box::new(TextComponent::text(
             "Failed to get world.",
         ))));

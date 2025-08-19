@@ -121,8 +121,6 @@ impl LivingEntity {
             .collect();
         self.entity
             .world
-            .read()
-            .await
             .broadcast_packet_except(
                 &[self.entity.entity_uuid],
                 &CSetEquipment::new(self.entity_id().into(), equipment),
@@ -135,8 +133,6 @@ impl LivingEntity {
         // TODO: Only nearby
         self.entity
             .world
-            .read()
-            .await
             .broadcast_packet_all(&CTakeItemEntity::new(
                 item.entity_id.into(),
                 self.entity.entity_id.into(),
@@ -175,8 +171,6 @@ impl LivingEntity {
         self.active_effects.lock().await.remove(&effect_type);
         self.entity
             .world
-            .read()
-            .await
             .send_remove_mob_effect(&self.entity, effect_type)
             .await;
     }
@@ -193,16 +187,14 @@ impl LivingEntity {
 
     // Check if the entity is in water
     pub async fn is_in_water(&self) -> bool {
-        let world = self.entity.world.read().await;
         let block_pos = self.entity.block_pos.load();
-        world.get_block(&block_pos).await == &Block::WATER
+        self.entity.world.get_block(&block_pos).await == &Block::WATER
     }
 
     // Check if the entity is in powder snow
     pub async fn is_in_powder_snow(&self) -> bool {
-        let world = self.entity.world.read().await;
         let block_pos = self.entity.block_pos.load();
-        world.get_block(&block_pos).await == &Block::POWDER_SNOW
+        self.entity.world.get_block(&block_pos).await == &Block::POWDER_SNOW
     }
 
     async fn get_effective_gravity(&self, caller: &Arc<dyn EntityBase>) -> f64 {
@@ -462,8 +454,6 @@ impl LivingEntity {
             && !self
                 .entity
                 .world
-                .read()
-                .await
                 .check_fluid_collision(self.entity.bounding_box.load().shift(velo))
                 .await
         {
@@ -742,7 +732,7 @@ impl LivingEntity {
         source: Option<&dyn EntityBase>,
         cause: Option<&dyn EntityBase>,
     ) {
-        let world = self.entity.world.read().await;
+        let world = &self.entity.world;
         let dyn_self = world
             .get_entity_by_id(self.entity.entity_id)
             .await
@@ -784,10 +774,9 @@ impl LivingEntity {
 
     async fn drop_loot(&self, params: LootContextParameters) {
         if let Some(loot_table) = &self.get_entity().entity_type.loot_table {
-            let world = self.entity.world.read().await;
             let pos = self.entity.block_pos.load();
             for stack in loot_table.get_loot(params) {
-                world.drop_stack(&pos, stack).await;
+                self.entity.world.drop_stack(&pos, stack).await;
             }
         }
     }
@@ -906,7 +895,7 @@ impl EntityBase for LivingEntity {
             return false; // Fire resistance
         }
 
-        let world = self.entity.world.read().await;
+        let world = &self.entity.world;
 
         let last_damage = self.last_damage_taken.load();
         let play_sound;
@@ -935,8 +924,6 @@ impl EntityBase for LivingEntity {
 
         self.entity
             .world
-            .read()
-            .await
             .broadcast_packet_all(&CDamageEvent::new(
                 self.entity.entity_id.into(),
                 damage_type.id.into(),
@@ -949,8 +936,6 @@ impl EntityBase for LivingEntity {
         if play_sound {
             self.entity
                 .world
-                .read()
-                .await
                 .play_sound(
                     // Sound::EntityPlayerHurt,
                     Sound::EntityGenericHurt,
@@ -997,8 +982,6 @@ impl EntityBase for LivingEntity {
                 // Spawn Death particles
                 self.entity
                     .world
-                    .read()
-                    .await
                     .send_entity_status(&self.entity, EntityStatus::AddDeathParticles)
                     .await;
                 self.entity.remove().await;

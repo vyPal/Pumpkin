@@ -41,7 +41,7 @@ impl ItemBehaviour for HoeItem {
             || block == &Block::ROOTED_DIRT
         {
             let mut future_block = block;
-            let world = player.world().await;
+            let world = player.world();
 
             //Only rooted can be right-clicked on the bottom of the block
             if face == BlockDirection::Down {

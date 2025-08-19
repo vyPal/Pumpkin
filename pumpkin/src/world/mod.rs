@@ -390,7 +390,7 @@ impl World {
         let current_players = self.players.read().await;
 
         for (_, player) in current_players.iter() {
-            match &player.client {
+            match player.client.as_ref() {
                 ClientPlatform::Java(client) => client.enqueue_packet(je_packet).await,
                 ClientPlatform::Bedrock(client) => client.send_game_packet(be_packet).await,
             }
@@ -1689,7 +1689,7 @@ impl World {
         yaw: f32,
         pitch: f32,
     ) {
-        if let ClientPlatform::Java(client) = &player.client {
+        if let ClientPlatform::Java(client) = player.client.as_ref() {
             self.worldborder.lock().await.init_client(client).await;
         }
 
@@ -1753,7 +1753,7 @@ impl World {
 
     pub async fn respawn_player(&self, player: &Arc<Player>, alive: bool) {
         let last_pos = player.living_entity.entity.last_pos.load();
-        let death_dimension = player.world().await.dimension_type.resource_location();
+        let death_dimension = player.world().dimension_type.resource_location();
         let death_location = BlockPos(Vector3::new(
             last_pos.x.round() as i32,
             last_pos.y.round() as i32,

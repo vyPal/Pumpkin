@@ -200,7 +200,7 @@ pub struct Player {
     /// The player's game profile information, including their username and UUID.
     pub gameprofile: GameProfile,
     /// The client connection associated with the player.
-    pub client: ClientPlatform,
+    pub client: Arc<ClientPlatform>,
     /// The player's inventory.
     pub inventory: Arc<PlayerInventory>,
     /// The player's configuration settings. Changes when the player changes their settings.
@@ -278,7 +278,7 @@ pub struct Player {
 
 impl Player {
     pub async fn new(
-        client: ClientPlatform,
+        client: Arc<ClientPlatform>,
         gameprofile: GameProfile,
         config: PlayerConfig,
         world: Arc<World>,
@@ -397,9 +397,8 @@ impl Player {
     }
 
     /// Removes the [`Player`] out of the current [`World`].
-    #[allow(unused_variables)]
     pub async fn remove(self: &Arc<Self>) {
-        let world = self.world().await;
+        let world = self.world();
         world.remove_player(self, true).await;
 
         let cylindrical = self.watched_section.load();
@@ -437,7 +436,7 @@ impl Player {
     }
 
     pub async fn attack(&self, victim: Arc<dyn EntityBase>) {
-        let world = self.world().await;
+        let world = self.world();
         let victim_entity = victim.get_entity();
         let attacker_entity = &self.living_entity.entity;
         let config = &advanced_config().pvp;
@@ -513,22 +512,17 @@ impl Player {
 
         if victim.get_living_entity().is_some() {
             let mut knockback_strength = 1.0;
-            player_attack_sound(&pos, &world, attack_type).await;
+            player_attack_sound(&pos, world, attack_type).await;
             match attack_type {
                 AttackType::Knockback => knockback_strength += 1.0,
                 AttackType::Sweeping => {
-                    combat::spawn_sweep_particle(attacker_entity, &world, &pos).await;
+                    combat::spawn_sweep_particle(attacker_entity, world, &pos).await;
                 }
                 _ => {}
             }
             if config.knockback {
-                combat::handle_knockback(
-                    attacker_entity,
-                    &world,
-                    victim_entity,
-                    knockback_strength,
-                )
-                .await;
+                combat::handle_knockback(attacker_entity, world, victim_entity, knockback_strength)
+                    .await;
             }
         }
 
@@ -564,7 +558,7 @@ impl Player {
     pub async fn get_respawn_point(&self) -> Option<(Vector3<f64>, f32)> {
         let respawn_point = self.respawn_point.load()?;
 
-        let block = self.world().await.get_block(&respawn_point.position).await;
+        let block = self.world().get_block(&respawn_point.position).await;
 
         if respawn_point.dimension == VanillaDimensionType::Overworld
             && block.is_tagged_with_by_tag(&tag::Block::MINECRAFT_BEDS)
@@ -629,14 +623,14 @@ impl Player {
     }
 
     pub async fn wake_up(&self) {
-        let world = self.world().await;
+        let world = self.world();
         let respawn_point = self
             .respawn_point
             .load()
             .expect("Player waking up should have it's respawn point set on the bed.");
 
         let (bed, bed_state) = world.get_block_and_state_id(&respawn_point.position).await;
-        BedBlock::set_occupied(false, &world, bed, &respawn_point.position, bed_state).await;
+        BedBlock::set_occupied(false, world, bed, &respawn_point.position, bed_state).await;
 
         self.living_entity
             .entity
@@ -760,7 +754,7 @@ impl Player {
 
         let chunk_of_chunks = {
             let mut chunk_manager = self.chunk_manager.lock().await;
-            if let ClientPlatform::Java(_) = &self.client {
+            if let ClientPlatform::Java(_) = self.client.as_ref() {
                 // Java clients can only send a limited amount of chunks per tick.
                 // If we have sent too many chunks without receiving an ack, we stop sending chunks.
                 chunk_manager
@@ -773,7 +767,7 @@ impl Player {
 
         if let Some(chunk_of_chunks) = chunk_of_chunks {
             let chunk_count = chunk_of_chunks.len();
-            match &self.client {
+            match self.client.as_ref() {
                 ClientPlatform::Java(java_client) => {
                     java_client.send_packet_now(&CChunkBatchStart).await;
                     for chunk in chunk_of_chunks {
@@ -811,7 +805,7 @@ impl Player {
 
         if self.mining.load(Ordering::Relaxed) {
             let pos = self.mining_pos.lock().await;
-            let world = self.world().await;
+            let world = self.world();
             let state = world.get_block_state(&pos).await;
             // Is the block broken?
             if state.is_air() {
@@ -824,7 +818,7 @@ impl Player {
             } else {
                 self.continue_mining(
                     *pos,
-                    &world,
+                    world,
                     state,
                     self.start_mining_time.load(Ordering::Relaxed),
                 )
@@ -847,7 +841,7 @@ impl Player {
         // TODO This should only be handled by the ClientPlatform
         let now = Instant::now();
         if now.duration_since(self.last_keep_alive_time.load()) >= Duration::from_secs(15) {
-            if matches!(self.client, ClientPlatform::Bedrock(_)) {
+            if matches!(self.client.as_ref(), ClientPlatform::Bedrock(_)) {
                 return;
             }
             // We never got a response from the last keep alive we sent.
@@ -934,8 +928,8 @@ impl Player {
         self.living_entity.entity.entity_id
     }
 
-    pub async fn world(&self) -> Arc<World> {
-        self.living_entity.entity.world.read().await.clone()
+    pub fn world(&self) -> &Arc<World> {
+        &self.living_entity.entity.world
     }
 
     pub fn position(&self) -> Vector3<f64> {
@@ -998,14 +992,13 @@ impl Player {
             PermissionLvl::Four => EntityStatus::SetOpLevel4,
         };
         self.world()
-            .await
             .send_entity_status(&self.living_entity.entity, status)
             .await;
     }
 
     /// Sets the player's difficulty level.
     pub async fn send_difficulty_update(&self) {
-        let world = self.world().await;
+        let world = self.world();
         let level_info = world.level_info.read().await;
         self.client
             .enqueue_packet(&CChangeDifficulty::new(
@@ -1029,7 +1022,7 @@ impl Player {
     /// Sends the world time to only this player.
     pub async fn send_time(&self, world: &World) {
         let l_world = world.level_time.lock().await;
-        match &self.client {
+        match self.client.as_ref() {
             ClientPlatform::Java(java_client) => {
                 java_client
                     .enqueue_packet(&CUpdateTime::new(
@@ -1074,7 +1067,7 @@ impl Player {
         yaw: Option<f32>,
         pitch: Option<f32>,
     ) {
-        let current_world = self.living_entity.entity.world.read().await.clone();
+        let current_world = self.living_entity.entity.world.clone();
         let yaw = yaw.unwrap_or(new_world.level_info.read().await.spawn_angle);
         let pitch = pitch.unwrap_or(10.0);
 
@@ -1099,12 +1092,18 @@ impl Player {
                 self.set_client_loaded(false);
                 let uuid = self.gameprofile.id;
                 current_world.remove_player(self, false).await;
-                *self.living_entity.entity.world.write().await = new_world.clone();
-                new_world.players.write().await.insert(uuid, self.clone());
+                new_world.players.write().await.insert(uuid, Arc::new(Self::new(
+                            self.client.clone(),
+                            self.gameprofile.clone(),
+                            self.config.read().await.clone(),
+                            new_world.clone(),
+                            self.gamemode.load(),
+                        )
+                        .await));
                 self.unload_watched_chunks(&current_world).await;
 
                 let last_pos = self.living_entity.entity.last_pos.load();
-                let death_dimension = self.world().await.dimension_type.resource_location();
+                let death_dimension = self.world().dimension_type.resource_location();
                 let death_location = BlockPos(Vector3::new(
                     last_pos.x.round() as i32,
                     last_pos.y.round() as i32,
@@ -1305,8 +1304,6 @@ impl Player {
                 self.living_entity
                     .entity
                     .world
-                    .read()
-                    .await
                     .broadcast_packet_all(&CPlayerInfoUpdate::new(
                         PlayerInfoFlags::UPDATE_GAME_MODE.bits(),
                         &[pumpkin_protocol::java::client::play::Player {
@@ -1425,7 +1422,7 @@ impl Player {
             + Vector3::new(0.0, f64::from(EntityType::PLAYER.eye_height) - 0.3, 0.0);
         let entity = Entity::new(
             Uuid::new_v4(),
-            self.world().await,
+            self.world().clone(),
             item_pos,
             &EntityType::ITEM,
             false,
@@ -1449,7 +1446,7 @@ impl Player {
         // TODO: Merge stacks together
         let item_entity =
             Arc::new(ItemEntity::new_with_velocity(entity, item_stack, velocity, 40).await);
-        self.world().await.spawn_entity(item_entity).await;
+        self.world().spawn_entity(item_entity).await;
     }
 
     pub async fn drop_held_item(&self, drop_stack: bool) {
@@ -1855,7 +1852,7 @@ impl Player {
 
     /// Swing the hand of the player
     pub async fn swing_hand(&self, hand: Hand, all: bool) {
-        let world = self.world().await;
+        let world = self.world();
         let entity_id = VarInt(self.entity_id());
 
         let animation = match hand {
@@ -1906,11 +1903,7 @@ impl NBTStorage for Player {
 
         nbt.put_string(
             "Dimension",
-            self.world()
-                .await
-                .dimension_type
-                .resource_location()
-                .to_string(),
+            self.world().dimension_type.resource_location().to_string(),
         );
     }
 
@@ -2072,8 +2065,6 @@ impl EntityBase for Player {
             .living_entity
             .entity
             .world
-            .read()
-            .await
             .get_entity_by_id(self.living_entity.entity.entity_id)
             .await
             .expect("Entity not found in world");
@@ -2099,7 +2090,7 @@ impl EntityBase for Player {
         pitch: Option<f32>,
         world: Arc<World>,
     ) {
-        if Arc::ptr_eq(&world, &self.world().await) {
+        if Arc::ptr_eq(&world, self.world()) {
             // Same world
             let yaw = yaw.unwrap_or(self.living_entity.entity.yaw.load());
             let pitch = pitch.unwrap_or(self.living_entity.entity.pitch.load());
@@ -2116,8 +2107,6 @@ impl EntityBase for Player {
                     self.request_teleport(position, yaw, pitch).await;
                     entity
                         .world
-                        .read()
-                        .await
                         .broadcast_packet_except(&[self.gameprofile.id], &CEntityPositionSync::new(
                             self.living_entity.entity.entity_id.into(),
                             position,

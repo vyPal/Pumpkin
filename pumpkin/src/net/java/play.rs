@@ -303,7 +303,7 @@ impl JavaClient {
                 }
 
                 entity.on_ground.store(packet.collision & FLAG_ON_GROUND != 0, Ordering::Relaxed);
-                let world = &player.world().await;
+                let world = &player.world();
 
                 // TODO: Warn when player moves to quickly
                 if !self.sync_position(player, world, pos, last_pos, entity.yaw.load(), entity.pitch.load(), packet.collision & FLAG_ON_GROUND != 0).await {
@@ -416,7 +416,7 @@ impl JavaClient {
                 let yaw = (entity.yaw.load() * 256.0 / 360.0).rem_euclid(256.0);
                 let pitch = (entity.pitch.load() * 256.0 / 360.0).rem_euclid(256.0);
                 // let head_yaw = (entity.head_yaw * 256.0 / 360.0).floor();
-                let world = &entity.world.read().await;
+                let world = &entity.world;
 
                 // TODO: Warn when player moves to quickly
                 if !self
@@ -510,7 +510,7 @@ impl JavaClient {
         let pitch = (entity.pitch.load() * 256.0 / 360.0).rem_euclid(256.0);
         // let head_yaw = modulus(entity.head_yaw * 256.0 / 360.0, 256.0);
 
-        let world = &entity.world.read().await;
+        let world = &entity.world;
         let packet =
             CUpdateEntityRot::new(entity_id.into(), yaw as u8, pitch as u8, rotation.ground);
         world
@@ -580,7 +580,7 @@ impl JavaClient {
             return;
         }
 
-        let world = player.world().await;
+        let world = player.world();
         let block = world.get_block(&pick_item.pos).await;
 
         if block.item_id == 0 {
@@ -626,7 +626,7 @@ impl JavaClient {
     pub async fn handle_set_command_block(&self, player: &Arc<Player>, command: SSetCommandBlock) {
         // TODO: check things
         let pos = command.pos;
-        if let Some(block_entity) = player.world().await.get_block_entity(&pos).await {
+        if let Some(block_entity) = player.world().get_block_entity(&pos).await {
             if block_entity.resource_location() != CommandBlockEntity::ID {
                 log::warn!(
                     "Client tried to change Command block but not Command block entity found"
@@ -706,7 +706,6 @@ impl JavaClient {
         let (yaw, pitch) = player.rotation();
         let hit_result = player
             .world()
-            .await
             .raycast(
                 player.eye_position(),
                 player
@@ -724,7 +723,7 @@ impl JavaClient {
                 player,
                 InteractAction::LeftClickBlock,
                 &item,
-                player.world().await.get_block(&hit_pos).await,
+                player.world().get_block(&hit_pos).await,
                 Some(hit_pos),
             )
         } else {
@@ -784,7 +783,7 @@ impl JavaClient {
                 );
 
                 let entity = &player.living_entity.entity;
-                let world = &entity.world.read().await;
+                let world = &entity.world;
                 if BASIC_CONFIG.allow_chat_reports {
                     world.broadcast_secure_player_chat(player, &chat_message, decorated_message).await;
                 } else {
@@ -1040,7 +1039,7 @@ impl JavaClient {
                 if player.living_entity.health.load() > 0.0 {
                     return;
                 }
-                player.world().await.respawn_player(player, false).await;
+                player.world().respawn_player(player, false).await;
 
                 let screen_handler = player.current_screen_handler.lock().await;
                 let mut screen_handler = screen_handler.lock().await;
@@ -1090,7 +1089,7 @@ impl JavaClient {
 
                 // TODO: set as camera entity when spectator
 
-                let world = &entity.world.read().await;
+                let world = &entity.world;
                 let player_victim = world.get_player_by_id(entity_id.0).await;
                 if entity_id.0 == player.entity_id() {
                     // This can't be triggered from a non-modded client.
@@ -1164,7 +1163,7 @@ impl JavaClient {
                     }
                     let position = player_action.position;
                     let entity = &player.living_entity.entity;
-                    let world = &entity.world.read().await;
+                    let world = &entity.world;
                     let (block, state) = world.get_block_and_state(&position).await;
 
                     let inventory = player.inventory();
@@ -1245,8 +1244,6 @@ impl JavaClient {
                     let entity = &player.living_entity.entity;
                     entity
                         .world
-                        .read()
-                        .await
                         .set_block_breaking(entity, player_action.position, -1)
                         .await;
                     self.update_sequence(player, player_action.sequence.0);
@@ -1265,7 +1262,7 @@ impl JavaClient {
 
                     // Block break & play sound
                     let entity = &player.living_entity.entity;
-                    let world = &entity.world.read().await;
+                    let world = &entity.world;
 
                     player.mining.store(false, Ordering::Relaxed);
                     world.set_block_breaking(entity, location, -1).await;
@@ -1398,7 +1395,7 @@ impl JavaClient {
         };
 
         let entity = &player.living_entity.entity;
-        let world = entity.world.read().await;
+        let world = &entity.world;
         let block = world.get_block(&position).await;
 
         let sneaking = player.living_entity.entity.sneaking.load(Ordering::Relaxed);
@@ -1412,7 +1409,7 @@ impl JavaClient {
                     &cursor_pos,
                     &face,
                     &item,
-                    &world,
+                    world,
                     block,
                     server,
                 )
@@ -1421,7 +1418,6 @@ impl JavaClient {
                 // TODO: Trigger ANY_BLOCK_USE Criteria
 
                 if matches!(result, BlockActionResult::SuccessServer) {
-                    drop(world); // IMPORTANT: We need to drop this to prevent a deadlock
                     player.swing_hand(hand, true).await;
                 }
                 return Ok(());
@@ -1526,7 +1522,7 @@ impl JavaClient {
     }
 
     pub async fn handle_sign_update(&self, player: &Player, sign_data: SUpdateSign) {
-        let world = &player.living_entity.entity.world.read().await;
+        let world = &player.living_entity.entity.world;
         let Some(block_entity) = world.get_block_entity(&sign_data.location).await else {
             return;
         };
@@ -1577,7 +1573,6 @@ impl JavaClient {
 
         let hit_result = player
             .world()
-            .await
             .raycast(
                 player.eye_position(),
                 player.eye_position().add(
@@ -1596,7 +1591,7 @@ impl JavaClient {
                 player,
                 InteractAction::RightClickBlock,
                 &item_in_hand,
-                player.world().await.get_block(&hit_pos).await,
+                player.world().get_block(&hit_pos).await,
                 Some(hit_pos),
             )
         } else {
@@ -1744,9 +1739,9 @@ impl JavaClient {
         // Create rotation like Vanilla
         let yaw = wrap_degrees(rand::random::<f32>() * 360.0) % 360.0;
 
-        let world = player.world().await;
+        let world = player.world();
         // Create a new mob and UUID based on the spawn egg id
-        let mob = from_type(entity_type, pos, &world, Uuid::new_v4()).await;
+        let mob = from_type(entity_type, pos, world, Uuid::new_v4()).await;
 
         // Set the rotation
         mob.get_entity().set_rotation(yaw, 0.0);
@@ -1800,7 +1795,7 @@ impl JavaClient {
         }
 
         let clicked_block_pos = BlockPos(location.0);
-        let world = &entity.world.read().await;
+        let world = &entity.world;
 
         let (clicked_block, clicked_block_state) =
             world.get_block_and_state(&clicked_block_pos).await;

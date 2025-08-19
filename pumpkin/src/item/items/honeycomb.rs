@@ -38,7 +38,7 @@ impl ItemBehaviour for HoneyCombItem {
         block: &Block,
         _server: &Server,
     ) {
-        let world = player.world().await;
+        let world = player.world();
 
         // First we try to strip the block. by getting his equivalent and applying it the axis.
         let replacement_block = get_waxed_equivalent(block);

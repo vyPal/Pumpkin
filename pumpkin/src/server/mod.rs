@@ -35,12 +35,9 @@ use rsa::RsaPublicKey;
 use std::collections::HashSet;
 use std::fs;
 use std::net::IpAddr;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicI64, AtomicU32};
-use std::{
-    future::Future,
-    sync::{Arc, atomic::Ordering},
-    time::Duration,
-};
+use std::{future::Future, sync::atomic::Ordering, time::Duration};
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 use tokio_util::task::TaskTracker;
@@ -325,7 +322,7 @@ impl Server {
         };
 
         let mut player = Player::new(
-            client,
+            Arc::new(client),
             profile,
             config.clone().unwrap_or_default(),
             world.clone(),

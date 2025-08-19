@@ -32,7 +32,7 @@ impl ItemBehaviour for AxeItem {
         _server: &Server,
     ) {
         // I tried to follow mojang order of doing things.
-        let world = player.world().await;
+        let world = player.world();
         let replacement_block = try_use_axe(block);
         // First we try to strip the block. by getting his equivalent and applying it the axis.
 

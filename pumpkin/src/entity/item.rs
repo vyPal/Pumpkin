@@ -91,8 +91,6 @@ impl ItemEntity {
         let items: Vec<_> = self
             .entity
             .world
-            .read()
-            .await
             .entities
             .read()
             .await
@@ -239,8 +237,6 @@ impl EntityBase for ItemEntity {
         let no_clip = !self
             .entity
             .world
-            .read()
-            .await
             .is_space_empty(bounding_box.expand(-1.0e-7, -1.0e-7, -1.0e-7))
             .await;
 

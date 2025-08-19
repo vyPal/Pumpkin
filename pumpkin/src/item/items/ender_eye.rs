@@ -32,7 +32,7 @@ impl ItemBehaviour for EnderEyeItem {
             return;
         }
 
-        let world = player.world().await;
+        let world = player.world();
         let state_id = world.get_block_state_id(&location).await;
         let original_props = block.properties(state_id).unwrap().to_props();
 
@@ -52,13 +52,13 @@ impl ItemBehaviour for EnderEyeItem {
             .set_block_state(&location, new_state_id, BlockFlags::empty())
             .await;
 
-        EndPortal::get_new_portal(&world, location).await;
+        EndPortal::get_new_portal(world, location).await;
 
         return;
     }
 
     async fn normal_use(&self, _item: &Item, player: &Player) {
-        let world = player.world().await;
+        let world = player.world();
         let (start_pos, end_pos) = self.get_start_and_end_pos(player);
         let checker = async |pos: &BlockPos, world_inner: &Arc<World>| {
             let state_id = world_inner.get_block_state_id(pos).await;

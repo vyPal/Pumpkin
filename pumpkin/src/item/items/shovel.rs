@@ -31,7 +31,7 @@ impl ItemBehaviour for ShovelItem {
         block: &Block,
         _server: &Server,
     ) {
-        let world = player.world().await;
+        let world = player.world();
         // Yes, Minecraft does hardcode these
         if (block == &Block::GRASS_BLOCK
             || block == &Block::DIRT

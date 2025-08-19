@@ -58,7 +58,7 @@ impl ItemBehaviour for MinecartItem {
         block: &Block,
         _server: &Server,
     ) {
-        let world = player.world().await;
+        let world = player.world();
 
         if !block.is_tagged_with_by_tag(&tag::Block::MINECRAFT_RAILS) {
             return;
