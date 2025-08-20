@@ -1,7 +1,8 @@
 use pumpkin_data::Block;
 use pumpkin_data::data_component::DataComponent;
 use pumpkin_data::data_component_impl::{
-    ConsumableImpl, DataComponentImpl, IDSet, MaxStackSizeImpl, ToolImpl, get, read_data,
+    BlocksAttacksImpl, ConsumableImpl, DataComponentImpl, IDSet, MaxStackSizeImpl, ToolImpl, get,
+    read_data,
 };
 use pumpkin_data::item::Item;
 use pumpkin_data::recipes::RecipeResultStruct;
@@ -91,10 +92,9 @@ impl ItemStack {
         if let Some(value) = self.get_data_component::<ConsumableImpl>() {
             return value.consume_ticks();
         }
-        // TODO: this causes a panic
-        // if self.get_data_component::<BlocksAttacksImpl>().is_some() {
-        //     return 72000;
-        // }
+        if self.get_data_component::<BlocksAttacksImpl>().is_some() {
+            return 72000;
+        }
         0
     }
 
