@@ -2,7 +2,7 @@ use super::{Entity, EntityBase, NBTStorage, living::LivingEntity};
 use crate::server::Server;
 use async_trait::async_trait;
 use core::f32;
-use pumpkin_data::{Block};
+use pumpkin_data::Block;
 use pumpkin_protocol::{
     codec::var_int::VarInt,
     java::client::play::{MetaDataType, Metadata},
@@ -65,7 +65,7 @@ impl EntityBase for TNTEntity {
             self.entity.remove().await;
             self.entity
                 .world
-                .explode(server, self.entity.pos.load(), self.power)
+                .explode(self.entity.pos.load(), self.power)
                 .await;
         } else {
             entity.update_fluid_state(&caller).await;

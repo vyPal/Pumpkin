@@ -18,12 +18,12 @@ use crate::world::loot::{LootContextParameters, LootTableExt};
 use async_trait::async_trait;
 use crossbeam::atomic::AtomicCell;
 use pumpkin_config::advanced_config;
+use pumpkin_data::Block;
 use pumpkin_data::damage::DeathMessageType;
 use pumpkin_data::data_component_impl::{DeathProtectionImpl, EquipmentSlot, FoodImpl};
 use pumpkin_data::effect::StatusEffect;
 use pumpkin_data::entity::{EntityPose, EntityStatus, EntityType};
 use pumpkin_data::sound::SoundCategory;
-use pumpkin_data::Block;
 use pumpkin_data::{damage::DamageType, sound::Sound};
 use pumpkin_inventory::entity_equipment::EntityEquipment;
 use pumpkin_nbt::compound::NbtCompound;
@@ -871,6 +871,7 @@ impl LivingEntity {
         if let Some(player) = caller.get_player() {
             return player.inventory.held_item();
         }
+        // TODO: this is wrong
         let slot = self
             .equipment_slots
             .get(&PlayerInventory::OFF_HAND_SLOT)

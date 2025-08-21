@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use pumpkin_data::Block;
-use pumpkin_data::{entity::EntityType};
+use pumpkin_data::entity::EntityType;
 use pumpkin_protocol::java::client::play::{MetaDataType, Metadata};
-use pumpkin_util::math::{position::BlockPos};
+use pumpkin_util::math::position::BlockPos;
 use pumpkin_world::{BlockStateId, world::BlockFlags};
 use std::sync::{Arc, atomic::Ordering};
 use uuid::Uuid;
