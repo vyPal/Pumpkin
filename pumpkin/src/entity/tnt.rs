@@ -2,7 +2,7 @@ use super::{Entity, EntityBase, NBTStorage, living::LivingEntity};
 use crate::server::Server;
 use async_trait::async_trait;
 use core::f32;
-use pumpkin_data::{Block, damage::DamageType};
+use pumpkin_data::{Block};
 use pumpkin_protocol::{
     codec::var_int::VarInt,
     java::client::play::{MetaDataType, Metadata},
@@ -94,17 +94,6 @@ impl EntityBase for TNTEntity {
                 ),
             ])
             .await;
-    }
-
-    async fn damage_with_context(
-        &self,
-        _amount: f32,
-        _damage_type: DamageType,
-        _position: Option<Vector3<f64>>,
-        _source: Option<&dyn EntityBase>,
-        _cause: Option<&dyn EntityBase>,
-    ) -> bool {
-        false
     }
 
     fn get_entity(&self) -> &Entity {

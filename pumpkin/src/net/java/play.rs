@@ -1,5 +1,5 @@
 use pumpkin_protocol::bedrock::server::text::SText;
-use pumpkin_util::PermissionLvl;
+use pumpkin_util::{Hand, PermissionLvl};
 use rsa::pkcs1v15::{Signature as RsaPkcs1v15Signature, VerifyingKey};
 use rsa::signature::Verifier;
 use sha1::Sha1;
@@ -14,7 +14,7 @@ use crate::block::registry::BlockActionResult;
 use crate::block::{self, BlockIsReplacing};
 use crate::command::CommandSender;
 use crate::entity::EntityBase;
-use crate::entity::player::{ChatMode, ChatSession, Hand, Player};
+use crate::entity::player::{ChatMode, ChatSession, Player};
 use crate::entity::r#type::from_type;
 use crate::error::PumpkinError;
 use crate::net::PlayerConfig;
@@ -327,6 +327,7 @@ impl JavaClient {
                 if !player.abilities.lock().await.flying {
                     player.living_entity
                         .update_fall_distance(
+                            player.clone(),
                             height_difference,
                             packet.collision & FLAG_ON_GROUND != 0,
                             player.gamemode.load() == GameMode::Creative,
@@ -451,6 +452,7 @@ impl JavaClient {
                 if !player.abilities.lock().await.flying {
                     player.living_entity
                         .update_fall_distance(
+                            player.clone(),
                             height_difference,
                             (packet.collision & FLAG_ON_GROUND) != 0,
                             player.gamemode.load() == GameMode::Creative,
