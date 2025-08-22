@@ -571,7 +571,7 @@ impl JavaClient {
                     .await;
             }
             SInteract::PACKET_ID => {
-                self.handle_interact(player, SInteract::read(payload)?)
+                self.handle_interact(player, SInteract::read(payload)?, server)
                     .await;
             }
             SKeepAlive::PACKET_ID => {
