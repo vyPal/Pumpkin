@@ -8,11 +8,10 @@ mod block_state_provider;
 pub mod carver;
 pub mod chunk_noise;
 mod feature;
+pub mod generator;
 pub mod height_limit;
 pub mod height_provider;
-pub mod implementation;
 pub mod noise;
-pub mod noise_router;
 pub mod ore_sampler;
 pub mod positions;
 pub mod proto_chunk;
@@ -20,11 +19,12 @@ pub mod rule;
 mod rule_test;
 mod seed;
 pub mod settings;
+pub mod structure;
 mod surface;
 pub mod y_offset;
 
 use derive_getters::Getters;
-use implementation::{GeneratorInit, VanillaGenerator, WorldGenerator};
+use generator::{GeneratorInit, VanillaGenerator, WorldGenerator};
 use pumpkin_util::random::{
     RandomDeriver, RandomDeriverImpl, RandomImpl, legacy_rand::LegacyRand, xoroshiro128::Xoroshiro,
 };
@@ -72,6 +72,10 @@ pub mod section_coords {
     #[inline]
     pub fn block_to_section<T: PrimInt>(coord: T) -> T {
         coord >> 4
+    }
+
+    pub fn get_offset_pos(chunk_coord: i32, offset: i32) -> i32 {
+        section_to_block(chunk_coord) + offset
     }
 
     #[inline]

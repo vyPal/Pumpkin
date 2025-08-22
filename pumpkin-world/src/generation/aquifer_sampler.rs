@@ -7,7 +7,7 @@ use pumpkin_util::{
 
 use super::{
     chunk_noise::{LAVA_BLOCK, WATER_BLOCK},
-    noise_router::{
+    noise::router::{
         chunk_density_function::ChunkNoiseFunctionSampleOptions,
         chunk_noise_router::ChunkNoiseRouter,
         density_function::{NoisePos, UnblendedNoisePos},
@@ -662,7 +662,7 @@ mod test {
                 BlockStateSampler, ChainedBlockStateSampler, ChunkNoiseGenerator, LAVA_BLOCK,
                 WATER_BLOCK,
             },
-            noise_router::{
+            noise::router::{
                 chunk_density_function::{ChunkNoiseFunctionSampleOptions, SampleAction},
                 chunk_noise_router::ChunkNoiseRouter,
                 density_function::UnblendedNoisePos,
@@ -688,7 +688,7 @@ mod test {
     });
 
     fn create_aquifer(
-        base_router: &ProtoNoiseRouters,
+        base_router: &'_ ProtoNoiseRouters,
     ) -> (
         WorldAquiferSampler,
         ChunkNoiseRouter<'_>,

@@ -6,7 +6,7 @@ use pumpkin_util::text::TextContent;
 use pumpkin_util::{registry::RegistryEntryList, text::TextComponent};
 use quote::{ToTokens, format_ident, quote};
 use serde::Deserialize;
-use std::{collections::HashMap, fs};
+use std::{collections::BTreeMap, fs};
 use syn::{Ident, LitBool, LitFloat, LitInt, LitStr};
 
 #[derive(Deserialize, Clone)]
@@ -35,6 +35,12 @@ pub struct ItemComponents {
     pub food: Option<FoodComponent>,
     #[serde(rename = "minecraft:equippable")]
     pub equippable: Option<EquippableComponent>,
+    #[serde(rename = "minecraft:consumable")]
+    pub consumable: Option<Consumable>,
+    #[serde(rename = "minecraft:blocks_attacks")]
+    pub blocks_attacks: Option<BlocksAttacks>,
+    #[serde(rename = "minecraft:death_protection")]
+    pub death_protection: Option<DeathProtection>,
 }
 
 impl ToTokens for ItemComponents {
@@ -218,6 +224,25 @@ impl ToTokens for ItemComponents {
             }), });
         };
 
+        if let Some(consumable) = &self.consumable {
+            let consume_seconds = LitFloat::new(
+                &format!("{:.1}", consumable.consume_seconds.unwrap_or(1.6)),
+                Span::call_site(),
+            );
+
+            tokens.extend(quote! { (Consumable, &ConsumableImpl {
+                consume_seconds: #consume_seconds,
+            }), });
+        };
+
+        if self.blocks_attacks.is_some() {
+            tokens.extend(quote! { (BlocksAttacks, &BlocksAttacksImpl), });
+        };
+
+        if self.death_protection.is_some() {
+            tokens.extend(quote! { (DeathProtection, &DeathProtectionImpl), });
+        };
+
         if let Some(equippable) = &self.equippable {
             let slot = match equippable.slot.as_str() {
                 "mainhand" => quote! { &EquipmentSlot::MAIN_HAND },
@@ -373,6 +398,21 @@ fn _true() -> bool {
     true
 }
 
+#[derive(Deserialize, Clone, Debug)]
+pub struct Consumable {
+    consume_seconds: Option<f32>, // TODO
+}
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct DeathProtection {
+    // TODO
+}
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct BlocksAttacks {
+    // TODO
+}
+
 #[allow(dead_code)]
 #[derive(Deserialize, Clone, Debug)]
 pub struct EquippableComponent {
@@ -406,7 +446,7 @@ pub enum Operation {
 pub(crate) fn build() -> TokenStream {
     println!("cargo:rerun-if-changed=../assets/items.json");
 
-    let items: HashMap<String, Item> =
+    let items: BTreeMap<String, Item> =
         serde_json::from_str(&fs::read_to_string("../assets/items.json").unwrap())
             .expect("Failed to parse items.json");
 

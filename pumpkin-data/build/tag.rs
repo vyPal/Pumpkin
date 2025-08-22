@@ -1,7 +1,9 @@
-use std::{collections::HashMap, fs};
+use std::{collections::BTreeMap, fs};
 
 use crate::biome::Biome;
 use crate::block::BlockAssets;
+use crate::enchantments::Enchantment;
+use crate::entity_type::EntityType;
 use crate::fluid::Fluid;
 use crate::item::Item;
 use heck::ToPascalCase;
@@ -37,8 +39,9 @@ pub(crate) fn build() -> TokenStream {
     println!("cargo:rerun-if-changed=../assets/items.json");
     println!("cargo:rerun-if-changed=../assets/biome.json");
     println!("cargo:rerun-if-changed=../assets/fluids.json");
+    println!("cargo:rerun-if-changed=../assets/entities.json");
 
-    let tags: HashMap<String, HashMap<String, Vec<String>>> =
+    let tags: BTreeMap<String, BTreeMap<String, Vec<String>>> =
         serde_json::from_str(&fs::read_to_string("../assets/tags.json").unwrap())
             .expect("Failed to parse tags.json");
 
@@ -46,11 +49,11 @@ pub(crate) fn build() -> TokenStream {
         serde_json::from_str(&fs::read_to_string("../assets/blocks.json").unwrap())
             .expect("Failed to parse blocks.json");
 
-    let items: HashMap<String, Item> =
+    let items: BTreeMap<String, Item> =
         serde_json::from_str(&fs::read_to_string("../assets/items.json").unwrap())
             .expect("Failed to parse items.json");
 
-    let biomes: HashMap<String, Biome> =
+    let biomes: BTreeMap<String, Biome> =
         serde_json::from_str(&fs::read_to_string("../assets/biome.json").unwrap())
             .expect("Failed to parse biome.json");
 
@@ -59,6 +62,14 @@ pub(crate) fn build() -> TokenStream {
             Ok(fluids) => fluids,
             Err(e) => panic!("Failed to parse fluids.json: {e}"),
         };
+
+    let enchantments: BTreeMap<String, Enchantment> =
+        serde_json::from_str(&fs::read_to_string("../assets/enchantments.json").unwrap())
+            .expect("Failed to parse enchantments.json");
+
+    let entities: BTreeMap<String, EntityType> =
+        serde_json::from_str(&fs::read_to_string("../assets/entities.json").unwrap())
+            .expect("Failed to parse entities.json");
 
     let registry_key_enum = EnumCreator {
         name: "RegistryKey".to_string(),
@@ -77,7 +88,7 @@ pub(crate) fn build() -> TokenStream {
         let key_pascal = format_ident!("{}", key.to_pascal_case());
         let dict_name = format_ident!("{}_TAGS", key.to_pascal_case().to_uppercase());
 
-        // Create a HashMap to store tag name -> index mapping
+        // Create a BTreeMap to store tag name -> index mapping
         let mut tag_values = Vec::new();
 
         // Collect all unique tags
@@ -107,6 +118,14 @@ pub(crate) fn build() -> TokenStream {
                     }).collect::<Vec<_>>(),
                     t if t == "block" => values.iter().map(|v| {
                         let id = blocks_assets.blocks.iter().find(|i| { &i.name == v }).unwrap().id;
+                        quote! { #id }
+                    }).collect::<Vec<_>>(),
+                    t if t == "enchantment" => values.iter().map(|v| {
+                        let id = enchantments.get(&("minecraft:".to_string() + v)).unwrap().id as u16;
+                        quote! { #id }
+                    }).collect::<Vec<_>>(),
+                    t if t == "entity_type" => values.iter().map(|v| {
+                        let id = entities.get(v).unwrap().id;
                         quote! { #id }
                     }).collect::<Vec<_>>(),
                     &_ => Vec::new(),

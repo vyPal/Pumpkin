@@ -4,7 +4,7 @@ use pumpkin_util::math::{experience::Experience, vector3::Vector3};
 use quote::{ToTokens, format_ident, quote};
 use serde::Deserialize;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     fs,
     io::{Cursor, Read},
     panic,
@@ -406,7 +406,7 @@ impl ToTokens for CollisionShape {
 #[derive(Deserialize, Clone, Debug)]
 pub struct BlockState {
     pub id: u16,
-    pub state_flags: u8,
+    pub state_flags: u16,
     pub side_flags: u8,
     pub instrument: String, // TODO: make this an enum
     pub luminance: u8,
@@ -414,7 +414,6 @@ pub struct BlockState {
     pub hardness: f32,
     pub collision_shapes: Vec<u16>,
     pub outline_shapes: Vec<u16>,
-    pub has_random_ticks: bool,
     pub opacity: Option<u8>,
     pub block_entity_type: Option<u16>,
 }
@@ -442,6 +441,12 @@ impl PistonBehavior {
 }
 
 impl BlockState {
+    const HAS_RANDOM_TICKS: u16 = 1 << 9;
+
+    fn has_random_ticks(&self) -> bool {
+        self.state_flags & Self::HAS_RANDOM_TICKS != 0
+    }
+
     fn to_tokens(&self) -> TokenStream {
         let mut tokens = TokenStream::new();
         let id = LitInt::new(&self.id.to_string(), Span::call_site());
@@ -474,7 +479,6 @@ impl BlockState {
             .outline_shapes
             .iter()
             .map(|shape_id| LitInt::new(&shape_id.to_string(), Span::call_site()));
-        let has_random_ticks = self.has_random_ticks;
         let piston_behavior = &self.piston_behavior.to_tokens();
 
         tokens.extend(quote! {
@@ -488,7 +492,6 @@ impl BlockState {
                 hardness: #hardness,
                 collision_shapes: &[#(#collision_shapes),*],
                 outline_shapes: &[#(#outline_shapes),*],
-                has_random_tick: #has_random_ticks,
                 opacity: #opacity,
                 block_entity_type: #block_entity_type,
             }
@@ -675,11 +678,11 @@ pub(crate) fn build() -> TokenStream {
     let mut block_state_to_bedrock = Vec::new();
 
     // Used to create property `enum`s.
-    let mut property_enums: HashMap<String, PropertyStruct> = HashMap::new();
+    let mut property_enums: BTreeMap<String, PropertyStruct> = BTreeMap::new();
     // Property implementation for a block.
     let mut block_properties: Vec<BlockPropertyStruct> = Vec::new();
     // Mapping of a collection of property hashes -> blocks that have these properties.
-    let mut property_collection_map: HashMap<Vec<i32>, PropertyCollectionData> = HashMap::new();
+    let mut property_collection_map: BTreeMap<Vec<i32>, PropertyCollectionData> = BTreeMap::new();
     // Validator that we have no `enum` collisions.
     let mut optimized_blocks: Vec<Block> = Vec::new();
     for block in blocks_assets.blocks.clone() {
@@ -687,7 +690,7 @@ pub(crate) fn build() -> TokenStream {
 
         // Collect state IDs that have random ticks.
         for state in &block.states {
-            if state.has_random_ticks {
+            if state.has_random_ticks() {
                 let state_id = LitInt::new(&state.id.to_string(), Span::call_site());
                 random_tick_states.push(state_id);
             }
@@ -910,7 +913,7 @@ pub(crate) fn build() -> TokenStream {
         use pumpkin_util::loot_table::*;
         use pumpkin_util::math::experience::Experience;
         use pumpkin_util::math::vector3::Vector3;
-        use std::collections::HashMap;
+        use std::collections::BTreeMap;
         use phf;
 
 
@@ -1169,8 +1172,8 @@ pub(crate) fn build() -> TokenStream {
     }
 }
 
-fn get_be_data_from_nbt<R: Read>(reader: &mut R) -> HashMap<String, (u32, u32)> {
-    let mut block_data: HashMap<String, (u32, u32)> = HashMap::new();
+fn get_be_data_from_nbt<R: Read>(reader: &mut R) -> BTreeMap<String, (u32, u32)> {
+    let mut block_data: BTreeMap<String, (u32, u32)> = BTreeMap::new();
     let mut current_id = 0;
 
     while read_byte(reader) == 10 {
