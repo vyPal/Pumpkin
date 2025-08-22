@@ -406,7 +406,7 @@ impl Entity {
     }
 
     /// Sets a custom name for the entity, typically used with nametags
-    pub async fn set_custon_name(&self, name: TextComponent) {
+    pub async fn set_custom_name(&self, name: TextComponent) {
         self.send_meta_data(&[Metadata::new(
             2,
             MetaDataType::OptionalTextComponent,
