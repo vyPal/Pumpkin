@@ -108,7 +108,7 @@ impl Context {
     /// Returns `Some(Arc<T>)` if the service exists and the type matches, or `None` otherwise.
     ///
     /// This method is safe to use across compilation boundaries as it uses string-based
-    /// type identification instead of TypeId.
+    /// type identification instead of `TypeId`.
     ///
     /// # Arguments
     ///

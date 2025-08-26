@@ -46,7 +46,7 @@ impl dyn Payload + '_ {
     /// Attempts to downcast an Arc<dyn Payload> to Arc<T> using name-based type checking.
     ///
     /// This method is safe to use across compilation boundaries as it uses string-based
-    /// type identification instead of TypeId.
+    /// type identification instead of `TypeId`.
     ///
     /// # Type Parameters
     /// - `T`: The target type to downcast to. Must implement Payload.
@@ -61,7 +61,7 @@ impl dyn Payload + '_ {
             // Safe to downcast since we verified the type name
             unsafe {
                 let raw = Arc::into_raw(payload);
-                let typed = raw as *const T;
+                let typed = raw.cast::<T>();
                 Some(Arc::from_raw(typed))
             }
         } else {
@@ -79,7 +79,7 @@ impl dyn Payload + '_ {
     pub fn downcast_mut<T: Payload + 'static>(&mut self) -> Option<&mut T> {
         if self.get_name() == T::get_name_static() {
             // Safe to downcast since we verified the type name
-            unsafe { Some(&mut *(self as *mut dyn Payload as *mut T)) }
+            unsafe { Some(&mut *(std::ptr::from_mut::<dyn Payload>(self).cast::<T>())) }
         } else {
             None
         }
@@ -95,7 +95,7 @@ impl dyn Payload + '_ {
     pub fn downcast_ref<T: Payload + 'static>(&self) -> Option<&T> {
         if self.get_name() == T::get_name_static() {
             // Safe to downcast since we verified the type name
-            unsafe { Some(&*(self as *const dyn Payload as *const T)) }
+            unsafe { Some(&*(std::ptr::from_ref::<dyn Payload>(self).cast::<T>())) }
         } else {
             None
         }
