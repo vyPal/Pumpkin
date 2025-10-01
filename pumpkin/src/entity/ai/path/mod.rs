@@ -1,3 +1,23 @@
+//! Entity pathfinding module
+//!
+//! This module implements A* pathfinding for entity navigation with support for:
+//! - Horizontal and vertical movement (jumping/falling)
+//! - Collision avoidance
+//! - Optimal path calculation
+//!
+//! # Debug Visualization
+//!
+//! To enable debug visualization, compile with the `pathfinding-debug` feature:
+//! ```bash
+//! cargo build --features pathfinding-debug
+//! ```
+//!
+//! When enabled, the pathfinding system will:
+//! - Show waypoints along the path with green particles (happy_villager)
+//! - Show the goal position with blue particles (dust)
+//!
+//! This is useful for debugging entity AI and understanding why entities take certain paths.
+
 use pumpkin_util::math::{position::BlockPos, vector3::Vector3};
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::cmp::Ordering;
@@ -284,7 +304,7 @@ fn heuristic(a: Vector3<f64>, b: Vector3<f64>) -> f64 {
 /// Calculate cost of moving from one position to another
 fn calculate_move_cost(from: &BlockPos, to: &BlockPos) -> f64 {
     let dx = (to.0.x - from.0.x).abs();
-    let dy = (to.0.y - from.0.y).abs();
+    let dy = to.0.y - from.0.y; // Keep sign for up/down detection
     let dz = (to.0.z - from.0.z).abs();
     
     // Base cost
@@ -297,7 +317,7 @@ fn calculate_move_cost(from: &BlockPos, to: &BlockPos) -> f64 {
     
     // Falling has some cost but less than jumping
     if dy < 0 {
-        cost += dy.abs() as f64 * 0.5;
+        cost += (-dy) as f64 * 0.5;
     }
     
     cost
@@ -375,4 +395,84 @@ async fn is_walkable(
     }
     
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_heuristic() {
+        let a = Vector3::new(0.0, 0.0, 0.0);
+        let b = Vector3::new(3.0, 4.0, 0.0);
+        let distance = heuristic(a, b);
+        // Euclidean distance: sqrt(3^2 + 4^2) = sqrt(25) = 5
+        assert_eq!(distance, 5.0);
+    }
+
+    #[test]
+    fn test_calculate_move_cost() {
+        let from = BlockPos::new(0, 0, 0);
+        
+        // Horizontal movement
+        let to_horizontal = BlockPos::new(1, 0, 0);
+        let cost_horizontal = calculate_move_cost(&from, &to_horizontal);
+        assert_eq!(cost_horizontal, 1.0);
+        
+        // Diagonal movement (on same level)
+        let to_diagonal = BlockPos::new(1, 0, 1);
+        let cost_diagonal = calculate_move_cost(&from, &to_diagonal);
+        assert!((cost_diagonal - 1.414).abs() < 0.01); // sqrt(2) ≈ 1.414
+        
+        // Jumping (moving up is more expensive)
+        let to_up = BlockPos::new(0, 1, 0);
+        let cost_up = calculate_move_cost(&from, &to_up);
+        assert!(cost_up > 0.0); // Should have cost
+        assert_eq!(cost_up, 2.0); // Pure vertical up is 2.0
+        
+        // Falling (moving down is cheaper than jumping)
+        let to_down = BlockPos::new(0, -1, 0);
+        let cost_down = calculate_move_cost(&from, &to_down);
+        assert!(cost_down < cost_up); // Falling should be cheaper than jumping
+        assert_eq!(cost_down, 0.5); // Pure vertical down is 0.5
+    }
+
+    #[test]
+    fn test_node_ordering() {
+        let node1 = Node {
+            position: BlockPos::new(0, 0, 0),
+            f_score: 10.0,
+        };
+        let node2 = Node {
+            position: BlockPos::new(1, 0, 0),
+            f_score: 5.0,
+        };
+        
+        // Min-heap: node with lower f_score should have higher priority
+        let mut heap = BinaryHeap::new();
+        heap.push(node1);
+        heap.push(node2);
+        
+        let first = heap.pop().unwrap();
+        assert_eq!(first.f_score, 5.0); // Lower f_score should come first
+    }
+
+    #[tokio::test]
+    async fn test_get_neighbors() {
+        let center = BlockPos::new(0, 0, 0);
+        let neighbors = get_neighbors(&center).await;
+        
+        // Should have neighbors in all directions except the center itself
+        // 3x3x3 - 1 (center) - diagonals at different heights = reasonable number
+        assert!(!neighbors.is_empty());
+        
+        // Verify center is not in neighbors
+        assert!(!neighbors.contains(&center));
+        
+        // Check we have some expected neighbors
+        assert!(neighbors.contains(&BlockPos::new(1, 0, 0))); // East
+        assert!(neighbors.contains(&BlockPos::new(-1, 0, 0))); // West
+        assert!(neighbors.contains(&BlockPos::new(0, 1, 0))); // Up
+        assert!(neighbors.contains(&BlockPos::new(0, -1, 0))); // Down
+    }
 }
