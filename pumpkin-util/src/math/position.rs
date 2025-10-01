@@ -359,6 +359,13 @@ impl BlockPos {
     pub fn squared_distance(&self, other: Self) -> i32 {
         self.0.squared_distance_to_vec(other.0)
     }
+
+    pub fn distance_to(&self, other: &Self) -> f64 {
+        let dx = (other.0.x - self.0.x) as f64;
+        let dy = (other.0.y - self.0.y) as f64;
+        let dz = (other.0.z - self.0.z) as f64;
+        (dx * dx + dy * dy + dz * dz).sqrt()
+    }
 }
 
 impl Serialize for BlockPos {

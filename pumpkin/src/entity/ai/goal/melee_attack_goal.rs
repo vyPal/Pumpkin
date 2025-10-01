@@ -97,6 +97,10 @@ impl Goal for MeleeAttackGoal {
                 current_progress: mob.get_entity().pos.load(),
                 destination: target.get_entity().pos.load(),
                 speed: self.speed,
+                path: Vec::new(),
+                path_index: 0,
+                #[cfg(feature = "pathfinding-debug")]
+                debug_info: None,
             });
         }
         self.update_countdown_ticks = 0;
@@ -127,6 +131,10 @@ impl Goal for MeleeAttackGoal {
                 current_progress: mob.get_entity().pos.load(),
                 destination: target.get_entity().pos.load(),
                 speed: self.speed,
+                path: Vec::new(),
+                path_index: 0,
+                #[cfg(feature = "pathfinding-debug")]
+                debug_info: None,
             });
         }
     }
