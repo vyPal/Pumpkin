@@ -4,6 +4,13 @@ use std::cmp::Ordering;
 
 use crate::entity::living::LivingEntity;
 
+#[cfg(feature = "pathfinding-debug")]
+use pumpkin_data::particle::Particle;
+#[cfg(feature = "pathfinding-debug")]
+use pumpkin_protocol::codec::var_int::VarInt;
+#[cfg(feature = "pathfinding-debug")]
+use pumpkin_protocol::java::client::play::CParticle;
+
 #[derive(Default)]
 pub struct Navigator {
     current_goal: Option<NavigatorGoal>,
@@ -208,10 +215,6 @@ async fn visualize_path(entity: &LivingEntity, goal: &NavigatorGoal) {
         
         // Show waypoints with green particles
         for waypoint in &debug_info.waypoints {
-            use pumpkin_data::particle::Particle;
-            use pumpkin_protocol::codec::var_int::VarInt;
-            use pumpkin_protocol::java::client::play::CParticle;
-            
             let particle_packet = CParticle::new(
                 true, // force_spawn
                 false, // important
