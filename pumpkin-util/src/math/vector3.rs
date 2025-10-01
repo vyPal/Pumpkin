@@ -197,6 +197,10 @@ impl<T: Math + Copy + Float> Vector3<T> {
         }
     }
 
+    pub fn distance_to_vec(&self, other: Self) -> T {
+        self.squared_distance_to_vec(other).sqrt()
+    }
+
     pub fn rotation_vector(pitch: T, yaw: T) -> Self {
         let h = pitch.to_radians();
         let i = (-yaw).to_radians();
