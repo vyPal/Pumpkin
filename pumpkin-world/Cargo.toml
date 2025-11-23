@@ -49,7 +49,7 @@ rand = "=0.10.0-rc.5"
 num_cpus = "1.17.0"
 rustc-hash = "2.1.1"
 slotmap = "1.0"
-crossfire = "2.1.6"
+crossfire = "2.1.7"
 
 [dev-dependencies]
 criterion = { version = "0.7", default-features = false, features = ["html_reports", "async_tokio"] }
