@@ -2723,12 +2723,10 @@ impl World {
             let block = Block::from_state_id(id);
             if let Some(properties) = block.properties(id) {
                 for (name, value) in properties.to_props() {
-                    if name == *"waterlogged" {
+                    if name == "waterlogged" {
                         if value == true.to_string() {
                             let fluid = Fluid::FLOWING_WATER;
-
                             let state = fluid.states[0].clone();
-
                             return (fluid, state);
                         }
 
