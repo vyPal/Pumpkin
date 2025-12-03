@@ -1,12 +1,12 @@
 use async_trait::async_trait;
 use pumpkin_data::item::Item;
-use pumpkin_protocol::java::client::play::{ArgumentType, CommandSuggestion, SuggestionProviders};
+use pumpkin_protocol::java::client::play::{ArgumentType, SuggestionProviders};
 use pumpkin_util::text::TextComponent;
 
 use crate::command::{
     CommandSender,
     args::{
-        Arg, ArgumentConsumer, ConsumedArgs, DefaultNameArgConsumer, FindArg,
+        Arg, ArgumentConsumer, ConsumeResult, ConsumedArgs, DefaultNameArgConsumer, FindArg,
         GetClientSideArgParser,
     },
     dispatcher::CommandError,
@@ -28,23 +28,17 @@ impl GetClientSideArgParser for ItemArgumentConsumer {
 
 #[async_trait]
 impl ArgumentConsumer for ItemArgumentConsumer {
-    async fn consume<'a>(
+    fn consume<'a>(
         &'a self,
-        _sender: &CommandSender,
+        _sender: &'a CommandSender,
         _server: &'a Server,
         args: &mut RawArgs<'a>,
-    ) -> Option<Arg<'a>> {
-        // todo: get an actual item
-        Some(Arg::Item(args.pop()?))
-    }
-
-    async fn suggest<'a>(
-        &'a self,
-        _sender: &CommandSender,
-        _server: &'a Server,
-        _input: &'a str,
-    ) -> Result<Option<Vec<CommandSuggestion>>, CommandError> {
-        Ok(None)
+    ) -> ConsumeResult<'a> {
+        let item = args.pop();
+        match item {
+            Some(s) => Box::pin(async move { Some(Arg::Item(s)) }),
+            None => Box::pin(async move { None }),
+        }
     }
 }
 
