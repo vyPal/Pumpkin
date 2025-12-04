@@ -10,6 +10,7 @@ use std::{
     io::{Read, SeekFrom, Write},
     marker::PhantomData,
     path::{Path, PathBuf},
+    pin::Pin,
     time::{SystemTime, UNIX_EPOCH},
 };
 use tokio::{
@@ -517,9 +518,10 @@ impl<S: SingleChunkDataSerializer> Default for AnvilChunkFile<S> {
     }
 }
 
-#[async_trait]
 pub trait SingleChunkDataSerializer: Send + Sync + Sized + Dirtiable {
-    async fn to_bytes(&self) -> Result<Bytes, ChunkSerializingError>;
+    fn to_bytes(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = Result<Bytes, ChunkSerializingError>> + Send + '_>>;
     fn from_bytes(bytes: Bytes, pos: Vector2<i32>) -> Result<Self, ChunkReadingError>;
     fn position(&self) -> &Vector2<i32>;
 }

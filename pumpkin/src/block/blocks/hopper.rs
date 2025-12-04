@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::block::blocks::redstone::block_receives_redstone_power;
-use crate::block::{OnNeighborUpdateArgs, OnPlaceArgs, PlacedArgs};
+use crate::block::{BlockFuture, OnNeighborUpdateArgs, OnPlaceArgs, PlacedArgs};
 use crate::block::{
     registry::BlockActionResult,
     {BlockBehaviour, NormalUseArgs},
@@ -47,52 +47,59 @@ pub struct HopperBlock;
 
 type HopperLikeProperties = pumpkin_data::block_properties::HopperLikeProperties;
 
-#[async_trait]
 impl BlockBehaviour for HopperBlock {
-    async fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
-        if let Some(block_entity) = args.world.get_block_entity(args.position).await
-            && let Some(inventory) = block_entity.get_inventory()
-        {
-            args.player
-                .open_handled_screen(&HopperBlockScreenFactory(inventory))
+    fn normal_use<'a>(&'a self, args: NormalUseArgs<'a>) -> BlockFuture<'a, BlockActionResult> {
+        Box::pin(async move {
+            if let Some(block_entity) = args.world.get_block_entity(args.position).await
+                && let Some(inventory) = block_entity.get_inventory()
+            {
+                args.player
+                    .open_handled_screen(&HopperBlockScreenFactory(inventory))
+                    .await;
+            }
+
+            BlockActionResult::Success
+        })
+    }
+
+    fn on_place<'a>(&'a self, args: OnPlaceArgs<'a>) -> BlockFuture<'a, BlockStateId> {
+        Box::pin(async move {
+            let mut props = HopperLikeProperties::default(args.block);
+            props.facing = match args.direction {
+                BlockDirection::North => HopperFacing::North,
+                BlockDirection::East => HopperFacing::East,
+                BlockDirection::South => HopperFacing::South,
+                BlockDirection::West => HopperFacing::West,
+                BlockDirection::Up | BlockDirection::Down => HopperFacing::Down,
+            };
+            props.enabled = true;
+            props.to_state_id(args.block)
+        })
+    }
+
+    fn placed<'a>(&'a self, args: PlacedArgs<'a>) -> BlockFuture<'a, ()> {
+        Box::pin(async move {
+            let props = HopperLikeProperties::from_state_id(args.state_id, args.block);
+            let hopper_block_entity = HopperBlockEntity::new(*args.position, props.facing);
+            args.world
+                .add_block_entity(Arc::new(hopper_block_entity))
                 .await;
-        }
-
-        BlockActionResult::Success
+            if Block::from_state_id(args.old_state_id) != Block::from_state_id(args.state_id) {
+                check_powered_state(args.world, args.position, args.state_id, args.block).await;
+            }
+        })
     }
 
-    async fn on_place(&self, args: OnPlaceArgs<'_>) -> BlockStateId {
-        let mut props = HopperLikeProperties::default(args.block);
-        props.facing = match args.direction {
-            BlockDirection::North => HopperFacing::North,
-            BlockDirection::East => HopperFacing::East,
-            BlockDirection::South => HopperFacing::South,
-            BlockDirection::West => HopperFacing::West,
-            BlockDirection::Up | BlockDirection::Down => HopperFacing::Down,
-        };
-        props.enabled = true;
-        props.to_state_id(args.block)
-    }
-
-    async fn placed(&self, args: PlacedArgs<'_>) {
-        let props = HopperLikeProperties::from_state_id(args.state_id, args.block);
-        let hopper_block_entity = HopperBlockEntity::new(*args.position, props.facing);
-        args.world
-            .add_block_entity(Arc::new(hopper_block_entity))
+    fn on_neighbor_update<'a>(&'a self, args: OnNeighborUpdateArgs<'a>) -> BlockFuture<'a, ()> {
+        Box::pin(async move {
+            check_powered_state(
+                args.world,
+                args.position,
+                args.world.get_block_state_id(args.position).await,
+                args.block,
+            )
             .await;
-        if Block::from_state_id(args.old_state_id) != Block::from_state_id(args.state_id) {
-            check_powered_state(args.world, args.position, args.state_id, args.block).await;
-        }
-    }
-
-    async fn on_neighbor_update(&self, args: OnNeighborUpdateArgs<'_>) {
-        check_powered_state(
-            args.world,
-            args.position,
-            args.world.get_block_state_id(args.position).await,
-            args.block,
-        )
-        .await;
+        })
     }
 }
 

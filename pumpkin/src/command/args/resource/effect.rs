@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use pumpkin_data::effect::StatusEffect;
 use pumpkin_protocol::java::client::play::{ArgumentType, SuggestionProviders};
 
@@ -27,7 +26,6 @@ impl GetClientSideArgParser for EffectTypeArgumentConsumer {
     }
 }
 
-#[async_trait]
 impl ArgumentConsumer for EffectTypeArgumentConsumer {
     fn consume<'a, 'b>(
         &'a self,

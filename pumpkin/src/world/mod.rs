@@ -1,4 +1,5 @@
 use std::num::NonZeroU32;
+use std::pin::Pin;
 use std::sync::Weak;
 use std::sync::atomic::Ordering::Relaxed;
 use std::time::Duration;
@@ -32,7 +33,6 @@ use crate::{
     server::Server,
 };
 use crate::{block::BlockEvent, entity::item::ItemEntity};
-use async_trait::async_trait;
 use border::Worldborder;
 use explosion::Explosion;
 use pumpkin_config::BasicConfiguration;
@@ -103,7 +103,7 @@ use pumpkin_util::{
     math::{position::chunk_section_from_pos, vector2::Vector2},
     random::{RandomImpl, get_seed, xoroshiro128::Xoroshiro},
 };
-use pumpkin_world::world::GetBlockError;
+use pumpkin_world::world::{GetBlockError, WorldFuture};
 use pumpkin_world::{
     BlockStateId, CURRENT_BEDROCK_MC_VERSION, GENERATION_SETTINGS, GeneratorSetting, biome,
     block::entities::BlockEntity, chunk::io::Dirtiable, inventory::Inventory, item::ItemStack,
@@ -3141,100 +3141,143 @@ impl World {
     }
 }
 
-#[async_trait]
 impl pumpkin_world::world::SimpleWorld for World {
-    async fn set_block_state(
+    fn set_block_state(
         self: Arc<Self>,
         position: &BlockPos,
         block_state_id: BlockStateId,
         flags: BlockFlags,
-    ) -> BlockStateId {
-        Self::set_block_state(&self, position, block_state_id, flags).await
+    ) -> WorldFuture<'_, BlockStateId> {
+        Box::pin(async move { Self::set_block_state(&self, position, block_state_id, flags).await })
     }
 
-    async fn update_neighbor(self: Arc<Self>, neighbor_block_pos: &BlockPos, source_block: &Block) {
-        Self::update_neighbor(&self, neighbor_block_pos, source_block).await;
+    fn update_neighbor<'a>(
+        self: Arc<Self>,
+        neighbor_block_pos: &'a BlockPos,
+        source_block: &'a pumpkin_data::Block,
+    ) -> WorldFuture<'a, ()> {
+        Box::pin(async move {
+            Self::update_neighbor(&self, neighbor_block_pos, source_block).await;
+        })
     }
 
-    async fn update_neighbors(
+    fn update_neighbors(
         self: Arc<Self>,
         block_pos: &BlockPos,
         except: Option<BlockDirection>,
-    ) {
-        Self::update_neighbors(&self, block_pos, except).await;
+    ) -> WorldFuture<'_, ()> {
+        Box::pin(async move {
+            Self::update_neighbors(&self, block_pos, except).await;
+        })
     }
 
-    async fn is_space_empty(&self, bounding_box: BoundingBox) -> bool {
-        self.is_space_empty(bounding_box).await
+    fn is_space_empty(&self, bounding_box: BoundingBox) -> WorldFuture<'_, bool> {
+        Box::pin(async move { self.is_space_empty(bounding_box).await })
     }
 
-    async fn add_synced_block_event(&self, pos: BlockPos, r#type: u8, data: u8) {
-        self.add_synced_block_event(pos, r#type, data).await;
+    fn add_synced_block_event(&self, pos: BlockPos, r#type: u8, data: u8) -> WorldFuture<'_, ()> {
+        Box::pin(async move {
+            self.add_synced_block_event(pos, r#type, data).await;
+        })
     }
 
-    async fn sync_world_event(&self, world_event: WorldEvent, position: BlockPos, data: i32) {
-        self.sync_world_event(world_event, position, data).await;
+    fn sync_world_event(
+        &self,
+        world_event: WorldEvent,
+        position: BlockPos,
+        data: i32,
+    ) -> WorldFuture<'_, ()> {
+        Box::pin(async move {
+            self.sync_world_event(world_event, position, data).await;
+        })
     }
 
-    async fn spawn_from_type(
+    fn spawn_from_type(
         self: Arc<Self>,
         entity_type: &'static EntityType,
         position: Vector3<f64>,
-    ) {
-        let mob = from_type(entity_type, position, &self, Uuid::new_v4()).await;
-        self.spawn_entity(mob).await;
+    ) -> WorldFuture<'static, ()> {
+        Box::pin(async move {
+            let mob = from_type(entity_type, position, &self, Uuid::new_v4()).await;
+            self.spawn_entity(mob).await;
+        })
     }
 
-    async fn remove_block_entity(&self, block_pos: &BlockPos) {
-        self.remove_block_entity(block_pos).await;
+    fn remove_block_entity<'a>(&'a self, block_pos: &'a BlockPos) -> WorldFuture<'a, ()> {
+        Box::pin(async move {
+            self.remove_block_entity(block_pos).await;
+        })
     }
 
-    async fn get_block_entity(&self, block_pos: &BlockPos) -> Option<Arc<dyn BlockEntity>> {
-        self.get_block_entity(block_pos).await
+    fn get_block_entity<'a>(
+        &'a self,
+        block_pos: &'a BlockPos,
+    ) -> WorldFuture<'a, Option<Arc<dyn BlockEntity>>> {
+        Box::pin(async move { self.get_block_entity(block_pos).await })
     }
 
-    async fn get_world_age(&self) -> i64 {
-        self.level_time.lock().await.world_age
+    fn get_world_age(&self) -> WorldFuture<'_, i64> {
+        Box::pin(async move {
+            // Note: MutexGuard must be released before returning the future's result.
+            let level_time_guard = self.level_time.lock().await;
+            level_time_guard.world_age
+        })
     }
 
-    async fn play_sound(&self, sound: Sound, category: SoundCategory, position: &Vector3<f64>) {
-        self.play_sound(sound, category, position).await;
-    }
-
-    async fn play_sound_fine(
-        &self,
+    fn play_sound<'a>(
+        &'a self,
         sound: Sound,
         category: SoundCategory,
-        position: &Vector3<f64>,
-        volume: f32,
-        pitch: f32,
-    ) {
-        self.play_sound_fine(sound, category, position, volume, pitch)
-            .await;
+        position: &'a Vector3<f64>,
+    ) -> WorldFuture<'a, ()> {
+        Box::pin(async move {
+            self.play_sound(sound, category, position).await;
+        })
     }
 
-    async fn scatter_inventory(
+    fn play_sound_fine<'a>(
+        &'a self,
+        sound: Sound,
+        category: SoundCategory,
+        position: &'a Vector3<f64>,
+        volume: f32,
+        pitch: f32,
+    ) -> WorldFuture<'a, ()> {
+        Box::pin(async move {
+            self.play_sound_fine(sound, category, position, volume, pitch)
+                .await;
+        })
+    }
+
+    fn scatter_inventory<'a>(
         self: Arc<Self>,
-        position: &BlockPos,
-        inventory: &Arc<dyn Inventory>,
-    ) {
-        Self::scatter_inventory(&self, position, inventory).await;
+        position: &'a BlockPos,
+        inventory: &'a Arc<dyn Inventory>,
+    ) -> WorldFuture<'a, ()> {
+        Box::pin(async move {
+            Self::scatter_inventory(&self, position, inventory).await;
+        })
     }
 }
 
-#[async_trait]
 impl BlockAccessor for World {
-    async fn get_block(&self, position: &BlockPos) -> &'static Block {
-        Self::get_block(self, position).await
+    fn get_block<'a>(
+        &'a self,
+        position: &'a BlockPos,
+    ) -> Pin<Box<dyn Future<Output = &'static Block> + Send + 'a>> {
+        Box::pin(async move { Self::get_block(self, position).await })
     }
-    async fn get_block_state(&self, position: &BlockPos) -> &'static BlockState {
-        Self::get_block_state(self, position).await
+    fn get_block_state<'a>(
+        &'a self,
+        position: &'a BlockPos,
+    ) -> Pin<Box<dyn Future<Output = &'static BlockState> + Send + 'a>> {
+        Box::pin(async move { Self::get_block_state(self, position).await })
     }
 
-    async fn get_block_and_state(
-        &self,
-        position: &BlockPos,
-    ) -> (&'static Block, &'static BlockState) {
-        self.get_block_and_state(position).await
+    fn get_block_and_state<'a>(
+        &'a self,
+        position: &'a BlockPos,
+    ) -> Pin<Box<dyn Future<Output = (&'static Block, &'static BlockState)> + Send + 'a>> {
+        Box::pin(async move { self.get_block_and_state(position).await })
     }
 }

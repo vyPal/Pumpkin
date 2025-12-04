@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use pumpkin_data::particle::Particle;
 use pumpkin_protocol::java::client::play::{ArgumentType, SuggestionProviders};
 
@@ -27,7 +26,6 @@ impl GetClientSideArgParser for ParticleArgumentConsumer {
     }
 }
 
-#[async_trait]
 impl ArgumentConsumer for ParticleArgumentConsumer {
     fn consume<'a, 'b>(
         &'a self,

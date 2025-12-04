@@ -1,6 +1,5 @@
-use std::{collections::HashMap, io::Cursor, path::PathBuf};
+use std::{collections::HashMap, io::Cursor, path::PathBuf, pin::Pin};
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use futures::future::join_all;
 use pumpkin_data::{Block, chunk::ChunkStatus, fluid::Fluid};
@@ -30,7 +29,6 @@ use crate::block::BlockStateCodec;
 pub mod anvil;
 pub mod linear;
 
-#[async_trait]
 impl SingleChunkDataSerializer for ChunkData {
     #[inline]
     fn from_bytes(bytes: Bytes, pos: Vector2<i32>) -> Result<Self, ChunkReadingError> {
@@ -38,8 +36,10 @@ impl SingleChunkDataSerializer for ChunkData {
     }
 
     #[inline]
-    async fn to_bytes(&self) -> Result<Bytes, ChunkSerializingError> {
-        self.internal_to_bytes().await
+    fn to_bytes(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = Result<Bytes, ChunkSerializingError>> + Send + '_>> {
+        Box::pin(async move { self.internal_to_bytes().await })
     }
 
     #[inline]
@@ -247,7 +247,6 @@ impl Dirtiable for ChunkEntityData {
     }
 }
 
-#[async_trait]
 impl SingleChunkDataSerializer for ChunkEntityData {
     #[inline]
     fn from_bytes(bytes: Bytes, pos: Vector2<i32>) -> Result<Self, ChunkReadingError> {
@@ -255,8 +254,10 @@ impl SingleChunkDataSerializer for ChunkEntityData {
     }
 
     #[inline]
-    async fn to_bytes(&self) -> Result<Bytes, ChunkSerializingError> {
-        self.internal_to_bytes()
+    fn to_bytes(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = Result<Bytes, ChunkSerializingError>> + Send + '_>> {
+        Box::pin(async move { self.internal_to_bytes() })
     }
 
     #[inline]

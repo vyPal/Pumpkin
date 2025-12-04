@@ -10,6 +10,7 @@ use pumpkin_world::item::ItemStack;
 use std::any::Any;
 use std::array::from_fn;
 use std::collections::HashMap;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 use tokio::sync::Mutex;
@@ -307,14 +308,15 @@ impl PlayerInventory {
     }
 }
 
-#[async_trait]
 impl Clearable for PlayerInventory {
-    async fn clear(&self) {
-        for item in self.main_inventory.iter() {
-            *item.lock().await = ItemStack::EMPTY.clone();
-        }
+    fn clear(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+        Box::pin(async move {
+            for item in self.main_inventory.iter() {
+                *item.lock().await = ItemStack::EMPTY.clone();
+            }
 
-        self.entity_equipment.lock().await.clear();
+            self.entity_equipment.lock().await.clear();
+        })
     }
 }
 

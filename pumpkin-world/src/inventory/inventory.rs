@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use pumpkin_data::item::Item;
 use pumpkin_nbt::{compound::NbtCompound, tag::NbtTag};
 use std::any::Any;
+use std::pin::Pin;
 use std::{
     fmt::Debug,
     hash::{Hash, Hasher},
@@ -139,9 +140,8 @@ pub trait Inventory: Send + Sync + Debug + Clearable {
     fn as_any(&self) -> &dyn Any;
 }
 
-#[async_trait]
 pub trait Clearable {
-    async fn clear(&self);
+    fn clear(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
 }
 
 pub struct ComparableInventory(pub Arc<dyn Inventory>);

@@ -1,5 +1,5 @@
 use crate::block::registry::BlockActionResult;
-use crate::block::{BlockBehaviour, NormalUseArgs};
+use crate::block::{BlockBehaviour, BlockFuture, NormalUseArgs};
 use async_trait::async_trait;
 use pumpkin_inventory::crafting::crafting_screen_handler::CraftingTableScreenHandler;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
@@ -12,14 +12,15 @@ use tokio::sync::Mutex;
 #[pumpkin_block("minecraft:crafting_table")]
 pub struct CraftingTableBlock;
 
-#[async_trait]
 impl BlockBehaviour for CraftingTableBlock {
-    async fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
-        args.player
-            .open_handled_screen(&CraftingTableScreenFactory)
-            .await;
+    fn normal_use<'a>(&'a self, args: NormalUseArgs<'a>) -> BlockFuture<'a, BlockActionResult> {
+        Box::pin(async move {
+            args.player
+                .open_handled_screen(&CraftingTableScreenFactory)
+                .await;
 
-        BlockActionResult::Success
+            BlockActionResult::Success
+        })
     }
 }
 

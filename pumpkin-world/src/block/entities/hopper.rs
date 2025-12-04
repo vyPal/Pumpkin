@@ -7,11 +7,13 @@ use async_trait::async_trait;
 use pumpkin_data::block_properties::{BlockProperties, HopperFacing, HopperLikeProperties};
 use pumpkin_data::tag::Taggable;
 use pumpkin_data::{Block, tag};
+use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_nbt::tag::NbtTag;
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_util::math::vector3::Vector3;
 use std::any::Any;
 use std::array::from_fn;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicI64};
 use tokio::sync::Mutex;
@@ -37,17 +39,21 @@ pub fn to_offset(facing: &HopperFacing) -> Vector3<i32> {
     .into()
 }
 
-#[async_trait]
 impl BlockEntity for HopperBlockEntity {
-    async fn write_nbt(&self, nbt: &mut pumpkin_nbt::compound::NbtCompound) {
-        self.write_data(nbt, &self.items, true).await;
-        nbt.put(
-            "TransferCooldown",
-            NbtTag::Int(
-                self.cooldown_time
-                    .load(std::sync::atomic::Ordering::Relaxed),
-            ),
-        );
+    fn write_nbt<'a>(
+        &'a self,
+        nbt: &'a mut NbtCompound,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+        Box::pin(async move {
+            self.write_data(nbt, &self.items, true).await;
+            nbt.put(
+                "TransferCooldown",
+                NbtTag::Int(
+                    self.cooldown_time
+                        .load(std::sync::atomic::Ordering::Relaxed),
+                ),
+            );
+        })
         // Safety precaution
         //self.clear().await;
     }
@@ -70,24 +76,29 @@ impl BlockEntity for HopperBlockEntity {
         hopper
     }
 
-    async fn tick(&self, world: Arc<dyn SimpleWorld>) {
-        self.ticked_game_time.store(
-            world.get_world_age().await,
-            std::sync::atomic::Ordering::Relaxed,
-        );
-        if self
-            .cooldown_time
-            .fetch_sub(1, std::sync::atomic::Ordering::Relaxed)
-            <= 0
-        {
-            self.cooldown_time
-                .store(0, std::sync::atomic::Ordering::Relaxed);
-            let state = HopperLikeProperties::from_state_id(
-                world.get_block_state(&self.position).await.id,
-                &Block::HOPPER,
+    fn tick<'a>(
+        &'a self,
+        world: Arc<dyn SimpleWorld>,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+        Box::pin(async move {
+            self.ticked_game_time.store(
+                world.get_world_age().await,
+                std::sync::atomic::Ordering::Relaxed,
             );
-            self.try_move_items(&state, &world).await;
-        }
+            if self
+                .cooldown_time
+                .fetch_sub(1, std::sync::atomic::Ordering::Relaxed)
+                <= 0
+            {
+                self.cooldown_time
+                    .store(0, std::sync::atomic::Ordering::Relaxed);
+                let state = HopperLikeProperties::from_state_id(
+                    world.get_block_state(&self.position).await.id,
+                    &Block::HOPPER,
+                );
+                self.try_move_items(&state, &world).await;
+            }
+        })
     }
 
     fn resource_location(&self) -> &'static str {
@@ -327,11 +338,12 @@ impl Inventory for HopperBlockEntity {
     }
 }
 
-#[async_trait]
 impl Clearable for HopperBlockEntity {
-    async fn clear(&self) {
-        for slot in self.items.iter() {
-            *slot.lock().await = ItemStack::EMPTY.clone();
-        }
+    fn clear(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+        Box::pin(async move {
+            for slot in self.items.iter() {
+                *slot.lock().await = ItemStack::EMPTY.clone();
+            }
+        })
     }
 }

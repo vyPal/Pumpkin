@@ -2,10 +2,12 @@ use crate::block::entities::BlockEntity;
 use crate::inventory::{Clearable, Inventory, split_stack};
 use crate::item::ItemStack;
 use async_trait::async_trait;
+use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_util::math::position::BlockPos;
 use rand::{Rng, rng};
 use std::any::Any;
 use std::array::from_fn;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::{Mutex, MutexGuard};
@@ -17,10 +19,14 @@ pub struct DropperBlockEntity {
     pub dirty: AtomicBool,
 }
 
-#[async_trait]
 impl BlockEntity for DropperBlockEntity {
-    async fn write_nbt(&self, nbt: &mut pumpkin_nbt::compound::NbtCompound) {
-        self.write_data(nbt, &self.items, true).await;
+    fn write_nbt<'a>(
+        &'a self,
+        nbt: &'a mut NbtCompound,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+        Box::pin(async move {
+            self.write_data(nbt, &self.items, true).await;
+        })
         // Safety precaution
         //self.clear().await;
     }
@@ -133,11 +139,12 @@ impl Inventory for DropperBlockEntity {
     }
 }
 
-#[async_trait]
 impl Clearable for DropperBlockEntity {
-    async fn clear(&self) {
-        for slot in self.items.iter() {
-            *slot.lock().await = ItemStack::EMPTY.clone();
-        }
+    fn clear(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+        Box::pin(async move {
+            for slot in self.items.iter() {
+                *slot.lock().await = ItemStack::EMPTY.clone();
+            }
+        })
     }
 }

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::block::{OnPlaceArgs, PlacedArgs};
+use crate::block::{BlockFuture, OnPlaceArgs, PlacedArgs};
 use crate::block::{
     registry::BlockActionResult,
     {BlockBehaviour, NormalUseArgs},
@@ -40,30 +40,35 @@ impl ScreenHandlerFactory for BarrelScreenFactory {
 #[pumpkin_block("minecraft:barrel")]
 pub struct BarrelBlock;
 
-#[async_trait]
 impl BlockBehaviour for BarrelBlock {
-    async fn on_place(&self, args: OnPlaceArgs<'_>) -> BlockStateId {
-        let mut props = BarrelLikeProperties::default(args.block);
-        props.facing = args.player.living_entity.entity.get_facing().opposite();
-        props.to_state_id(args.block)
+    fn on_place<'a>(&'a self, args: OnPlaceArgs<'a>) -> BlockFuture<'a, BlockStateId> {
+        Box::pin(async move {
+            let mut props = BarrelLikeProperties::default(args.block);
+            props.facing = args.player.living_entity.entity.get_facing().opposite();
+            props.to_state_id(args.block)
+        })
     }
 
-    async fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
-        if let Some(block_entity) = args.world.get_block_entity(args.position).await
-            && let Some(inventory) = block_entity.get_inventory()
-        {
-            args.player
-                .open_handled_screen(&BarrelScreenFactory(inventory))
+    fn normal_use<'a>(&'a self, args: NormalUseArgs<'a>) -> BlockFuture<'a, BlockActionResult> {
+        Box::pin(async move {
+            if let Some(block_entity) = args.world.get_block_entity(args.position).await
+                && let Some(inventory) = block_entity.get_inventory()
+            {
+                args.player
+                    .open_handled_screen(&BarrelScreenFactory(inventory))
+                    .await;
+            }
+
+            BlockActionResult::Success
+        })
+    }
+
+    fn placed<'a>(&'a self, args: PlacedArgs<'a>) -> BlockFuture<'a, ()> {
+        Box::pin(async move {
+            let barrel_block_entity = BarrelBlockEntity::new(*args.position);
+            args.world
+                .add_block_entity(Arc::new(barrel_block_entity))
                 .await;
-        }
-
-        BlockActionResult::Success
-    }
-
-    async fn placed(&self, args: PlacedArgs<'_>) {
-        let barrel_block_entity = BarrelBlockEntity::new(*args.position);
-        args.world
-            .add_block_entity(Arc::new(barrel_block_entity))
-            .await;
+        })
     }
 }

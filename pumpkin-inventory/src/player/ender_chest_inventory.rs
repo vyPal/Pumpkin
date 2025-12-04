@@ -1,4 +1,4 @@
-use std::{any::Any, array::from_fn, sync::Arc};
+use std::{any::Any, array::from_fn, pin::Pin, sync::Arc};
 
 use async_trait::async_trait;
 use pumpkin_world::{
@@ -100,11 +100,12 @@ impl Inventory for EnderChestInventory {
     }
 }
 
-#[async_trait]
 impl Clearable for EnderChestInventory {
-    async fn clear(&self) {
-        for slot in self.items.iter() {
-            *slot.lock().await = ItemStack::EMPTY.clone();
-        }
+    fn clear(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+        Box::pin(async move {
+            for item in self.items.iter() {
+                *item.lock().await = ItemStack::EMPTY.clone();
+            }
+        })
     }
 }

@@ -1,4 +1,4 @@
-use std::{any::Any, sync::Arc};
+use std::{any::Any, pin::Pin, sync::Arc};
 
 use async_trait::async_trait;
 use pumpkin_world::{
@@ -96,10 +96,11 @@ impl Inventory for DoubleInventory {
     }
 }
 
-#[async_trait]
 impl Clearable for DoubleInventory {
-    async fn clear(&self) {
-        self.first.clear().await;
-        self.second.clear().await;
+    fn clear(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+        Box::pin(async move {
+            self.first.clear().await;
+            self.second.clear().await;
+        })
     }
 }

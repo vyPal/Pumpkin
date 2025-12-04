@@ -1,6 +1,7 @@
 use std::{
     any::Any,
     array::from_fn,
+    pin::Pin,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -13,6 +14,7 @@ use pumpkin_data::{
     block_properties::{BlockProperties, ChestLikeProperties, ChestType},
     sound::{Sound, SoundCategory},
 };
+use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_util::{
     math::{position::BlockPos, vector3::Vector3},
     random::{RandomImpl, get_seed, xoroshiro128::Xoroshiro},
@@ -20,7 +22,7 @@ use pumpkin_util::{
 use tokio::sync::Mutex;
 
 use crate::{
-    block::viewer::{ViewerCountListener, ViewerCountTracker},
+    block::viewer::{ViewerCountListener, ViewerCountTracker, ViewerFuture},
     inventory::{Clearable, Inventory, split_stack},
     item::ItemStack,
     world::SimpleWorld,
@@ -38,7 +40,6 @@ pub struct ChestBlockEntity {
     viewers: ViewerCountTracker,
 }
 
-#[async_trait]
 impl BlockEntity for ChestBlockEntity {
     fn resource_location(&self) -> &'static str {
         Self::ID
@@ -64,16 +65,26 @@ impl BlockEntity for ChestBlockEntity {
         chest
     }
 
-    async fn write_nbt(&self, nbt: &mut pumpkin_nbt::compound::NbtCompound) {
-        self.write_data(nbt, &self.items, true).await;
+    fn write_nbt<'a>(
+        &'a self,
+        nbt: &'a mut NbtCompound,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+        Box::pin(async move {
+            self.write_data(nbt, &self.items, true).await;
+        })
         // Safety precaution
         //self.clear().await;
     }
 
-    async fn tick(&self, world: Arc<dyn SimpleWorld>) {
-        self.viewers
-            .update_viewer_count::<ChestBlockEntity>(self, world, &self.position)
-            .await;
+    fn tick<'a>(
+        &'a self,
+        world: Arc<dyn SimpleWorld>,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+        Box::pin(async move {
+            self.viewers
+                .update_viewer_count::<ChestBlockEntity>(self, world, &self.position)
+                .await;
+        })
     }
 
     fn get_inventory(self: Arc<Self>) -> Option<Arc<dyn Inventory>> {
@@ -89,29 +100,41 @@ impl BlockEntity for ChestBlockEntity {
     }
 }
 
-#[async_trait]
 impl ViewerCountListener for ChestBlockEntity {
-    async fn on_container_open(&self, world: &Arc<dyn SimpleWorld>, _position: &BlockPos) {
-        self.play_sound(world, Sound::BlockChestOpen).await;
+    fn on_container_open<'a>(
+        &'a self,
+        world: &'a Arc<dyn SimpleWorld>,
+        _position: &'a BlockPos,
+    ) -> ViewerFuture<'a, ()> {
+        Box::pin(async move {
+            self.play_sound(world, Sound::BlockEnderChestOpen).await;
+        })
     }
 
-    async fn on_container_close(&self, world: &Arc<dyn SimpleWorld>, _position: &BlockPos) {
-        self.play_sound(world, Sound::BlockChestClose).await;
+    fn on_container_close<'a>(
+        &'a self,
+        world: &'a Arc<dyn SimpleWorld>,
+        _position: &'a BlockPos,
+    ) -> ViewerFuture<'a, ()> {
+        Box::pin(async move {
+            self.play_sound(world, Sound::BlockEnderChestClose).await;
+        })
     }
 
-    async fn on_viewer_count_update(
-        &self,
-        world: &Arc<dyn SimpleWorld>,
-        position: &BlockPos,
+    fn on_viewer_count_update<'a>(
+        &'a self,
+        world: &'a Arc<dyn SimpleWorld>,
+        position: &'a BlockPos,
         _old: u16,
         new: u16,
-    ) {
-        world
-            .add_synced_block_event(*position, Self::LID_ANIMATION_EVENT_TYPE, new as u8)
-            .await
+    ) -> ViewerFuture<'a, ()> {
+        Box::pin(async move {
+            world
+                .add_synced_block_event(*position, Self::LID_ANIMATION_EVENT_TYPE, new as u8)
+                .await
+        })
     }
 }
-
 impl ChestBlockEntity {
     pub const INVENTORY_SIZE: usize = 27;
     pub const LID_ANIMATION_EVENT_TYPE: u8 = 1;
@@ -212,11 +235,12 @@ impl Inventory for ChestBlockEntity {
     }
 }
 
-#[async_trait]
 impl Clearable for ChestBlockEntity {
-    async fn clear(&self) {
-        for slot in self.items.iter() {
-            *slot.lock().await = ItemStack::EMPTY.clone();
-        }
+    fn clear(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+        Box::pin(async move {
+            for slot in self.items.iter() {
+                *slot.lock().await = ItemStack::EMPTY.clone();
+            }
+        })
     }
 }

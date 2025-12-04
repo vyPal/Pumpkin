@@ -1,5 +1,5 @@
-use std::any::Any;
 use std::sync::Arc;
+use std::{any::Any, pin::Pin};
 
 use async_trait::async_trait;
 use pumpkin_world::{inventory::split_stack, item::ItemStack};
@@ -82,11 +82,12 @@ impl RecipeInputInventory for CraftingInventory {
     }
 }
 
-#[async_trait]
 impl Clearable for CraftingInventory {
-    async fn clear(&self) {
-        for slot in self.items.iter() {
-            *slot.lock().await = ItemStack::EMPTY.clone();
-        }
+    fn clear(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+        Box::pin(async move {
+            for item in self.items.iter() {
+                *item.lock().await = ItemStack::EMPTY.clone();
+            }
+        })
     }
 }

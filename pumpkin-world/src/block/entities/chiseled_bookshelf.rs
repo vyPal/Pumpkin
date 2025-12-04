@@ -5,6 +5,7 @@ use pumpkin_data::block_properties::{BlockProperties, ChiseledBookshelfLikePrope
 use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_util::math::position::BlockPos;
 use std::any::Any;
+use std::pin::Pin;
 use std::{
     array::from_fn,
     sync::{
@@ -31,7 +32,6 @@ pub struct ChiseledBookshelfBlockEntity {
 
 const LAST_INTERACTED_SLOT: &str = "last_interacted_slot";
 
-#[async_trait]
 impl BlockEntity for ChiseledBookshelfBlockEntity {
     fn resource_location(&self) -> &'static str {
         Self::ID
@@ -59,12 +59,17 @@ impl BlockEntity for ChiseledBookshelfBlockEntity {
         chiseled_bookshelf
     }
 
-    async fn write_nbt(&self, nbt: &mut NbtCompound) {
-        self.write_data(nbt, &self.items, true).await;
-        nbt.put_int(
-            LAST_INTERACTED_SLOT,
-            self.last_interacted_slot.load(Ordering::Relaxed).into(),
-        );
+    fn write_nbt<'a>(
+        &'a self,
+        nbt: &'a mut NbtCompound,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+        Box::pin(async move {
+            self.write_data(nbt, &self.items, true).await;
+            nbt.put_int(
+                LAST_INTERACTED_SLOT,
+                self.last_interacted_slot.load(Ordering::Relaxed).into(),
+            );
+        })
     }
 
     fn get_inventory(self: Arc<Self>) -> Option<Arc<dyn Inventory>> {
@@ -169,11 +174,12 @@ impl Inventory for ChiseledBookshelfBlockEntity {
     }
 }
 
-#[async_trait]
 impl Clearable for ChiseledBookshelfBlockEntity {
-    async fn clear(&self) {
-        for slot in self.items.iter() {
-            *slot.lock().await = ItemStack::EMPTY.clone();
-        }
+    fn clear(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+        Box::pin(async move {
+            for slot in self.items.iter() {
+                *slot.lock().await = ItemStack::EMPTY.clone();
+            }
+        })
     }
 }
