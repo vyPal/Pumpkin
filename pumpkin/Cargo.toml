@@ -43,7 +43,6 @@ tokio = { workspace = true, features = [
 ] }
 rayon.workspace = true
 thiserror.workspace = true
-async-trait.workspace = true
 futures.workspace = true
 
 # config

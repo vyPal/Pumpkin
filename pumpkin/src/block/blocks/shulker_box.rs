@@ -5,12 +5,14 @@ use crate::block::{
     registry::BlockActionResult,
     {BlockBehaviour, NormalUseArgs},
 };
-use async_trait::async_trait;
+
 use pumpkin_data::block_properties::BlockProperties;
 use pumpkin_data::tag::{RegistryKey, get_tag_values};
 use pumpkin_inventory::generic_container_screen_handler::create_generic_9x3;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
-use pumpkin_inventory::screen_handler::{InventoryPlayer, ScreenHandler, ScreenHandlerFactory};
+use pumpkin_inventory::screen_handler::{
+    BoxFuture, InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
+};
 use pumpkin_util::text::TextComponent;
 use pumpkin_world::BlockStateId;
 use pumpkin_world::block::entities::shulker_box::ShulkerBoxBlockEntity;
@@ -19,17 +21,19 @@ use tokio::sync::Mutex;
 
 struct ShulkerBoxScreenFactory(Arc<dyn Inventory>);
 
-#[async_trait]
 impl ScreenHandlerFactory for ShulkerBoxScreenFactory {
-    async fn create_screen_handler(
-        &self,
+    fn create_screen_handler<'a>(
+        &'a self,
         sync_id: u8,
-        player_inventory: &Arc<PlayerInventory>,
-        _player: &dyn InventoryPlayer,
-    ) -> Option<Arc<Mutex<dyn ScreenHandler>>> {
-        Some(Arc::new(Mutex::new(
-            create_generic_9x3(sync_id, player_inventory, self.0.clone()).await,
-        )))
+        player_inventory: &'a Arc<PlayerInventory>,
+        _player: &'a dyn InventoryPlayer,
+    ) -> BoxFuture<'a, Option<SharedScreenHandler>> {
+        Box::pin(async move {
+            let handler = create_generic_9x3(sync_id, player_inventory, self.0.clone()).await;
+            let screen_handler_arc = Arc::new(Mutex::new(handler));
+
+            Some(screen_handler_arc as SharedScreenHandler)
+        })
     }
 
     fn get_display_name(&self) -> TextComponent {

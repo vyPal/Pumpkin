@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use pumpkin_data::block_properties::{BlockProperties, FurnaceLikeProperties};
 use pumpkin_inventory::{
-    furnace::furnace_screen_handler::FurnaceScreenHandler, screen_handler::ScreenHandlerFactory,
+    furnace::furnace_screen_handler::FurnaceScreenHandler,
+    player::player_inventory::PlayerInventory,
+    screen_handler::{BoxFuture, InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler},
 };
 use pumpkin_macros::pumpkin_block;
 use pumpkin_util::text::TextComponent;
@@ -33,22 +34,26 @@ impl FurnaceScreenFactory {
     }
 }
 
-#[async_trait]
 impl ScreenHandlerFactory for FurnaceScreenFactory {
-    async fn create_screen_handler(
-        &self,
+    fn create_screen_handler<'a>(
+        &'a self,
         sync_id: u8,
-        player_inventory: &Arc<pumpkin_inventory::player::player_inventory::PlayerInventory>,
-        _player: &dyn pumpkin_inventory::screen_handler::InventoryPlayer,
-    ) -> Option<Arc<Mutex<dyn pumpkin_inventory::screen_handler::ScreenHandler>>> {
-        let furnace_screen_handler = FurnaceScreenHandler::new(
-            sync_id,
-            player_inventory,
-            self.inventory.clone(),
-            self.block_entity.clone(),
-        )
-        .await;
-        Some(Arc::new(Mutex::new(furnace_screen_handler)))
+        player_inventory: &'a Arc<PlayerInventory>,
+        _player: &'a dyn InventoryPlayer,
+    ) -> BoxFuture<'a, Option<SharedScreenHandler>> {
+        Box::pin(async move {
+            let concrete_handler = FurnaceScreenHandler::new(
+                sync_id,
+                player_inventory,
+                self.inventory.clone(),
+                self.block_entity.clone(),
+            )
+            .await;
+
+            let concrete_arc = Arc::new(Mutex::new(concrete_handler));
+
+            Some(concrete_arc as SharedScreenHandler)
+        })
     }
 
     fn get_display_name(&self) -> pumpkin_util::text::TextComponent {

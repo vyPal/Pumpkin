@@ -6,14 +6,16 @@ use crate::block::{
 };
 use crate::entity::Entity;
 use crate::entity::item::ItemEntity;
-use async_trait::async_trait;
+
 use pumpkin_data::FacingExt;
 use pumpkin_data::block_properties::{BlockProperties, Facing};
 use pumpkin_data::entity::EntityType;
 use pumpkin_data::world::WorldEvent;
 use pumpkin_inventory::generic_container_screen_handler::create_generic_3x3;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
-use pumpkin_inventory::screen_handler::{InventoryPlayer, ScreenHandler, ScreenHandlerFactory};
+use pumpkin_inventory::screen_handler::{
+    BoxFuture, InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
+};
 use pumpkin_macros::pumpkin_block;
 use pumpkin_util::math::vector3::Vector3;
 use pumpkin_util::text::TextComponent;
@@ -30,17 +32,19 @@ use uuid::Uuid;
 
 struct DropperScreenFactory(Arc<dyn Inventory>);
 
-#[async_trait]
 impl ScreenHandlerFactory for DropperScreenFactory {
-    async fn create_screen_handler(
-        &self,
+    fn create_screen_handler<'a>(
+        &'a self,
         sync_id: u8,
-        player_inventory: &Arc<PlayerInventory>,
-        _player: &dyn InventoryPlayer,
-    ) -> Option<Arc<Mutex<dyn ScreenHandler>>> {
-        Some(Arc::new(Mutex::new(
-            create_generic_3x3(sync_id, player_inventory, self.0.clone()).await,
-        )))
+        player_inventory: &'a Arc<PlayerInventory>,
+        _player: &'a dyn InventoryPlayer,
+    ) -> BoxFuture<'a, Option<SharedScreenHandler>> {
+        Box::pin(async move {
+            let handler = create_generic_3x3(sync_id, player_inventory, self.0.clone()).await;
+            let screen_handler_arc = Arc::new(Mutex::new(handler));
+
+            Some(screen_handler_arc as SharedScreenHandler)
+        })
     }
 
     fn get_display_name(&self) -> TextComponent {

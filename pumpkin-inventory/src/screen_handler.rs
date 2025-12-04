@@ -4,7 +4,6 @@ use crate::{
     slot::{NormalSlot, Slot},
     sync_handler::{SyncHandler, TrackedStack},
 };
-use async_trait::async_trait;
 use log::warn;
 use pumpkin_data::{
     data_component_impl::{EquipmentSlot, EquipmentType, EquippableImpl},
@@ -1038,14 +1037,17 @@ pub trait ScreenHandlerListener: Send + Sync {
     }
 }
 
-#[async_trait]
+pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+
+pub type SharedScreenHandler = Arc<Mutex<dyn ScreenHandler>>;
+
 pub trait ScreenHandlerFactory: Send + Sync {
-    async fn create_screen_handler(
-        &self,
+    fn create_screen_handler<'a>(
+        &'a self,
         sync_id: u8,
-        player_inventory: &Arc<PlayerInventory>,
-        player: &dyn InventoryPlayer,
-    ) -> Option<Arc<Mutex<dyn ScreenHandler>>>;
+        player_inventory: &'a Arc<PlayerInventory>,
+        player: &'a dyn InventoryPlayer,
+    ) -> BoxFuture<'a, Option<SharedScreenHandler>>;
     fn get_display_name(&self) -> TextComponent;
 }
 

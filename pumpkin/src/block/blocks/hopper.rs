@@ -7,12 +7,14 @@ use crate::block::{
     {BlockBehaviour, NormalUseArgs},
 };
 use crate::world::World;
-use async_trait::async_trait;
+
 use pumpkin_data::block_properties::{BlockProperties, HopperFacing};
 use pumpkin_data::{Block, BlockDirection};
 use pumpkin_inventory::generic_container_screen_handler::create_hopper;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
-use pumpkin_inventory::screen_handler::{InventoryPlayer, ScreenHandler, ScreenHandlerFactory};
+use pumpkin_inventory::screen_handler::{
+    BoxFuture, InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
+};
 use pumpkin_macros::pumpkin_block;
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_util::text::TextComponent;
@@ -24,17 +26,20 @@ use tokio::sync::Mutex;
 
 struct HopperBlockScreenFactory(Arc<dyn Inventory>);
 
-#[async_trait]
 impl ScreenHandlerFactory for HopperBlockScreenFactory {
-    async fn create_screen_handler(
-        &self,
+    fn create_screen_handler<'a>(
+        &'a self,
         sync_id: u8,
-        player_inventory: &Arc<PlayerInventory>,
-        _player: &dyn InventoryPlayer,
-    ) -> Option<Arc<Mutex<dyn ScreenHandler>>> {
-        Some(Arc::new(Mutex::new(
-            create_hopper(sync_id, player_inventory, self.0.clone()).await,
-        )))
+        player_inventory: &'a Arc<PlayerInventory>,
+        _player: &'a dyn InventoryPlayer,
+    ) -> BoxFuture<'a, Option<SharedScreenHandler>> {
+        Box::pin(async move {
+            let concrete_handler = create_hopper(sync_id, player_inventory, self.0.clone()).await;
+
+            let concrete_arc = Arc::new(Mutex::new(concrete_handler));
+
+            Some(concrete_arc as SharedScreenHandler)
+        })
     }
 
     fn get_display_name(&self) -> TextComponent {

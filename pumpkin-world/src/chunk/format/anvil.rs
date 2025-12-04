@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use bytes::*;
 use flate2::read::{GzDecoder, GzEncoder, ZlibDecoder, ZlibEncoder};
 use itertools::Itertools;
@@ -526,7 +525,6 @@ pub trait SingleChunkDataSerializer: Send + Sync + Sized + Dirtiable {
     fn position(&self) -> &Vector2<i32>;
 }
 
-#[async_trait]
 impl<S: SingleChunkDataSerializer> ChunkSerializer for AnvilChunkFile<S> {
     type Data = S;
     type WriteBackend = PathBuf;
@@ -827,7 +825,7 @@ impl<S: SingleChunkDataSerializer> ChunkSerializer for AnvilChunkFile<S> {
 /*
 #[cfg(test)]
 mod tests {
-    use async_trait::async_trait;
+
     use pumpkin_config::{AdvancedConfiguration, advanced_config, override_config_for_testing};
     use pumpkin_data::BlockDirection;
     use pumpkin_util::math::position::BlockPos;
@@ -849,7 +847,6 @@ mod tests {
 
     struct BlockRegistry;
 
-    #[async_trait]
     impl BlockRegistryExt for BlockRegistry {
         fn can_place_at(
             &self,

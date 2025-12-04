@@ -1733,9 +1733,9 @@ checksum = "c505b3e17ed6b70a7ed2e67fbb2c560ee327353556120d6e72f5232b6880d536"
 
 [[package]]
 name = "mio"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69d83b0086dc8ecf3ce9ae2874b2d1290252e2a30720bea58a5c6639b0092873"
+checksum = "a69bcab0ad47271a0234d9422b131806bf3968021e5dc9328caf2d4cd58557fc"
 dependencies = [
  "libc",
  "log",
@@ -2167,7 +2167,6 @@ dependencies = [
 name = "pumpkin"
 version = "0.1.0-dev+1.21.10"
 dependencies = [
- "async-trait",
  "base64 0.22.1",
  "bytes",
  "console-subscriber",
@@ -2252,7 +2251,6 @@ dependencies = [
 name = "pumpkin-inventory"
 version = "0.1.0-dev+1.21.10"
 dependencies = [
- "async-trait",
  "crossbeam-utils",
  "log",
  "pumpkin-data",
@@ -2347,7 +2345,6 @@ dependencies = [
 name = "pumpkin-world"
 version = "0.1.0-dev+1.21.10"
 dependencies = [
- "async-trait",
  "bitflags",
  "bytes",
  "criterion",

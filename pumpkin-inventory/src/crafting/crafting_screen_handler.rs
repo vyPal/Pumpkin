@@ -10,8 +10,8 @@ use crate::screen_handler::{
     InventoryPlayer, ItemStackFuture, ScreenHandler, ScreenHandlerBehaviour, ScreenHandlerFuture,
     ScreenHandlerListener,
 };
-use crate::slot::{NormalSlot, Slot};
-use async_trait::async_trait;
+use crate::slot::{BoxFuture, NormalSlot, Slot};
+
 use crossbeam_utils::atomic::AtomicCell;
 use pumpkin_data::recipes::{CraftingRecipeTypes, RECIPES_CRAFTING, RecipeResultStruct};
 use pumpkin_data::screen::WindowType;
@@ -324,7 +324,6 @@ impl ResultSlot {
     }
 }
 
-#[async_trait]
 impl Slot for ResultSlot {
     fn get_inventory(&self) -> Arc<dyn Inventory> {
         self.inventory.clone()
@@ -338,73 +337,95 @@ impl Slot for ResultSlot {
         self.id.store(id as u8, Ordering::Relaxed);
     }
 
-    async fn on_quick_move_crafted(&self, _stack: ItemStack, _stack_prev: ItemStack) {
-        // refill the result slot with the recipe result
-        self.refill_output().await;
+    fn on_quick_move_crafted(
+        &self,
+        _stack: ItemStack,
+        _stack_prev: ItemStack,
+    ) -> BoxFuture<'_, ()> {
+        Box::pin(async move {
+            // refill the result slot with the recipe result
+            self.refill_output().await;
+        })
     }
 
-    async fn on_take_item(&self, player: &dyn InventoryPlayer, stack: &ItemStack) {
-        for i in 0..self.inventory.size() {
-            let slot = self.inventory.get_stack(i).await;
-            let mut stack = slot.lock().await;
-            if !stack.is_empty() {
-                //TODO: Handle remaining items.
-                stack.item_count -= 1;
+    fn on_take_item<'a>(
+        &'a self,
+        player: &'a dyn InventoryPlayer,
+        stack: &'a ItemStack,
+    ) -> BoxFuture<'a, ()> {
+        Box::pin(async move {
+            for i in 0..self.inventory.size() {
+                let slot = self.inventory.get_stack(i).await;
+                let mut stack = slot.lock().await;
+                if !stack.is_empty() {
+                    //TODO: Handle remaining items.
+                    stack.item_count -= 1;
+                }
             }
-        }
-        self.stat_crafted(stack.item_count, player);
-        self.mark_dirty().await;
+            self.stat_crafted(stack.item_count, player);
+            self.mark_dirty().await;
+        })
     }
 
-    async fn can_insert(&self, _stack: &ItemStack) -> bool {
-        false
+    fn can_insert(&self, _stack: &ItemStack) -> BoxFuture<'_, bool> {
+        Box::pin(async move { false })
     }
 
-    async fn get_stack(&self) -> Arc<Mutex<ItemStack>> {
-        self.result.clone()
+    fn get_stack(&self) -> BoxFuture<'_, Arc<Mutex<ItemStack>>> {
+        Box::pin(async move { self.result.clone() })
     }
 
-    async fn get_cloned_stack(&self) -> ItemStack {
-        self.result.lock().await.clone()
+    fn get_cloned_stack(&self) -> BoxFuture<'_, ItemStack> {
+        Box::pin(async move { self.result.lock().await.clone() })
     }
 
-    async fn has_stack(&self) -> bool {
-        !self.result.lock().await.is_empty()
+    fn has_stack(&self) -> BoxFuture<'_, bool> {
+        Box::pin(async move { !self.result.lock().await.is_empty() })
     }
 
-    async fn set_stack(&self, _stack: ItemStack) {
-        self.refill_output().await;
+    fn set_stack(&self, _stack: ItemStack) -> BoxFuture<'_, ()> {
+        Box::pin(async move {
+            self.refill_output().await;
+        })
     }
 
-    async fn set_stack_prev(&self, _stack: ItemStack, _previous_stack: ItemStack) {
-        self.refill_output().await;
+    fn set_stack_prev(&self, _stack: ItemStack, _previous_stack: ItemStack) -> BoxFuture<'_, ()> {
+        Box::pin(async move {
+            self.refill_output().await;
+        })
     }
 
-    async fn mark_dirty(&self) {
-        self.inventory.mark_dirty();
+    fn mark_dirty(&self) -> BoxFuture<'_, ()> {
+        Box::pin(async move {
+            self.inventory.mark_dirty();
+        })
     }
 
-    async fn get_max_item_count(&self) -> u8 {
-        let mut count = u8::MAX;
-        for i in 0..self.inventory.size() {
-            let slot = self.inventory.get_stack(i).await;
-            let slot = slot.lock().await;
-            if !slot.is_empty() {
-                count = count.min(slot.item_count);
+    fn get_max_item_count(&self) -> BoxFuture<'_, u8> {
+        Box::pin(async move {
+            let mut count = u8::MAX;
+            for i in 0..self.inventory.size() {
+                let slot = self.inventory.get_stack(i).await;
+                let slot = slot.lock().await;
+                if !slot.is_empty() {
+                    count = count.min(slot.item_count);
+                }
             }
-        }
-        count
+            count
+        })
     }
 
-    async fn take_stack(&self, _amount: u8) -> ItemStack {
-        if self.has_stack().await {
-            let stack = self.result.lock().await;
-            // Vanilla: net.minecraft.world.inventory.ResultContainer#removeItem
-            // Regardless of the amount, we always return the full stack
-            stack.clone()
-        } else {
-            ItemStack::EMPTY.clone()
-        }
+    fn take_stack(&self, _amount: u8) -> BoxFuture<'_, ItemStack> {
+        Box::pin(async move {
+            if self.has_stack().await {
+                let stack = self.result.lock().await;
+                // Vanilla: net.minecraft.world.inventory.ResultContainer#removeItem
+                // Regardless of the amount, we always return the full stack
+                stack.clone()
+            } else {
+                ItemStack::EMPTY.clone()
+            }
+        })
     }
 }
 

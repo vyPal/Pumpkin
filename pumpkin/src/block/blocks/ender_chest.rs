@@ -4,12 +4,11 @@ use crate::block::{
     BlockBehaviour, BlockFuture, NormalUseArgs, OnPlaceArgs, OnSyncedBlockEventArgs, PlacedArgs,
     registry::BlockActionResult,
 };
-use async_trait::async_trait;
 use pumpkin_data::block_properties::{BlockProperties, LadderLikeProperties};
 use pumpkin_inventory::{
     generic_container_screen_handler::create_generic_9x3,
     player::player_inventory::PlayerInventory,
-    screen_handler::{InventoryPlayer, ScreenHandler, ScreenHandlerFactory},
+    screen_handler::{BoxFuture, InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler},
 };
 use pumpkin_macros::pumpkin_block;
 use pumpkin_util::text::TextComponent;
@@ -20,17 +19,19 @@ use tokio::sync::Mutex;
 
 struct EnderChestScreenFactory(Arc<dyn Inventory>);
 
-#[async_trait]
 impl ScreenHandlerFactory for EnderChestScreenFactory {
-    async fn create_screen_handler(
-        &self,
+    fn create_screen_handler<'a>(
+        &'a self,
         sync_id: u8,
-        player_inventory: &Arc<PlayerInventory>,
-        _player: &dyn InventoryPlayer,
-    ) -> Option<Arc<Mutex<dyn ScreenHandler>>> {
-        Some(Arc::new(Mutex::new(
-            create_generic_9x3(sync_id, player_inventory, self.0.clone()).await,
-        )))
+        player_inventory: &'a Arc<PlayerInventory>,
+        _player: &'a dyn InventoryPlayer,
+    ) -> BoxFuture<'a, Option<SharedScreenHandler>> {
+        Box::pin(async move {
+            let handler = create_generic_9x3(sync_id, player_inventory, self.0.clone()).await;
+            let concrete_arc = Arc::new(Mutex::new(handler));
+
+            Some(concrete_arc as SharedScreenHandler)
+        })
     }
 
     fn get_display_name(&self) -> TextComponent {
