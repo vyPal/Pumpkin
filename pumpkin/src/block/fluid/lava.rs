@@ -6,6 +6,7 @@ use pumpkin_data::{
     world::WorldEvent,
 };
 use pumpkin_macros::pumpkin_block;
+use pumpkin_registry::VanillaDimensionType;
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_world::{BlockStateId, tick::TickPriority, world::BlockFlags};
 
@@ -106,7 +107,8 @@ impl FluidBehaviour for FlowingLava {
         block_pos: &'a BlockPos,
     ) -> BlockFuture<'a, ()> {
         Box::pin(async move {
-            self.spread_fluid(world, fluid, block_pos).await;
+            self.on_scheduled_tick_interal(world, fluid, block_pos)
+                .await;
         })
     }
 
@@ -137,13 +139,22 @@ impl FluidBehaviour for FlowingLava {
 }
 
 impl FlowingFluid for FlowingLava {
-    //TODO implement ultrawarm logic
-    fn get_drop_off(&self) -> i32 {
-        2
+    fn get_level_decrease_per_block(&self, world: &World) -> i32 {
+        // ultrawarm logic
+        if world.dimension_type == VanillaDimensionType::TheNether {
+            1
+        } else {
+            2
+        }
     }
 
-    fn get_slope_find_distance(&self) -> i32 {
-        2
+    fn get_max_flow_distance(&self, world: &World) -> i32 {
+        // ultrawarm logic
+        if world.dimension_type == VanillaDimensionType::TheNether {
+            4
+        } else {
+            2
+        }
     }
 
     fn can_convert_to_source(&self, _world: &Arc<World>) -> bool {

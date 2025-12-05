@@ -44,7 +44,8 @@ impl FluidBehaviour for FlowingWater {
         block_pos: &'a BlockPos,
     ) -> BlockFuture<'a, ()> {
         Box::pin(async {
-            self.spread_fluid(world, fluid, block_pos).await;
+            self.on_scheduled_tick_interal(world, fluid, block_pos)
+                .await;
         })
     }
 
@@ -70,11 +71,11 @@ impl FluidBehaviour for FlowingWater {
 }
 
 impl FlowingFluid for FlowingWater {
-    fn get_drop_off(&self) -> i32 {
+    fn get_level_decrease_per_block(&self, _world: &World) -> i32 {
         1
     }
 
-    fn get_slope_find_distance(&self) -> i32 {
+    fn get_max_flow_distance(&self, _world: &World) -> i32 {
         4
     }
 

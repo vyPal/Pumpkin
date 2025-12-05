@@ -53,7 +53,7 @@ impl SpreadContext {
 pub type FluidFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 pub trait FlowingFluid: Send + Sync {
-    fn get_drop_off(&self) -> i32;
+    fn get_level_decrease_per_block(&self, world: &World) -> i32;
 
     fn get_source<'a>(
         &'a self,
@@ -90,7 +90,7 @@ pub trait FlowingFluid: Send + Sync {
         })
     }
 
-    fn get_slope_find_distance(&self) -> i32;
+    fn get_max_flow_distance(&self, world: &World) -> i32;
 
     fn can_convert_to_source(&self, world: &Arc<World>) -> bool;
 
@@ -123,51 +123,47 @@ pub trait FlowingFluid: Send + Sync {
         false
     }
 
-    fn spread_fluid<'a>(
+    fn on_scheduled_tick_interal<'a>(
         &'a self,
         world: &'a Arc<World>,
         fluid: &'a Fluid,
         block_pos: &'a BlockPos,
     ) -> FluidFuture<'a, ()> {
         Box::pin(async move {
-            let block_state_id = world.get_block_state_id(block_pos).await;
-            if let Some(new_fluid_state) = self.get_new_liquid(world, fluid, block_pos).await {
-                if new_fluid_state.to_state_id(fluid) != block_state_id
-                    && self.is_waterlogged(world, block_pos).await.is_none()
-                {
+            let current_block_state = world.get_block_state(block_pos).await;
+            let current_fluid_state =
+                FlowingFluidProperties::from_state_id(current_block_state.id, fluid);
+
+            if current_fluid_state.level != Level::L8
+                || current_fluid_state.falling == Falling::True
+            {
+                let new_fluid_state = self.get_new_liquid(world, fluid, block_pos).await;
+                if let Some(new_fluid_state) = new_fluid_state {
+                    if new_fluid_state.to_state_id(fluid) != current_block_state.id {
+                        world
+                            .set_block_state(
+                                block_pos,
+                                new_fluid_state.to_state_id(fluid),
+                                BlockFlags::NOTIFY_ALL,
+                            )
+                            .await;
+                    }
+                } else if self.is_waterlogged(world, block_pos).await.is_none() {
                     world
                         .set_block_state(
                             block_pos,
-                            new_fluid_state.to_state_id(fluid),
+                            Block::AIR.default_state.id,
                             BlockFlags::NOTIFY_ALL,
                         )
                         .await;
                 }
-                self.spread(world, fluid, block_pos, &new_fluid_state).await;
-            } else if self.is_waterlogged(world, block_pos).await.is_some() {
-                self.spread(
-                    world,
-                    fluid,
-                    block_pos,
-                    &FlowingFluidProperties::default(fluid),
-                )
-                .await;
-            } else {
-                world
-                    .break_block(block_pos, None, BlockFlags::NOTIFY_NEIGHBORS)
-                    .await;
-                world
-                    .set_block_state(
-                        block_pos,
-                        Block::AIR.default_state.id,
-                        BlockFlags::NOTIFY_ALL,
-                    )
-                    .await;
             }
+            self.try_flow(world, fluid, block_pos, &current_fluid_state)
+                .await;
         })
     }
 
-    fn spread<'a>(
+    fn try_flow<'a>(
         &'a self,
         world: &'a Arc<World>,
         fluid: &'a Fluid,
@@ -176,7 +172,7 @@ pub trait FlowingFluid: Send + Sync {
     ) -> FluidFuture<'a, ()> {
         Box::pin(async move {
             let below_pos = block_pos.down();
-            let below_can_replace = !self.is_solid_or_source(world, &below_pos, 0, fluid).await;
+            let below_can_replace = !self.can_flow_through(world, &below_pos, 0, fluid).await;
 
             if below_can_replace {
                 let mut new_props = FlowingFluidProperties::default(fluid);
@@ -185,13 +181,56 @@ pub trait FlowingFluid: Send + Sync {
 
                 self.spread_to(world, fluid, &below_pos, new_props.to_state_id(fluid))
                     .await;
+                if self
+                    .count_neighboring_sources(world, fluid, block_pos)
+                    .await
+                    >= 3
+                {
+                    self.flow_to_sides(world, fluid, block_pos).await;
+                }
             } else if props.level == Level::L8 && props.falling == Falling::False
                 || !self
                     .is_water_hole(world, fluid, block_pos, &below_pos)
                     .await
             {
-                self.spread_to_sides(world, fluid, block_pos).await;
+                self.flow_to_sides(world, fluid, block_pos).await;
             }
+        })
+    }
+
+    fn count_neighboring_sources<'a>(
+        &'a self,
+        world: &'a Arc<World>,
+        fluid: &'a Fluid,
+        block_pos: &'a BlockPos,
+    ) -> FluidFuture<'a, i32> {
+        Box::pin(async move {
+            let mut source_count = 0;
+
+            for direction in BlockDirection::horizontal() {
+                let neighbor_pos = block_pos.offset(direction.to_offset());
+                let neighbor_state_id = world.get_block_state_id(&neighbor_pos).await;
+
+                if fluid.default_state_index == Fluid::WATER.default_state_index
+                    && self.is_waterlogged(world, &neighbor_pos).await.is_some()
+                {
+                    source_count += 1;
+                    continue;
+                }
+
+                if !self.is_same_fluid(fluid, neighbor_state_id) {
+                    continue;
+                }
+
+                let neighbor_props =
+                    FlowingFluidProperties::from_state_id(neighbor_state_id, fluid);
+                let neighbor_level = i32::from(neighbor_props.level.to_index()) + 1;
+
+                if neighbor_level == 8 && neighbor_props.falling != Falling::True {
+                    source_count += 1;
+                }
+            }
+            source_count
         })
     }
 
@@ -243,7 +282,7 @@ pub trait FlowingFluid: Send + Sync {
                 let below_pos = block_pos.down();
                 let below_state_id = world.get_block_state_id(&below_pos).await;
                 if self
-                    .is_solid_or_source(world, &below_pos, below_state_id, fluid)
+                    .can_flow_through(world, &below_pos, below_state_id, fluid)
                     .await
                 {
                     return Some(self.get_source(fluid, false).await);
@@ -259,7 +298,7 @@ pub trait FlowingFluid: Send + Sync {
                 return Some(self.get_flowing(fluid, Level::L8, true).await);
             }
 
-            let drop_off = self.get_drop_off();
+            let drop_off = self.get_level_decrease_per_block(world);
             let new_level = highest_level - drop_off;
 
             if new_level <= 0 {
@@ -275,7 +314,7 @@ pub trait FlowingFluid: Send + Sync {
         })
     }
 
-    fn is_solid_or_source<'a>(
+    fn can_flow_through<'a>(
         &'a self,
         world: &'a Arc<World>,
         block_pos: &'a BlockPos,
@@ -283,27 +322,20 @@ pub trait FlowingFluid: Send + Sync {
         fluid: &'a Fluid,
     ) -> FluidFuture<'a, bool> {
         Box::pin(async move {
-            let block = world.get_block(block_pos).await;
-
-            if block.id != 0
-                && !self
-                    .can_be_replaced(world, block_pos, block.id, fluid)
-                    .await
-            {
-                return true;
-            }
-
-            //TODO check if source
             if self.is_same_fluid(fluid, state_id) {
                 let props = FlowingFluidProperties::from_state_id(state_id, fluid);
-                return props.level == Level::L8 && props.falling != Falling::True;
+                if props.level == Level::L8 && props.falling != Falling::True {
+                    return true;
+                }
             }
-
-            false
+            world
+                .get_block_state(block_pos)
+                .await
+                .is_side_solid(BlockDirection::Up)
         })
     }
 
-    fn spread_to_sides<'a>(
+    fn flow_to_sides<'a>(
         &'a self,
         world: &'a Arc<World>,
         fluid: &'a Fluid,
@@ -313,18 +345,16 @@ pub trait FlowingFluid: Send + Sync {
             let block_state_id = world.get_block_state_id(block_pos).await;
 
             let props = FlowingFluidProperties::from_state_id(block_state_id, fluid);
-            let level = i32::from(props.level.to_index()) + 1;
+            let drop_off = self.get_level_decrease_per_block(world);
+
+            let level = i32::from(props.level.to_index()) - drop_off;
 
             let effective_level = if props.falling == Falling::True {
                 7
             } else {
                 level
             };
-
-            let drop_off = self.get_drop_off();
-            let new_level = effective_level - drop_off;
-
-            if new_level <= 0 {
+            if effective_level <= 0 {
                 return;
             }
 
@@ -335,7 +365,7 @@ pub trait FlowingFluid: Send + Sync {
 
                 if self.can_replace_block(world, &side_pos, fluid).await {
                     let new_props = self
-                        .get_flowing(fluid, Level::from_index(new_level as u16 - 1), false)
+                        .get_flowing(fluid, Level::from_index(effective_level as u16 - 1), false)
                         .await;
                     self.spread_to(world, fluid, &side_pos, new_props.to_state_id(fluid))
                         .await;
@@ -375,7 +405,7 @@ pub trait FlowingFluid: Send + Sync {
                 let slope_dist = if ctx_ref.is_hole(self, world, fluid, &side_pos).await {
                     0
                 } else {
-                    self.get_slope_distance(
+                    self.get_in_flow_down_distance(
                         world,
                         fluid,
                         side_pos,
@@ -399,7 +429,7 @@ pub trait FlowingFluid: Send + Sync {
         })
     }
 
-    fn get_slope_distance<'a, 'b>(
+    fn get_in_flow_down_distance<'a, 'b>(
         &'a self,
         world: &'a Arc<World>,
         fluid: &'a Fluid,
@@ -412,7 +442,7 @@ pub trait FlowingFluid: Send + Sync {
         'a: 'b,
     {
         Box::pin(async move {
-            if distance > self.get_slope_find_distance() {
+            if distance > self.get_max_flow_distance(world) {
                 return 1000;
             }
 
@@ -443,7 +473,7 @@ pub trait FlowingFluid: Send + Sync {
                 }
 
                 let next_dist = self
-                    .get_slope_distance(
+                    .get_in_flow_down_distance(
                         world,
                         fluid,
                         next_pos,
