@@ -44,7 +44,7 @@ impl FluidBehaviour for FlowingWater {
         block_pos: &'a BlockPos,
     ) -> BlockFuture<'a, ()> {
         Box::pin(async {
-            self.on_scheduled_tick_interal(world, fluid, block_pos)
+            self.on_scheduled_tick_internal(world, fluid, block_pos)
                 .await;
         })
     }

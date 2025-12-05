@@ -123,7 +123,7 @@ pub trait FlowingFluid: Send + Sync {
         false
     }
 
-    fn on_scheduled_tick_interal<'a>(
+    fn on_scheduled_tick_internal<'a>(
         &'a self,
         world: &'a Arc<World>,
         fluid: &'a Fluid,
