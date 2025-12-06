@@ -14,7 +14,9 @@ futures.workspace = true
 
 bytes.workspace = true
 
-tokio.workspace = true
+tokio = { workspace = true, features = [
+    "rt-multi-thread",
+] }
 rayon.workspace = true
 uuid.workspace = true
 thiserror.workspace = true
@@ -46,8 +48,8 @@ tokio-util = { version = "0.7.17", features = ["rt"] }
 rand = "=0.10.0-rc.5"
 num_cpus = "1.17.0"
 rustc-hash = "2.1.1"
-slotmap = "1.0"
-crossfire = "2.1.7"
+slotmap = "1.1"
+crossfire = "2.1.8"
 
 [dev-dependencies]
 criterion = { version = "0.8", default-features = false, features = ["html_reports", "async_tokio"] }

@@ -1544,7 +1544,7 @@ impl GenerationSchedule {
             {
                 let mut data = lock.0.lock().unwrap();
                 while data.contains_key(&pos) {
-                    data = task::block_in_place(|| lock.1.wait(data).unwrap());
+                    data = tokio::task::block_in_place(|| lock.1.wait(data).unwrap());
                 }
             }
             level

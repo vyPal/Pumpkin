@@ -34,4 +34,4 @@ bitflags = "2.10.0"
 
 [dev-dependencies]
 # Validate correctness
-flate2 = "1.1.5"
+flate2 = "1.1.7"
