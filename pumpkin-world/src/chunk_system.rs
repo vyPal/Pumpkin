@@ -54,7 +54,6 @@ use std::sync::atomic::Ordering::{Relaxed, SeqCst};
 use std::thread;
 use std::thread::JoinHandle;
 use tokio::sync::{RwLock, oneshot};
-use tokio::task;
 
 type HashMapType<K, V> = FxHashMap<K, V>;
 type HashSetType<K> = FxHashSet<K>;
