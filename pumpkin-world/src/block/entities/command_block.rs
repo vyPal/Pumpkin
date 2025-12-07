@@ -48,7 +48,7 @@ impl BlockEntity for CommandBlockEntity {
         &'a self,
         _nbt: &'a mut NbtCompound,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {})
+        Box::pin(async {})
     }
 
     fn is_dirty(&self) -> bool {
