@@ -330,7 +330,7 @@ impl ChunkEntityData {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 struct ChunkSectionNBT {
     #[serde(skip_serializing_if = "Option::is_none")]
     block_states: Option<ChunkSectionBlockStates>,
@@ -362,7 +362,7 @@ pub struct PaletteBiomeEntry {
     pub name: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ChunkSectionBlockStates {
     #[serde(
         serialize_with = "nbt_long_array",
@@ -444,7 +444,7 @@ impl Default for LightContainer {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct ChunkNbt {
     data_version: i32,

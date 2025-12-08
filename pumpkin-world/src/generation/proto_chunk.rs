@@ -6,6 +6,7 @@ use pumpkin_data::tag;
 use pumpkin_data::{
     Block, BlockState, block_properties::blocks_movement, chunk::Biome, tag::Taggable,
 };
+use pumpkin_util::math::block_box::BlockBox;
 use pumpkin_util::{
     HeightMap,
     math::{position::BlockPos, vector2::Vector2, vector3::Vector3},
@@ -918,6 +919,7 @@ impl ProtoChunk {
         let population_seed =
             Xoroshiro::get_population_seed(random_config.seed, block_pos.0.x, block_pos.0.z);
 
+        let _chunk_box = chunk.get_block_box_for_chunk();
         for (_structure, (pos, stype)) in chunk.structure_starts.clone() {
             dbg!("generating structure");
             stype.generate(pos.clone(), chunk);
@@ -971,6 +973,15 @@ impl ProtoChunk {
             }
             // TODO: handle multiple structures
         }
+    }
+
+    fn get_block_box_for_chunk(&self) -> BlockBox {
+        let pos = self.chunk_pos;
+        let x = start_block_x(&pos);
+        let z = start_block_z(&pos);
+        let bottom = self.bottom_y() as i32 + 1;
+        let top = self.top_y() as i32;
+        BlockBox::new(x, bottom, z, x + 15, top, z + 15)
     }
 
     fn start_cell_x(&self, horizontal_cell_block_count: u8) -> i32 {

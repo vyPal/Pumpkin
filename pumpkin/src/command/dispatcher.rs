@@ -403,9 +403,9 @@ impl CommandDispatcher {
     }
 
     /// Register a command with the dispatcher.
-    pub fn register(&mut self, tree: CommandTree, permission: &str) {
+    pub fn register<P: Into<String>>(&mut self, tree: CommandTree, permission: P) {
         let mut names = tree.names.iter();
-        let permission = permission.to_string();
+        let permission = permission.into();
 
         let primary_name = names.next().expect("at least one name must be provided");
 

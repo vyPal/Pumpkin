@@ -20,7 +20,7 @@ use super::anvil::CHUNK_COUNT;
 /// used as a header and footer described in https://gist.github.com/Aaron2550/5701519671253d4c6190bde6706f9f98
 const SIGNATURE: [u8; 8] = u64::to_be_bytes(0xc3ff13183cca9d9a);
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Copy, Clone)]
 struct LinearChunkHeader {
     size: u32,
     timestamp: u32,

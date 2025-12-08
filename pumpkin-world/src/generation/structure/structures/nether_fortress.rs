@@ -1,5 +1,5 @@
 use pumpkin_data::Block;
-use pumpkin_util::math::{position::BlockPos, vector3::Vector3};
+use pumpkin_util::math::{block_box::BlockBox, position::BlockPos, vector3::Vector3};
 use serde::Deserialize;
 
 use crate::{
@@ -29,7 +29,7 @@ impl StructureGenerator for NetherFortressGenerator {
             generator,
         }
     }
-    fn generate(&self, position: BlockPos, chunk: &mut crate::ProtoChunk) {
+    fn generate(&self, position: BlockBox, chunk: &mut crate::ProtoChunk) {
         BridgePlatform::generate(&BridgePlatform, position, chunk);
     }
 }
@@ -37,7 +37,7 @@ impl StructureGenerator for NetherFortressGenerator {
 pub struct BridgePlatform;
 
 impl BridgePlatform {
-    fn generate(&self, _position: BlockPos, chunk: &mut crate::ProtoChunk) {
+    fn generate(&self, _box: BlockBox, chunk: &mut crate::ProtoChunk) {
         super::fill(0, 2, 0, 6, 7, 7, Block::AIR.default_state, chunk);
         super::fill(1, 0, 0, 5, 1, 7, Block::NETHER_BRICKS.default_state, chunk);
         super::fill(1, 2, 1, 5, 2, 7, Block::NETHER_BRICKS.default_state, chunk);

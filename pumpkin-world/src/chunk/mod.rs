@@ -95,7 +95,7 @@ pub struct ChunkEntityData {
 ///
 /// A chunk can be:
 /// - Subchunks: 24 separate subchunks are stored.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ChunkSections {
     pub sections: Box<[SubChunk]>,
     pub min_y: i32,
@@ -127,13 +127,13 @@ impl ChunkSections {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone)]
 pub struct SubChunk {
     pub block_states: BlockPalette,
     pub biomes: BiomePalette,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone)]
 pub struct ChunkLight {
     pub sky_light: Box<[LightContainer]>,
     pub block_light: Box<[LightContainer]>,

@@ -40,9 +40,6 @@ const SECTOR_BYTES: usize = 4096;
 // 1.21.10
 pub const WORLD_DATA_VERSION: i32 = 4556;
 
-#[derive(Clone, Default)]
-pub struct AnvilChunkFormat;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Compression {
@@ -72,7 +69,6 @@ impl<R: Read> Read for CompressionRead<R> {
     }
 }
 
-#[derive(Default, Clone)]
 pub struct AnvilChunkData {
     compression: Option<Compression>,
     // Length is always the length of this + compression byte (1) so we dont need to save a length
