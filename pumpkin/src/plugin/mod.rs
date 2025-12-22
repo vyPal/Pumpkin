@@ -13,10 +13,10 @@ use tokio::sync::{Notify, RwLock};
 pub mod api;
 pub mod loader;
 
-use crate::{PERMISSION_MANAGER, server::Server};
+use crate::{LOGGER_IMPL, PERMISSION_MANAGER, server::Server};
 pub use api::*;
 
-type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 /// A trait for handling events dynamically.
 ///
@@ -71,7 +71,11 @@ pub trait EventHandler<E: Payload>: Send + Sync {
     ///
     /// # Arguments
     /// - `event`: A mutable reference to the event to handle.
-    fn handle_blocking(&self, _server: &Arc<Server>, _event: &mut E) -> BoxFuture<'_, ()> {
+    fn handle_blocking<'a>(
+        &'a self,
+        _server: &'a Arc<Server>,
+        _event: &'a mut E,
+    ) -> BoxFuture<'a, ()> {
         Box::pin(async {})
     }
 }
@@ -347,6 +351,7 @@ impl PluginManager {
                     Arc::clone(&self.handlers),
                     Arc::clone(&self_ref),
                     Arc::clone(&PERMISSION_MANAGER),
+                    Arc::clone(&LOGGER_IMPL),
                 ));
 
                 // Create the plugin structure first
