@@ -28,4 +28,11 @@ impl BlockBox {
             max: pos.0,
         }
     }
+
+    pub fn intersects(&self, other: &Self) -> bool {
+        self.min.x < other.max.x
+            && self.max.x > other.min.x
+            && self.min.y < other.max.y
+            && self.max.y > other.min.y
+    }
 }

@@ -35,8 +35,8 @@ use crate::generation::height_limit::HeightLimitView;
 use crate::generation::noise::perlin::DoublePerlinNoiseSampler;
 use crate::generation::noise::router::surface_height_sampler::SurfaceHeightSamplerBuilderOptions;
 use crate::generation::structure::placement::StructurePlacementCalculator;
-use crate::generation::structure::structures::StructurePosition;
-use crate::generation::structure::{STRUCTURE_SETS, STRUCTURES, Structure, StructureType};
+use crate::generation::structure::structures::StructureInstance;
+use crate::generation::structure::{STRUCTURE_SETS, STRUCTURES, Structure};
 use crate::{
     BlockStateId, ProtoNoiseRouters,
     biome::{BiomeSupplier, MultiNoiseBiomeSupplier, end::TheEndBiomeSupplier},
@@ -118,7 +118,7 @@ impl FluidLevelSamplerImpl for StandardChunkFluidLevelSampler {
 ///
 /// 12. full: Generation is done and a chunk can now be loaded. The proto-chunk is now converted to a level chunk and all block updates deferred in the above steps are executed.
 ///
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ProtoChunk {
     pub x: i32,
     pub z: i32,
@@ -135,7 +135,7 @@ pub struct ProtoChunk {
     pub flat_motion_blocking_height_map: Box<[i16]>,
     pub flat_motion_blocking_no_leaves_height_map: Box<[i16]>,
     // may want to use chunk status
-    structure_starts: HashMap<Structure, (StructurePosition, StructureType)>,
+    structure_starts: HashMap<Structure, StructureInstance>,
     // Height of the chunk for indexing
     height: u16,
     bottom_y: i8,
@@ -912,11 +912,20 @@ impl ProtoChunk {
             Xoroshiro::get_population_seed(random_config.seed, block_pos.0.x, block_pos.0.z);
 
         let _chunk_box = chunk.get_block_box_for_chunk();
-        for (_structure, (pos, stype)) in chunk.structure_starts.clone() {
-            dbg!("generating structure");
-            stype.generate(pos.clone(), chunk);
+        for (_structure_config, instance) in chunk.structure_starts.clone() {
+            match instance {
+                StructureInstance::Start(pos, _stype) => {
+                    // Use the collector directly to place blocks
+                    pos.collector
+                        .generate_in_chunk(chunk, random_config.seed as i64);
+                }
+                StructureInstance::Reference(_start_block_pos) => {
+                    // In Minecraft, a Reference tells the engine to look up the
+                    // "Start" data from the chunk at start_block_pos and generate its pieces here.
+                    // If you are only generating "Starts" for now, this can be a TODO.
+                }
+            }
         }
-
         // TODO: This needs to be different depending on what biomes are in the chunk -> affects the
         // random
         for (name, feature) in PLACED_FEATURES.iter() {
@@ -942,28 +951,37 @@ impl ProtoChunk {
             let calculator = StructurePlacementCalculator {
                 seed: random_config.seed as i64,
             };
-            // for structure in &set.structures {
-            //     let start = self.structure_starts.get(STRUCTURES.get(name).unwrap());
-            // }
+
+            // 1. Check if the placement allows a structure to start in THIS specific chunk
             if !set.placement.should_generate(calculator, self.x, self.z) {
-                continue; // ??
+                continue;
             }
 
-            if set.structures.len() == 1 {
-                let position = set.structures[0]
-                    .structure
-                    .get_structure_position(name, self);
-                if let Some(position) = position
-                    && !position.generator.pieces_positions.is_empty()
-                {
-                    self.structure_starts.insert(
-                        STRUCTURES.get(name).unwrap().clone(),
-                        (position, set.structures[0].structure.clone()),
-                    );
+            // 2. Iterate through potential structures in the set
+            for structure_entry in &set.structures {
+                // FIX: Pass the 'name', 'seed', 'coords', and 'self' (the ProtoChunk)
+                let position = structure_entry.structure.try_generate(
+                    name,
+                    random_config.seed as i64,
+                    self.x,
+                    self.z,
+                    self,
+                );
+
+                if let Some(pos) = position {
+                    // Ensure the structure config exists in our registry
+                    if let Some(structure_config) = STRUCTURES.get(name) {
+                        // Minecraft logic: Insert the START in the origin chunk
+                        self.structure_starts.insert(
+                            structure_config.clone(),
+                            StructureInstance::Start(pos, structure_entry.structure.clone()),
+                        );
+
+                        // Minecraft optimization: Usually only one structure start per chunk
+                        return;
+                    }
                 }
-                return;
             }
-            // TODO: handle multiple structures
         }
     }
 

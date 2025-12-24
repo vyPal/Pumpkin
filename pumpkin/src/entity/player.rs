@@ -97,7 +97,7 @@ use pumpkin_world::chunk_system::ChunkLoading;
 const MAX_CACHED_SIGNATURES: u8 = 128; // Vanilla: 128
 const MAX_PREVIOUS_MESSAGES: u8 = 20; // Vanilla: 20
 
-pub const DATA_VERSION: i32 = 4556; // 1.21.10
+pub const DATA_VERSION: i32 = 4671; // 1.21.11
 
 enum BatchState {
     Initial,
