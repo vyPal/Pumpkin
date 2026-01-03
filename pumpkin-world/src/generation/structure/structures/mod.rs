@@ -5,7 +5,7 @@ use pumpkin_util::math::{block_box::BlockBox, position::BlockPos, vector3::Vecto
 
 use crate::{
     ProtoChunk,
-    generation::{height_limit::HeightLimitView, structure::StructureType},
+    generation::{height_limit::HeightLimitView, structure::StructureKeys},
 };
 
 pub mod buried_treasure;
@@ -101,8 +101,6 @@ pub fn fill_downwards(x: i32, y: i32, z: i32, state: &BlockState, chunk: &mut Pr
     let start_y = y;
     let end_y = chunk.bottom_y() as i32; // e.g. -64
 
-    // FIX: Use .rev() because ranges like 60..-64 are empty.
-    // Also, usually you want to stop if you hit a solid block (optional, depends on need).
     for current_y in (end_y..=start_y).rev() {
         chunk.set_block_state(&Vector3::new(x, current_y, z), state);
     }
@@ -160,13 +158,18 @@ pub struct StructurePosition {
 }
 
 pub trait StructureGenerator {
-    fn try_generate(&self, seed: i64, chunk_x: i32, chunk_z: i32) -> Option<StructurePosition>;
+    fn get_structure_position(
+        &self,
+        seed: i64,
+        chunk_x: i32,
+        chunk_z: i32,
+    ) -> Option<StructurePosition>;
 }
 
 #[derive(Clone)]
 pub enum StructureInstance {
     /// This chunk is the "owner" of the structure.
-    Start(StructurePosition, StructureType),
+    Start(StructurePosition, StructureKeys),
     /// This chunk just contains a piece of a structure starting elsewhere.
     /// Stores the BlockPos of the 'Start' so you can look it up.
     Reference(BlockPos),

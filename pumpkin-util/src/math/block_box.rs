@@ -1,4 +1,7 @@
-use crate::math::{position::BlockPos, vector3::Vector3};
+use crate::math::{
+    position::BlockPos,
+    vector3::{Axis, Vector3},
+};
 
 #[derive(Clone, Copy, Debug)]
 pub struct BlockBox {
@@ -19,6 +22,21 @@ impl BlockBox {
                 y: max_y,
                 z: max_z,
             },
+        }
+    }
+    pub fn create_box(
+        x: i32,
+        y: i32,
+        z: i32,
+        axis: Axis,
+        width: i32,
+        height: i32,
+        depth: i32,
+    ) -> Self {
+        if axis == Axis::Z {
+            Self::new(x, y, z, x + width - 1, y + height - 1, z + depth - 1)
+        } else {
+            Self::new(x, y, z, x + depth - 1, y + height - 1, z + width - 1)
         }
     }
 

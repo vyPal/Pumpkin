@@ -17,7 +17,12 @@ use crate::{
 pub struct NetherFortressGenerator;
 
 impl StructureGenerator for NetherFortressGenerator {
-    fn try_generate(&self, _seed: i64, chunk_x: i32, chunk_z: i32) -> Option<StructurePosition> {
+    fn get_structure_position(
+        &self,
+        _seed: i64,
+        chunk_x: i32,
+        chunk_z: i32,
+    ) -> Option<StructurePosition> {
         let start_x = chunk_pos::start_block_x(chunk_x);
         let start_z = chunk_pos::start_block_z(chunk_z);
         let start_y = 64;

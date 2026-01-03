@@ -515,6 +515,8 @@ pub enum StagedChunkEnum {
     Empty = 1, // EMPTY STRUCTURE_STARTS STRUCTURE_REFERENCES
     /// Chunk with biomes populated, ready for noise generation
     Biomes,
+    StructureStart,
+    StructureReferences,
     /// Chunk with terrain noise generated, ready for surface building
     Noise,
     /// Chunk with surface built, ready for features and structures
@@ -528,12 +530,14 @@ pub enum StagedChunkEnum {
 impl From<u8> for StagedChunkEnum {
     fn from(v: u8) -> Self {
         match v {
-            1 => Empty,
-            2 => Biomes,
-            3 => Noise,
-            4 => Surface,
-            5 => Features,
-            6 => Full,
+            1 => Self::Empty,
+            2 => Self::Biomes,
+            3 => Self::StructureStart,
+            4 => Self::StructureReferences,
+            5 => Self::Noise,
+            6 => Self::Surface,
+            7 => Self::Features,
+            8 => Self::Full,
             _ => panic!(),
         }
     }
@@ -543,8 +547,8 @@ impl From<ChunkStatus> for StagedChunkEnum {
     fn from(status: ChunkStatus) -> Self {
         match status {
             ChunkStatus::Empty => Empty,
-            ChunkStatus::StructureStarts => Empty,
-            ChunkStatus::StructureReferences => Empty,
+            ChunkStatus::StructureStarts => StagedChunkEnum::StructureStart,
+            ChunkStatus::StructureReferences => StagedChunkEnum::StructureReferences,
             ChunkStatus::Biomes => Biomes,
             ChunkStatus::Noise => Noise,
             ChunkStatus::Surface => Surface,
@@ -561,12 +565,14 @@ impl From<ChunkStatus> for StagedChunkEnum {
 impl From<StagedChunkEnum> for ChunkStatus {
     fn from(status: StagedChunkEnum) -> Self {
         match status {
-            Empty => ChunkStatus::Empty,
-            Biomes => ChunkStatus::Biomes,
-            Noise => ChunkStatus::Noise,
-            Surface => ChunkStatus::Surface,
-            Features => ChunkStatus::Features,
-            Full => ChunkStatus::Full,
+            StagedChunkEnum::Empty => ChunkStatus::Empty,
+            StagedChunkEnum::StructureStart => ChunkStatus::StructureStarts,
+            StagedChunkEnum::StructureReferences => ChunkStatus::StructureReferences,
+            StagedChunkEnum::Biomes => ChunkStatus::Biomes,
+            StagedChunkEnum::Noise => ChunkStatus::Noise,
+            StagedChunkEnum::Surface => ChunkStatus::Surface,
+            StagedChunkEnum::Features => ChunkStatus::Features,
+            StagedChunkEnum::Full => ChunkStatus::Full,
             _ => panic!(),
         }
     }
@@ -589,34 +595,40 @@ impl StagedChunkEnum {
     const fn get_direct_radius(self) -> i32 {
         // self exclude
         match self {
-            Empty => 0,
-            Biomes => 0,
-            Noise => 0,
-            Surface => 0,
-            Features => 1,
-            Full => 1,
+            Self::Empty => 0,
+            Self::StructureStart => 0,
+            Self::StructureReferences => 0,
+            Self::Biomes => 0,
+            Self::Noise => 0,
+            Self::Surface => 0,
+            Self::Features => 1,
+            Self::Full => 1,
             _ => panic!(),
         }
     }
     const fn get_write_radius(self) -> i32 {
         // self exclude
         match self {
-            Empty => 0,
-            Biomes => 0,
-            Noise => 0,
-            Surface => 0,
-            Features => 1,
-            Full => 0,
+            Self::Empty => 0,
+            Self::StructureStart => 0,
+            Self::StructureReferences => 0,
+            Self::Biomes => 0,
+            Self::Noise => 0,
+            Self::Surface => 0,
+            Self::Features => 1,
+            Self::Full => 0,
             _ => panic!(),
         }
     }
     const fn get_direct_dependencies(self) -> &'static [StagedChunkEnum] {
         match self {
-            Biomes => &[Empty],
-            Noise => &[Biomes],
-            Surface => &[Noise],
-            Features => &[Surface, Surface],
-            Full => &[Features, Features],
+            Self::Biomes => &[Self::Empty],
+            Self::StructureStart => &[Self::Biomes],
+            Self::StructureReferences => &[Self::StructureStart],
+            Self::Noise => &[Self::StructureReferences],
+            Self::Surface => &[Self::Noise],
+            Self::Features => &[Self::Surface, Self::Surface],
+            Self::Full => &[Self::Features, Self::Features],
             _ => panic!(),
         }
     }
@@ -754,7 +766,7 @@ impl Chunk {
     fn get_stage_id(&self) -> u8 {
         match self {
             Chunk::Proto(data) => data.stage_id(),
-            Chunk::Level(_) => 6,
+            Chunk::Level(_) => 8,
         }
     }
     fn get_proto_chunk_mut(&mut self) -> &mut ProtoChunk {
@@ -1103,6 +1115,12 @@ impl Cache {
         let mid = ((self.size * self.size) >> 1) as usize;
         match stage {
             Empty => panic!("empty stage"),
+            StagedChunkEnum::StructureStart => self.chunks[mid]
+                .get_proto_chunk_mut()
+                .set_structure_starts(random_config),
+            StagedChunkEnum::StructureReferences => self.chunks[mid]
+                .get_proto_chunk_mut()
+                .set_structure_references(),
             Biomes => self.chunks[mid]
                 .get_proto_chunk_mut()
                 .step_to_biomes(dimension, noise_router),
@@ -1125,7 +1143,7 @@ impl Cache {
                 self.chunks[mid].get_proto_chunk_mut().stage = Full;
                 self.chunks[mid].upgrade_to_level_chunk(settings);
             }
-            _ => panic!("unknown stage {stage:?}"),
+            StagedChunkEnum::None => {}
         }
     }
 }
@@ -1213,7 +1231,7 @@ struct ChunkHolder {
     pub occupied: NodeKey,
     pub occupied_by: EdgeKey,
     pub public: bool,
-    pub tasks: [NodeKey; 7],
+    pub tasks: [NodeKey; 9],
 }
 
 impl Default for ChunkHolder {
@@ -1225,7 +1243,7 @@ impl Default for ChunkHolder {
             occupied: NodeKey::null(),
             occupied_by: EdgeKey::null(),
             public: false,
-            tasks: [NodeKey::null(); 7],
+            tasks: [NodeKey::null(); 9],
         }
     }
 }

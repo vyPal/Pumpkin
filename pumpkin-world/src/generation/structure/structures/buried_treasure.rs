@@ -19,7 +19,12 @@ use crate::{
 pub struct BuriedTreasureGenerator;
 
 impl StructureGenerator for BuriedTreasureGenerator {
-    fn try_generate(&self, _seed: i64, chunk_x: i32, chunk_z: i32) -> Option<StructurePosition> {
+    fn get_structure_position(
+        &self,
+        _seed: i64,
+        chunk_x: i32,
+        chunk_z: i32,
+    ) -> Option<StructurePosition> {
         let x = get_center_x(chunk_x);
         let z = get_center_z(chunk_z);
 

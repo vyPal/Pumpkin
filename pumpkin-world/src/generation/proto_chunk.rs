@@ -136,6 +136,7 @@ pub struct ProtoChunk {
     pub flat_motion_blocking_no_leaves_height_map: Box<[i16]>,
     // may want to use chunk status
     structure_starts: HashMap<Structure, StructureInstance>,
+
     // Height of the chunk for indexing
     height: u16,
     bottom_y: i8,
@@ -479,7 +480,6 @@ impl ProtoChunk {
     }
 
     pub fn step_to_biomes(&mut self, dimension: Dimension, noise_router: &ProtoNoiseRouters) {
-        debug_assert_eq!(self.stage, StagedChunkEnum::Empty);
         let start_x = start_block_x(self.x);
         let start_z = start_block_z(self.z);
         let horizontal_biome_end = biome_coords::from_block(16);
@@ -501,7 +501,7 @@ impl ProtoChunk {
         random_config: &GlobalRandomConfig,
         noise_router: &ProtoNoiseRouters,
     ) {
-        debug_assert_eq!(self.stage, StagedChunkEnum::Biomes);
+        //debug_assert_eq!(self.stage, StagedChunkEnum::Biomes);
 
         let generation_shape = &settings.shape;
         let horizontal_cell_count = CHUNK_DIM / generation_shape.horizontal_cell_block_count();
@@ -913,17 +913,14 @@ impl ProtoChunk {
 
         let _chunk_box = chunk.get_block_box_for_chunk();
         for (_structure_config, instance) in chunk.structure_starts.clone() {
+            dbg!("generating");
             match instance {
                 StructureInstance::Start(pos, _stype) => {
                     // Use the collector directly to place blocks
                     pos.collector
                         .generate_in_chunk(chunk, random_config.seed as i64);
                 }
-                StructureInstance::Reference(_start_block_pos) => {
-                    // In Minecraft, a Reference tells the engine to look up the
-                    // "Start" data from the chunk at start_block_pos and generate its pieces here.
-                    // If you are only generating "Starts" for now, this can be a TODO.
-                }
+                StructureInstance::Reference(_start_block_pos) => {}
             }
         }
         // TODO: This needs to be different depending on what biomes are in the chunk -> affects the
@@ -947,42 +944,40 @@ impl ProtoChunk {
     }
 
     pub fn set_structure_starts(&mut self, random_config: &GlobalRandomConfig) {
-        for (name, set) in STRUCTURE_SETS.iter() {
+        for (_set_name, set) in STRUCTURE_SETS.iter() {
             let calculator = StructurePlacementCalculator {
                 seed: random_config.seed as i64,
             };
 
-            // 1. Check if the placement allows a structure to start in THIS specific chunk
             if !set.placement.should_generate(calculator, self.x, self.z) {
                 continue;
             }
-
-            // 2. Iterate through potential structures in the set
-            for structure_entry in &set.structures {
-                // FIX: Pass the 'name', 'seed', 'coords', and 'self' (the ProtoChunk)
+            if set.structures.len() == 1
+                && let Some(structure_entry) = set.structures.first()
+            {
                 let position = structure_entry.structure.try_generate(
-                    name,
                     random_config.seed as i64,
                     self.x,
                     self.z,
                     self,
                 );
 
-                if let Some(pos) = position {
-                    // Ensure the structure config exists in our registry
-                    if let Some(structure_config) = STRUCTURES.get(name) {
-                        // Minecraft logic: Insert the START in the origin chunk
-                        self.structure_starts.insert(
-                            structure_config.clone(),
-                            StructureInstance::Start(pos, structure_entry.structure.clone()),
-                        );
-
-                        // Minecraft optimization: Usually only one structure start per chunk
-                        return;
-                    }
+                if let Some(pos) = position
+                    && let Some(structure_config) = STRUCTURES.get(&structure_entry.structure)
+                {
+                    self.structure_starts.insert(
+                        structure_config.clone(),
+                        StructureInstance::Start(pos, structure_entry.structure.clone()),
+                    );
                 }
             }
+            // TODO add weight
         }
+        self.stage = StagedChunkEnum::StructureStart;
+    }
+
+    pub fn set_structure_references(&mut self) {
+        self.stage = StagedChunkEnum::StructureReferences;
     }
 
     fn get_block_box_for_chunk(&self) -> BlockBox {
