@@ -28,6 +28,9 @@ pumpkin-registry = { path = "../pumpkin-registry" }
 pumpkin-macros = { path = "../pumpkin-macros" }
 
 log.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracing-log.workspace = true
 crossbeam.workspace = true
 uuid.workspace = true
 tokio = { workspace = true, features = [
@@ -62,9 +65,7 @@ rsa = { version = "=0.10.0-rc.10", features = ["sha1"] }
 pkcs8 = "=0.11.0-rc.8"
 
 # authentication
-ureq = { version = "3.1.4", features = [
-    "json",
-] }
+ureq = { version = "3.1.4", features = ["json"] }
 
 
 sha1 = "=0.11.0-rc.3"
@@ -89,7 +90,7 @@ rustc-hash = "2.1.1"
 tokio-util = { version = "0.7.17", features = ["rt"] }
 
 flate2 = "1.1.5"
-console-subscriber = { version = "0.5.0", default-features= false, optional = true }
+console-subscriber = { version = "0.5.0", default-features = false, optional = true }
 signature = "2.2.0"
 [dev-dependencies]
 tempfile.workspace = true
