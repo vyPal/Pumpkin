@@ -63,7 +63,7 @@ pub trait EventHandler<E: Payload>: Send + Sync {
     ///
     /// # Arguments
     /// - `event`: A reference to the event to handle.
-    fn handle(&self, _server: &Arc<Server>, _event: &E) -> BoxFuture<'_, ()> {
+    fn handle<'a>(&'a self, _server: &'a Arc<Server>, _event: &'a E) -> BoxFuture<'a, ()> {
         Box::pin(async {})
     }
 
@@ -316,7 +316,7 @@ impl PluginManager {
     }
 
     /// Start loading a plugin asynchronously
-    #[allow(clippy::too_many_lines)]
+    #[expect(clippy::too_many_lines)]
     async fn start_loading_plugin(
         &self,
         path: &Path,
