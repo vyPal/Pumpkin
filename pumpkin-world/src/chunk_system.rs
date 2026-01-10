@@ -621,6 +621,8 @@ impl StagedChunkEnum {
     }
     const fn get_direct_dependencies(self) -> &'static [StagedChunkEnum] {
         match self {
+            // In vanilla StructureStart is first, but since it needs the biome in Vanilla it gets computed in StructureStart and
+            // the Biome Step, this should be more efficient
             Self::Biomes => &[Self::Empty],
             Self::StructureStart => &[Self::Biomes],
             Self::StructureReferences => &[Self::StructureStart],
@@ -774,8 +776,14 @@ impl Chunk {
             Proto(chunk) => chunk,
         }
     }
+    fn get_proto_chunk(&self) -> &ProtoChunk {
+        match self {
+            Chunk::Level(_) => panic!("chunk isn't a ProtoChunk"),
+            Proto(chunk) => chunk,
+        }
+    }
     fn upgrade_to_level_chunk(&mut self, dimension: &Dimension) {
-        let proto_chunk = self.get_proto_chunk_mut();
+        let proto_chunk = self.get_proto_chunk();
 
         let total_sections = dimension.height as usize / 16;
         let mut sections = ChunkSections::new(
@@ -853,7 +861,7 @@ impl Chunk {
 
 struct Cache {
     x: i32,
-    y: i32,
+    z: i32,
     size: i32,
     pub chunks: Vec<Chunk>,
 }
@@ -903,6 +911,33 @@ impl BlockAccessor for Cache {
 }
 
 impl GenerationCache for Cache {
+    fn get_chunk_mut(&mut self, chunk_x: i32, chunk_z: i32) -> Option<&mut ProtoChunk> {
+        let dx = chunk_x - self.x;
+        let dz = chunk_z - self.z;
+
+        if dx >= 0 && dx < self.size && dz >= 0 && dz < self.size {
+            Some(self.chunks[(dx * self.size + dz) as usize].get_proto_chunk_mut())
+        } else {
+            None
+        }
+    }
+
+    fn get_chunk(&self, chunk_x: i32, chunk_z: i32) -> Option<&ProtoChunk> {
+        let dx = chunk_x - self.x;
+        let dz = chunk_z - self.z;
+
+        if dx >= 0 && dx < self.size && dz >= 0 && dz < self.size {
+            Some(self.chunks[(dx * self.size + dz) as usize].get_proto_chunk())
+        } else {
+            None
+        }
+    }
+
+    fn get_center_chunk(&self) -> &ProtoChunk {
+        let mid = ((self.size * self.size) >> 1) as usize;
+        self.chunks[mid].get_proto_chunk()
+    }
+
     fn get_center_chunk_mut(&mut self) -> &mut ProtoChunk {
         let mid = ((self.size * self.size) >> 1) as usize;
         self.chunks[mid].get_proto_chunk_mut()
@@ -941,7 +976,7 @@ impl GenerationCache for Cache {
 
     fn get_block_state(&self, pos: &Vector3<i32>) -> RawBlockState {
         let dx = (pos.x >> 4) - self.x;
-        let dz = (pos.z >> 4) - self.y;
+        let dz = (pos.z >> 4) - self.z;
         // debug_assert!(dx < self.size && dz < self.size);
         // debug_assert!(dx >= 0 && dz >= 0);
         if !(dx < self.size && dz < self.size && dx >= 0 && dz >= 0) {
@@ -949,7 +984,7 @@ impl GenerationCache for Cache {
             log::error!(
                 "illegal get_block_state {pos:?} cache pos ({}, {}) size {}",
                 self.x,
-                self.y,
+                self.z,
                 self.size
             );
             return RawBlockState::AIR;
@@ -969,7 +1004,7 @@ impl GenerationCache for Cache {
     }
     fn set_block_state(&mut self, pos: &Vector3<i32>, block_state: &BlockState) {
         let dx = (pos.x >> 4) - self.x;
-        let dz = (pos.z >> 4) - self.y;
+        let dz = (pos.z >> 4) - self.z;
         // debug_assert!(dx < self.size && dz < self.size);
         // debug_assert!(dx >= 0 && dz >= 0);
         if !(dx < self.size && dz < self.size && dx >= 0 && dz >= 0) {
@@ -977,7 +1012,7 @@ impl GenerationCache for Cache {
             log::error!(
                 "illegal set_block_state {pos:?} cache pos ({}, {}) size {}",
                 self.x,
-                self.y,
+                self.z,
                 self.size
             );
             return;
@@ -1013,7 +1048,7 @@ impl GenerationCache for Cache {
 
     fn top_motion_blocking_block_height_exclusive(&self, x: i32, z: i32) -> i32 {
         let dx = (x >> 4) - self.x;
-        let dy = (z >> 4) - self.y;
+        let dy = (z >> 4) - self.z;
         debug_assert!(dx < self.size && dy < self.size);
         debug_assert!(dx >= 0 && dy >= 0);
         match &self.chunks[(dx * self.size + dy) as usize] {
@@ -1032,7 +1067,7 @@ impl GenerationCache for Cache {
 
     fn top_motion_blocking_block_no_leaves_height_exclusive(&self, x: i32, z: i32) -> i32 {
         let dx = (x >> 4) - self.x;
-        let dy = (z >> 4) - self.y;
+        let dy = (z >> 4) - self.z;
         debug_assert!(dx < self.size && dy < self.size);
         debug_assert!(dx >= 0 && dy >= 0);
         match &self.chunks[(dx * self.size + dy) as usize] {
@@ -1051,7 +1086,7 @@ impl GenerationCache for Cache {
 
     fn top_block_height_exclusive(&self, x: i32, z: i32) -> i32 {
         let dx = (x >> 4) - self.x;
-        let dy = (z >> 4) - self.y;
+        let dy = (z >> 4) - self.z;
         debug_assert!(dx < self.size && dy < self.size);
         debug_assert!(dx >= 0 && dy >= 0);
         match &self.chunks[(dx * self.size + dy) as usize] {
@@ -1070,7 +1105,7 @@ impl GenerationCache for Cache {
 
     fn ocean_floor_height_exclusive(&self, x: i32, z: i32) -> i32 {
         let dx = (x >> 4) - self.x;
-        let dy = (z >> 4) - self.y;
+        let dy = (z >> 4) - self.z;
         debug_assert!(dx < self.size && dy < self.size);
         debug_assert!(dx >= 0 && dy >= 0);
         match &self.chunks[(dx * self.size + dy) as usize] {
@@ -1083,7 +1118,7 @@ impl GenerationCache for Cache {
 
     fn get_biome_for_terrain_gen(&self, x: i32, y: i32, z: i32) -> &'static Biome {
         let dx = (x >> 4) - self.x;
-        let dy = (z >> 4) - self.y;
+        let dy = (z >> 4) - self.z;
         debug_assert!(dx < self.size && dy < self.size);
         debug_assert!(dx >= 0 && dy >= 0);
         match &self.chunks[(dx * self.size + dy) as usize] {
@@ -1109,10 +1144,10 @@ impl GenerationCache for Cache {
 }
 
 impl Cache {
-    fn new(x: i32, y: i32, size: i32) -> Cache {
+    fn new(x: i32, z: i32, size: i32) -> Cache {
         Cache {
             x,
-            y,
+            z,
             size,
             chunks: Vec::with_capacity((size * size) as usize),
         }
@@ -1133,10 +1168,8 @@ impl Cache {
             Empty => panic!("empty stage"),
             StagedChunkEnum::StructureStart => self.chunks[mid]
                 .get_proto_chunk_mut()
-                .set_structure_starts(random_config),
-            StagedChunkEnum::StructureReferences => self.chunks[mid]
-                .get_proto_chunk_mut()
-                .set_structure_references(),
+                .set_structure_starts(random_config, settings),
+            StagedChunkEnum::StructureReferences => ProtoChunk::set_structure_references(self),
             Biomes => self.chunks[mid]
                 .get_proto_chunk_mut()
                 .step_to_biomes(dimension, noise_router),
@@ -1155,8 +1188,9 @@ impl Cache {
                 ProtoChunk::generate_features_and_structure(self, block_registry, random_config)
             }
             Full => {
-                debug_assert_eq!(self.chunks[mid].get_proto_chunk_mut().stage, Features);
-                self.chunks[mid].get_proto_chunk_mut().stage = Full;
+                let chunk = self.chunks[mid].get_proto_chunk_mut();
+                debug_assert_eq!(chunk.stage, Features);
+                chunk.stage = Full;
                 self.chunks[mid].upgrade_to_level_chunk(&dimension);
             }
             StagedChunkEnum::None => {}
@@ -1532,9 +1566,9 @@ impl GenerationSchedule {
                         let dependency = stage.get_direct_dependencies();
                         let radius = stage.get_direct_radius();
                         for dx in -radius..=radius {
-                            for dy in -radius..=radius {
-                                let new_pos = pos.add_raw(dx, dy);
-                                let req_stage = dependency[dx.abs().max(dy.abs()) as usize];
+                            for dz in -radius..=radius {
+                                let new_pos = pos.add_raw(dx, dz);
+                                let req_stage = dependency[dx.abs().max(dz.abs()) as usize];
                                 if new_pos == pos {
                                     // TODO
                                     holder.occupied_by = self
@@ -1883,7 +1917,7 @@ impl GenerationSchedule {
                 let mut dx = 0;
                 let mut dy = 0;
                 for chunk in data.chunks {
-                    let new_pos = ChunkPos::new(data.x + dx, data.y + dy);
+                    let new_pos = ChunkPos::new(data.x + dx, data.z + dy);
                     match chunk {
                         Chunk::Level(chunk) => {
                             let mut holder = self.chunk_map.remove(&new_pos).unwrap();
