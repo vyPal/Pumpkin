@@ -559,40 +559,41 @@ impl World {
     pub async fn tick(self: &Arc<Self>, server: &Server) {
         let start = tokio::time::Instant::now();
 
+        // 1. Block & Environment
         self.flush_block_updates().await;
-        // tick block entities
         self.flush_synced_block_events().await;
-
         self.tick_environment().await;
+        let env_done = start.elapsed();
 
+        // 2. Chunks
         let chunk_start = tokio::time::Instant::now();
-        // log::debug!("Ticking chunks");
         self.tick_chunks().await;
         let chunk_elapsed = chunk_start.elapsed();
 
+        // 3. Players
+        let player_start = tokio::time::Instant::now();
         let players_to_tick: Vec<_> = self.players.read().await.values().cloned().collect();
-
-        // log::debug!("Ticking players");
-        // player ticks
-        for player in players_to_tick {
+        let player_count = players_to_tick.len();
+        for player in &players_to_tick {
             player.tick(server).await;
         }
+        let player_elapsed = player_start.elapsed();
 
+        // 4. Entities & Collision
+        let entity_start = tokio::time::Instant::now();
         let entities_to_tick: Vec<_> = self.entities.read().await.values().cloned().collect();
+        let entity_count = entities_to_tick.len();
 
-        // log::debug!("Ticking entities");
-        // Entity ticks
         for entity in entities_to_tick {
             entity.get_entity().age.fetch_add(1, Relaxed);
-
             entity.tick(entity.clone(), server).await;
-            for player in self.players.read().await.values() {
+
+            for player in &players_to_tick {
                 if player
                     .living_entity
                     .entity
                     .bounding_box
                     .load()
-                    // This is vanilla, but TODO: change this when is in a vehicle
                     .expand(1.0, 0.5, 1.0)
                     .intersects(&entity.get_entity().bounding_box.load())
                 {
@@ -601,14 +602,22 @@ impl World {
                 }
             }
         }
+        let entity_elapsed = entity_start.elapsed();
 
         self.level.chunk_loading.lock().unwrap().send_change();
 
-        if start.elapsed().as_millis() > 50 {
+        // 5. Detailed Slow Tick Logging
+        let total_elapsed = start.elapsed();
+        if total_elapsed.as_millis() > 50 {
             log::warn!(
-                "Slow Tick: Total {:?} | Chunks {:?}",
-                start.elapsed(),
+                "Slow Tick [{}ms]: Chunks: {:?} | Players({}): {:?} | Entities({}): {:?} | Env: {:?}",
+                total_elapsed.as_millis(),
                 chunk_elapsed,
+                player_count,
+                player_elapsed,
+                entity_count,
+                entity_elapsed,
+                env_done
             );
         }
     }
