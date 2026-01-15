@@ -56,6 +56,7 @@ use pumpkin_data::{BlockDirection, BlockState};
 use pumpkin_inventory::screen_handler::InventoryPlayer;
 use pumpkin_nbt::{compound::NbtCompound, to_bytes_unnamed};
 use pumpkin_protocol::bedrock::client::start_game::CStartGame;
+use pumpkin_protocol::java::client::play::CPlayerSpawnPosition;
 use pumpkin_protocol::java::client::play::{CSetEntityMetadata, Metadata};
 use pumpkin_protocol::ser::serializer::Serializer;
 use pumpkin_protocol::{
@@ -107,6 +108,7 @@ use pumpkin_util::{
     random::{RandomImpl, get_seed, xoroshiro128::Xoroshiro},
 };
 use pumpkin_world::chunk::palette::BlockPalette;
+use pumpkin_world::inventory::Clearable;
 use pumpkin_world::world::{GetBlockError, WorldFuture};
 use pumpkin_world::{
     BlockStateId, CURRENT_BEDROCK_MC_VERSION, biome, block::entities::BlockEntity,
@@ -648,7 +650,14 @@ impl World {
 
     async fn tick_environment(&self) {
         let mut level_time = self.level_time.lock().await;
-        level_time.tick_time();
+        let (advance_time, advance_weather) = {
+            let lock = self.level_info.read().await;
+            (
+                lock.game_rules.advance_time,
+                lock.game_rules.advance_weather,
+            )
+        };
+        level_time.tick_time(advance_time, advance_weather);
 
         // Auto-save logic
         if level_time.world_age % 100 == 0 {
@@ -665,7 +674,7 @@ impl World {
         let mut weather = self.weather.lock().await;
         weather.tick_weather(self).await;
 
-        if self.should_skip_night().await {
+        if self.should_skip_night().await && level_time.is_night() {
             let time = level_time.time_of_day + 24000;
             level_time.set_time(time - time % 24000);
             level_time.send_time(self).await;
@@ -1407,8 +1416,7 @@ impl World {
                 f64::from(pos_y),
                 f64::from(info.spawn_z) + 0.5,
             );
-            let yaw = info.spawn_angle;
-            (position, yaw, 0.0) // Pitch
+            (position, info.spawn_yaw, info.spawn_pitch)
         };
 
         let velocity = player.living_entity.entity.velocity.load();
@@ -1592,6 +1600,8 @@ impl World {
         }
         player.send_client_information().await;
 
+        player.send_abilities_update().await;
+
         // Sync selected slot
         player
             .enqueue_set_held_item_packet(&CSetSelectedSlot::new(
@@ -1609,6 +1619,28 @@ impl World {
 
         // Sends initial time
         player.send_time(self).await;
+
+        let (spawn_block_pos, yaw, pitch) = {
+            let level_info_lock = self.level_info.read().await;
+            (
+                BlockPos::new(
+                    level_info_lock.spawn_x,
+                    level_info_lock.spawn_y,
+                    level_info_lock.spawn_z,
+                ),
+                level_info_lock.spawn_yaw,
+                level_info_lock.spawn_pitch,
+            )
+        };
+
+        client
+            .send_packet_now(&CPlayerSpawnPosition::new(
+                spawn_block_pos,
+                yaw,
+                pitch,
+                self.dimension.minecraft_name.to_owned(),
+            ))
+            .await;
 
         // Send initial weather state
         let weather = self.weather.lock().await;
@@ -1782,14 +1814,15 @@ impl World {
 
         player.hunger_manager.restart();
 
-        let info = &self.level_info.read().await;
+        let info = self.level_info.read().await;
+
         if !info.game_rules.keep_inventory {
             player.set_experience(0, 0.0, 0).await;
+            player.inventory.clear().await;
         }
 
         // Teleport
-        let pitch = 0.0;
-        let (position, yaw) = if let Some(respawn) = player.get_respawn_point().await {
+        let (position, yaw, pitch) = if let Some(respawn) = player.get_respawn_point().await {
             respawn
         } else {
             let top = self
@@ -1802,7 +1835,8 @@ impl World {
                     (top + 1).into(),
                     f64::from(info.spawn_z) + 0.5,
                 ),
-                info.spawn_angle,
+                info.spawn_yaw,
+                info.spawn_pitch,
             )
         };
 
@@ -1832,7 +1866,7 @@ impl World {
         drop(players);
 
         // TODO: sleep ratio
-        sleeping_player_count == player_count
+        sleeping_player_count == player_count && player_count != 0
     }
 
     // NOTE: This function doesn't actually await on anything, it just spawns two tokio tasks

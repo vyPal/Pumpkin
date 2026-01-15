@@ -1,6 +1,7 @@
 use core::f32;
 use std::collections::{BinaryHeap, HashSet, VecDeque};
 use std::f64::consts::TAU;
+use std::mem;
 use std::num::NonZeroU8;
 use std::ops::AddAssign;
 use std::sync::Arc;
@@ -665,6 +666,7 @@ impl Player {
         dimension: Dimension,
         block_pos: BlockPos,
         yaw: f32,
+        pitch: f32,
     ) -> bool {
         if let Some(respawn_point) = self.respawn_point.load()
             && dimension == respawn_point.dimension
@@ -681,12 +683,17 @@ impl Player {
         }));
 
         self.client
-            .send_packet_now(&CPlayerSpawnPosition::new(block_pos, yaw))
+            .send_packet_now(&CPlayerSpawnPosition::new(
+                block_pos,
+                yaw,
+                pitch,
+                dimension.minecraft_name.to_owned(),
+            ))
             .await;
         true
     }
 
-    pub async fn get_respawn_point(&self) -> Option<(Vector3<f64>, f32)> {
+    pub async fn get_respawn_point(&self) -> Option<(Vector3<f64>, f32, f32)> {
         let respawn_point = self.respawn_point.load()?;
 
         let block = self.world().get_block(&respawn_point.position).await;
@@ -695,13 +702,13 @@ impl Player {
             && block.has_tag(&tag::Block::MINECRAFT_BEDS)
         {
             // TODO: calculate respawn position
-            Some((respawn_point.position.to_f64(), respawn_point.yaw))
+            Some((respawn_point.position.to_f64(), respawn_point.yaw, 0.0))
         } else if respawn_point.dimension == Dimension::THE_NETHER
             && block == &Block::RESPAWN_ANCHOR
         {
             // TODO: calculate respawn position
             // TODO: check if there is fuel for respawn
-            Some((respawn_point.position.to_f64(), respawn_point.yaw))
+            Some((respawn_point.position.to_f64(), respawn_point.yaw, 0.0))
         } else {
             self.client
                 .send_packet_now(&CGameEvent::new(GameEvent::NoRespawnBlockAvailable, 0.0))
@@ -1087,6 +1094,8 @@ impl Player {
         )
     }
 
+    /// Returns the player's rotation.
+    /// Yaw then Pitch
     pub fn rotation(&self) -> (f32, f32) {
         (
             self.living_entity.entity.yaw.load(),
@@ -1255,8 +1264,8 @@ impl Player {
         pitch: Option<f32>,
     ) {
         let current_world = self.living_entity.entity.world.clone();
-        let yaw = yaw.unwrap_or(new_world.level_info.read().await.spawn_angle);
-        let pitch = pitch.unwrap_or(10.0);
+        let yaw = yaw.unwrap_or(new_world.level_info.read().await.spawn_yaw);
+        let pitch = pitch.unwrap_or(new_world.level_info.read().await.spawn_pitch);
 
         send_cancellable! {{
             PlayerChangeWorldEvent {
@@ -1453,6 +1462,29 @@ impl Player {
 
     async fn handle_killed(&self, death_msg: TextComponent) {
         self.set_client_loaded(false);
+        let block_pos = self.position().to_block_pos();
+
+        let keep_inventory = {
+            self.world()
+                .level_info
+                .read()
+                .await
+                .game_rules
+                .keep_inventory
+        };
+
+        if !keep_inventory {
+            for item in &self.inventory().main_inventory {
+                let mut lock = item.lock().await;
+                self.world()
+                    .drop_stack(
+                        &block_pos,
+                        mem::replace(&mut *lock, ItemStack::EMPTY.clone()),
+                    )
+                    .await;
+            }
+        }
+
         self.client
             .send_packet_now(&CCombatDeath::new(self.entity_id().into(), &death_msg))
             .await;
