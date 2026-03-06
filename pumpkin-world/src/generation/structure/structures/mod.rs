@@ -10,7 +10,6 @@ use pumpkin_util::{
 };
 use tracing::debug;
 
-use crate::generation::structure::structures::stronghold::PieceWeight;
 use crate::generation::structure::structures::stronghold::StrongholdPieceType;
 use crate::{
     ProtoChunk,
@@ -49,7 +48,13 @@ pub trait StructurePieceBase: Send + Sync {
     fn clone_box(&self) -> Box<dyn StructurePieceBase>;
 
     /// Places the blocks for this piece into the chunk.
-    fn place(&mut self, chunk: &mut ProtoChunk, random: &mut RandomGenerator, seed: i64);
+    fn place(
+        &mut self,
+        chunk: &mut ProtoChunk,
+        random: &mut RandomGenerator,
+        seed: i64,
+        _chunk_box: &BlockBox,
+    );
 
     #[expect(clippy::too_many_arguments)]
     fn fill_openings(
@@ -57,10 +62,25 @@ pub trait StructurePieceBase: Send + Sync {
         _start: &StructurePiece,
         _random: &mut RandomGenerator,
         // TODO: this is only for Stronghold and should not be here
-        _weights: &mut Vec<PieceWeight>,
+        _weights: &mut Vec<crate::generation::structure::structures::stronghold::PieceWeight>,
         _last_piece_type: &mut Option<StrongholdPieceType>,
         _has_portal_room: &mut bool,
 
+        _collector: &mut StructurePiecesCollector,
+        _pieces_to_process: &mut Vec<Box<dyn StructurePieceBase>>,
+    ) {
+    }
+
+    fn fill_openings_nether(
+        &self,
+        _start: &StructurePiece,
+        _random: &mut RandomGenerator,
+        _bridge_pieces: &mut Vec<
+            crate::generation::structure::structures::nether_fortress::PieceWeight,
+        >,
+        _corridor_pieces: &mut Vec<
+            crate::generation::structure::structures::nether_fortress::PieceWeight,
+        >,
         _collector: &mut StructurePiecesCollector,
         _pieces_to_process: &mut Vec<Box<dyn StructurePieceBase>>,
     ) {
@@ -366,15 +386,6 @@ impl StructurePiece {
         //     world.mark_block_for_post_processing(&block_pos);
         // }
     }
-
-    pub fn get_random_horizontal_direction(random: &mut impl RandomImpl) -> BlockDirection {
-        match random.next_bounded_i32(4) {
-            0 => BlockDirection::North,
-            1 => BlockDirection::East,
-            2 => BlockDirection::South,
-            _ => BlockDirection::West,
-        }
-    }
 }
 
 impl StructurePieceBase for StructurePiece {
@@ -382,7 +393,14 @@ impl StructurePieceBase for StructurePiece {
         Box::new(self.clone())
     }
 
-    fn place(&mut self, _chunk: &mut ProtoChunk, _random: &mut RandomGenerator, _seed: i64) {}
+    fn place(
+        &mut self,
+        _chunk: &mut ProtoChunk,
+        _random: &mut RandomGenerator,
+        _seed: i64,
+        _chunk_box: &BlockBox,
+    ) {
+    }
 
     fn translate(&mut self, x: i32, y: i32, z: i32) {
         self.bounding_box.move_pos(x, y, z);
@@ -451,7 +469,7 @@ impl StructurePiecesCollector {
 
         for piece in &mut self.pieces {
             if piece.bounding_box().intersects(&chunk_box) {
-                piece.place(chunk, random, seed);
+                piece.place(chunk, random, seed, &chunk_box);
             }
         }
     }
@@ -552,5 +570,5 @@ pub enum StructureInstance {
     Start(StructurePosition),
     /// This chunk just contains a piece of a structure starting elsewhere.
     /// Stores the `BlockPos` of the 'Start' so you can look it up.
-    Reference(BlockPos),
+    Reference(Arc<Mutex<StructurePiecesCollector>>),
 }

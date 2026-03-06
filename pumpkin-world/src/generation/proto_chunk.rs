@@ -1022,14 +1022,10 @@ impl ProtoChunk {
 
                 match instance {
                     StructureInstance::Start(pos) => tasks.push(pos.collector.clone()),
-                    StructureInstance::Reference(origin_block_pos) => {
-                        let origin_chunk_x = origin_block_pos.0.x >> 4;
-                        let origin_chunk_z = origin_block_pos.0.z >> 4;
-                        if let Some(neighbor) = cache.get_chunk(origin_chunk_x, origin_chunk_z)
-                            && let Some(StructureInstance::Start(pos)) =
-                                neighbor.structure_starts.get(id)
-                        {
-                            tasks.push(pos.collector.clone());
+                    StructureInstance::Reference(collector) => {
+                        let collector_arc = collector.clone();
+                        if !tasks.iter().any(|t| Arc::ptr_eq(t, &collector_arc)) {
+                            tasks.push(collector_arc);
                         }
                     }
                 }
@@ -1069,29 +1065,10 @@ impl ProtoChunk {
                                         }
                                     }
                                 }
-                                StructureInstance::Reference(origin_block_pos) => {
-                                    let origin_chunk_x = origin_block_pos.0.x >> 4;
-                                    let origin_chunk_z = origin_block_pos.0.z >> 4;
-                                    if let Some(origin_neighbor) =
-                                        cache.try_get_proto_chunk(origin_chunk_x, origin_chunk_z)
-                                        && let Some(StructureInstance::Start(pos)) =
-                                            origin_neighbor.structure_starts.get(id)
-                                    {
-                                        let start_x = chunk_pos::start_block_x(center_x);
-                                        let start_z = chunk_pos::start_block_z(center_z);
-                                        let end_x = start_x + 15;
-                                        let end_z = start_z + 15;
-
-                                        if pos
-                                            .get_bounding_box()
-                                            .intersects_raw_xz(start_x, start_z, end_x, end_z)
-                                        {
-                                            let collector_arc = pos.collector.clone();
-                                            if !tasks.iter().any(|t| Arc::ptr_eq(t, &collector_arc))
-                                            {
-                                                tasks.push(collector_arc);
-                                            }
-                                        }
+                                StructureInstance::Reference(collector) => {
+                                    let collector_arc = collector.clone();
+                                    if !tasks.iter().any(|t| Arc::ptr_eq(t, &collector_arc)) {
+                                        tasks.push(collector_arc);
                                     }
                                 }
                             }
@@ -1218,7 +1195,7 @@ impl ProtoChunk {
                                 .get_bounding_box()
                                 .intersects_raw_xz(start_x, start_z, end_x, end_z)
                         {
-                            references.push((*key, start_data.start_pos));
+                            references.push((*key, start_data.collector.clone()));
                         }
                     }
                 }

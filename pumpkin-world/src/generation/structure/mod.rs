@@ -10,8 +10,8 @@ use crate::{
         structure::structures::{
             StructureGenerator, StructureGeneratorContext, StructurePosition,
             buried_treasure::BuriedTreasureGenerator, create_chunk_random, igloo::IglooGenerator,
-            nether_fossil::NetherFossilGenerator, stronghold::StrongholdGenerator,
-            swamp_hut::SwampHutGenerator,
+            nether_fortress::NetherFortressGenerator, nether_fossil::NetherFossilGenerator,
+            stronghold::StrongholdGenerator, swamp_hut::SwampHutGenerator,
         },
     },
 };
@@ -48,6 +48,9 @@ pub fn try_generate_structure(
         }
         StructureKeys::Stronghold => {
             StrongholdGenerator::get_structure_position(&StrongholdGenerator, context)
+        }
+        StructureKeys::Fortress => {
+            NetherFortressGenerator::get_structure_position(&NetherFortressGenerator, context)
         }
         StructureKeys::NetherFossil => {
             NetherFossilGenerator::get_structure_position(&NetherFossilGenerator, context)
