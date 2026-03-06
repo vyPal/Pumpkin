@@ -26,7 +26,7 @@ static TEST_OPTIONS: ChunkNoiseFunctionBuilderOptions =
     ChunkNoiseFunctionBuilderOptions::new(0, 0, 0, 0, 0, 0, 0);
 const SEED: u64 = 0;
 static RANDOM_CONFIG: LazyLock<GlobalRandomConfig> =
-    LazyLock::new(|| GlobalRandomConfig::new(SEED, false));
+    LazyLock::new(|| GlobalRandomConfig::new(SEED));
 
 macro_rules! build_function_stack {
     ($stack:expr) => {{

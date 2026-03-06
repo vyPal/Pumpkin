@@ -6,7 +6,7 @@ use pumpkin_data::{
         UnaryOperation,
     },
 };
-use pumpkin_util::random::RandomDeriverImpl;
+use pumpkin_util::random::xoroshiro128::XoroshiroSplitter;
 
 use crate::{GlobalRandomConfig, generation::noise::perlin::DoublePerlinNoiseSampler};
 
@@ -59,14 +59,14 @@ pub enum ProtoNoiseFunctionComponent {
 }
 
 pub struct DoublePerlinNoiseBuilder<'a> {
-    random_config: &'a GlobalRandomConfig,
+    base_random_deriver: &'a XoroshiroSplitter,
 }
 
 impl<'a> DoublePerlinNoiseBuilder<'a> {
     #[must_use]
-    pub const fn new(rand: &'a GlobalRandomConfig) -> Self {
+    pub const fn new(base_random_deriver: &'a XoroshiroSplitter) -> Self {
         Self {
-            random_config: rand,
+            base_random_deriver,
         }
     }
 
@@ -76,10 +76,7 @@ impl<'a> DoublePerlinNoiseBuilder<'a> {
             .unwrap_or_else(|| panic!("Unknown noise id: {id}"));
 
         // Note that the parameters' id is different than `id`
-        let mut random = self
-            .random_config
-            .base_random_deriver
-            .split_string(parameters.id());
+        let mut random = self.base_random_deriver.split_string(parameters.id());
         DoublePerlinNoiseSampler::from_params(&mut random, parameters, false)
     }
 }
@@ -144,7 +141,8 @@ impl ProtoNoiseRouters {
         base_stack: &[BaseNoiseFunctionComponent],
         random_config: &GlobalRandomConfig,
     ) -> Box<[ProtoNoiseFunctionComponent]> {
-        let perlin_noise_builder = DoublePerlinNoiseBuilder::new(random_config);
+        let perlin_noise_builder =
+            DoublePerlinNoiseBuilder::new(&random_config.base_random_deriver);
 
         // Contiguous memory for our function components
         let mut stack = Vec::<ProtoNoiseFunctionComponent>::with_capacity(base_stack.len());

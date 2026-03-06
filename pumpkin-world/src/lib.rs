@@ -122,7 +122,7 @@ pub fn bench_create_and_populate_noise(
 
     chunk.populate_noise(
         &mut noise_sampler,
-        random_config,
+        &random_config.ore_random_deriver,
         &mut surface_height_estimate_sampler,
     );
 }
@@ -243,7 +243,7 @@ pub fn bench_create_and_populate_noise_with_surface(
     chunk.populate_biomes(Dimension::OVERWORLD, &mut multi_noise_sampler);
     chunk.populate_noise(
         &mut noise_sampler,
-        random_config,
+        &random_config.ore_random_deriver,
         &mut surface_height_estimate_sampler,
     );
     chunk.build_surface(

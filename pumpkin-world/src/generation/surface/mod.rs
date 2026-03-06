@@ -8,7 +8,7 @@ use pumpkin_data::{
 };
 use pumpkin_util::{
     math::{lerp2, vertical_surface_type::VerticalSurfaceType},
-    random::{RandomDeriver, RandomDeriverImpl, RandomImpl},
+    random::{RandomImpl, xoroshiro128::XoroshiroSplitter},
 };
 
 use terrain::SurfaceTerrainBuilder;
@@ -32,7 +32,7 @@ pub mod terrain;
 pub struct MaterialRuleContext<'a> {
     pub min_y: i8,
     pub height: u16,
-    pub random_deriver: &'a RandomDeriver,
+    pub random_deriver: &'a XoroshiroSplitter,
     fluid_height: i32,
     pub block_pos_x: i32,
     pub block_pos_y: i32,
@@ -61,7 +61,7 @@ impl<'a> MaterialRuleContext<'a> {
         min_y: i8,
         height: u16,
         noise_builder: DoublePerlinNoiseBuilder<'a>,
-        random_deriver: &'a RandomDeriver,
+        random_deriver: &'a XoroshiroSplitter,
         terrain_builder: &'a SurfaceTerrainBuilder,
         surface_noise: &'a DoublePerlinNoiseSampler,
         secondary_noise: &'a DoublePerlinNoiseSampler,

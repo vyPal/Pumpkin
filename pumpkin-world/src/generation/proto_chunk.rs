@@ -10,6 +10,7 @@ use pumpkin_data::structures::{
 };
 use pumpkin_data::tag;
 use pumpkin_data::{Block, BlockState, block_properties::blocks_movement, chunk::Biome};
+use pumpkin_util::random::xoroshiro128::XoroshiroSplitter;
 use pumpkin_util::random::{RandomImpl, get_carver_seed};
 use pumpkin_util::{
     HeightMap,
@@ -171,7 +172,7 @@ impl TerrainCache {
     #[must_use]
     pub fn from_random(random_config: &GlobalRandomConfig) -> Self {
         let random = &random_config.base_random_deriver;
-        let noise_builder = DoublePerlinNoiseBuilder::new(random_config);
+        let noise_builder = DoublePerlinNoiseBuilder::new(&random_config.base_random_deriver);
         let terrain_builder = SurfaceTerrainBuilder::new(&noise_builder, random);
         let surface_noise = noise_builder.get_noise_sampler_for_id("surface");
         let secondary_noise = noise_builder.get_noise_sampler_for_id("surface_secondary");
@@ -595,7 +596,7 @@ impl ProtoChunk {
         );
         self.populate_noise(
             &mut noise_sampler,
-            random_config,
+            &random_config.ore_random_deriver,
             &mut surface_height_estimate_sampler,
         );
 
@@ -698,7 +699,7 @@ impl ProtoChunk {
     pub fn populate_noise(
         &mut self,
         noise_sampler: &mut ChunkNoiseGenerator,
-        random_config: &GlobalRandomConfig,
+        ore_random_deriver: &XoroshiroSplitter,
         surface_height_estimate_sampler: &mut SurfaceHeightEstimateSampler,
     ) {
         let h_count = noise_sampler.horizontal_cell_block_count() as i32;
@@ -750,7 +751,7 @@ impl ProtoChunk {
 
                                 let block_state = noise_sampler
                                     .sample_block_state(
-                                        random_config,
+                                        ore_random_deriver,
                                         sample_start_x,
                                         sample_start_y,
                                         sample_start_z,
@@ -805,7 +806,7 @@ impl ProtoChunk {
         let min_y = self.bottom_y();
 
         let random = &random_config.base_random_deriver;
-        let noise_builder = DoublePerlinNoiseBuilder::new(random_config);
+        let noise_builder = DoublePerlinNoiseBuilder::new(&random_config.base_random_deriver);
         let mut context = MaterialRuleContext::new(
             min_y,
             self.height(),
