@@ -12,6 +12,7 @@ use pumpkin_data::chunk_gen_settings::GenerationSettings;
 use pumpkin_data::dimension::Dimension;
 use pumpkin_data::fluid::{Fluid, FluidState};
 use pumpkin_data::{Block, BlockState};
+use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_util::HeightMap;
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_util::math::vector3::Vector3;
@@ -201,6 +202,29 @@ impl GenerationCache for Cache {
             }
             Chunk::Proto(data) => {
                 data.set_block_state(pos.x, pos.y, pos.z, block_state);
+            }
+        }
+    }
+
+    fn add_block_entity(&mut self, pos: &Vector3<i32>, nbt: NbtCompound) {
+        let dx = (pos.x >> 4) - self.x;
+        let dz = (pos.z >> 4) - self.z;
+        // debug_assert!(dx < self.size && dz < self.size);
+        // debug_assert!(dx >= 0 && dz >= 0);
+        if !(dx < self.size && dz < self.size && dx >= 0 && dz >= 0) {
+            // breakpoint here
+            debug!(
+                "illegal set_block_state {pos:?} cache pos ({}, {}) size {}",
+                self.x, self.z, self.size
+            );
+            return;
+        }
+        match &mut self.chunks[(dx * self.size + dz) as usize] {
+            Chunk::Level(_data) => {
+                todo!()
+            }
+            Chunk::Proto(data) => {
+                data.add_block_entity(nbt);
             }
         }
     }
