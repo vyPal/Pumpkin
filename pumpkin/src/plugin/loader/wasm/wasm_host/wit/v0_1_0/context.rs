@@ -49,25 +49,6 @@ impl DowncastResourceExt<ContextResource> for Resource<Context> {
 impl pumpkin::plugin::context::Host for PluginHostState {}
 
 impl pumpkin::plugin::context::HostContext for PluginHostState {
-    async fn drop(&mut self, rep: Resource<Context>) -> wasmtime::Result<()> {
-        let _ = self
-            .resource_table
-            .delete::<ContextResource>(Resource::new_own(rep.rep()));
-        Ok(())
-    }
-
-    async fn get_server(&mut self, context: Resource<Context>) -> Resource<Server> {
-        let resource = self
-            .resource_table
-            .get_any_mut(context.rep())
-            .expect("invalid context resource handle")
-            .downcast_ref::<ContextResource>()
-            .expect("resource type mismatch");
-        let server_provider = resource.provider.server.clone();
-        self.add_server(server_provider)
-            .expect("failed to add server resource")
-    }
-
     async fn register_event(
         &mut self,
         context: Resource<Context>,
@@ -179,5 +160,27 @@ impl pumpkin::plugin::context::HostContext for PluginHostState {
             .provider
             .register_permission(permission)
             .await
+    }
+
+    async fn get_data_folder(&mut self, context: Resource<Context>) -> String {
+        context
+            .downcast_ref(self)
+            .provider
+            .get_data_folder()
+            .to_string_lossy()
+            .into_owned()
+    }
+
+    async fn get_server(&mut self, context: Resource<Context>) -> Resource<Server> {
+        let server_provider = context.downcast_ref(self).provider.server.clone();
+        self.add_server(server_provider)
+            .expect("failed to add server resource")
+    }
+
+    async fn drop(&mut self, rep: Resource<Context>) -> wasmtime::Result<()> {
+        let _ = self
+            .resource_table
+            .delete::<ContextResource>(Resource::new_own(rep.rep()));
+        Ok(())
     }
 }
