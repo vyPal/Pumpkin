@@ -89,12 +89,6 @@ inherits = "release"
 debug = true
 strip = false
 
-[profile.dev]
-debug = "line-tables-only"
-debug-assertions = true
-overflow-checks = false
-split-debuginfo = "packed"
-opt-level = 0
 
 [workspace.dependencies]
 tokio = { version = "1.52", default-features = false }
