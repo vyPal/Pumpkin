@@ -13,6 +13,7 @@ pub mod common;
 pub mod context;
 pub mod entity;
 pub mod events;
+pub mod forms;
 pub mod generated_packets;
 pub mod gui;
 pub mod i18n;

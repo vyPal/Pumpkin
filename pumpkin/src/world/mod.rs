@@ -424,13 +424,11 @@ impl World {
     }
 
     pub async fn flush_synced_block_events(self: &Arc<Self>) {
-        let events;
         // THIS IS IMPORTANT
         // it prevents deadlocks and also removes the need to wait for a lock when adding a new synced block
-        {
+        let events = {
             let mut queue = self.synced_block_event_queue.lock().await;
-            events = queue.clone();
-            queue.clear();
+            std::mem::take(&mut *queue)
         };
 
         for event in events {
@@ -1599,6 +1597,8 @@ impl World {
             (position, yaw, pitch)
         } else {
             let spawn_position = Vector2::new(level_info.spawn_x, level_info.spawn_z);
+            let chunk_pos = Vector2::new(level_info.spawn_x >> 4, level_info.spawn_z >> 4);
+            self.level.get_or_fetch_chunk(chunk_pos, |_| ()).await;
             let pos_y = self.get_top_block(spawn_position) + 1; // +1 to spawn on top of the block
 
             let position = Vector3::new(
@@ -1937,6 +1937,8 @@ impl World {
         } else {
             let info = &self.level_info.load();
             let spawn_position = Vector2::new(info.spawn_x, info.spawn_z);
+            let chunk_pos = Vector2::new(info.spawn_x >> 4, info.spawn_z >> 4);
+            self.level.get_or_fetch_chunk(chunk_pos, |_| ()).await;
             let pos_y = self.get_top_block(spawn_position) + 1; // +1 to spawn on top of the block
 
             let position = Vector3::new(
@@ -2428,6 +2430,8 @@ impl World {
                 // FIXME: This spawn position calculation is incorrect. Should use vanilla's
                 // proper spawn position calculation (see #1381). The y-level calculation
                 // needs to account for spawn radius and find a safe spawn position.
+                let chunk_pos = Vector2::new(spawn_x >> 4, spawn_z >> 4);
+                self.level.get_or_fetch_chunk(chunk_pos, |_| ()).await;
                 let top = self.get_top_block(Vector2::new(spawn_x, spawn_z));
 
                 (
@@ -2496,6 +2500,8 @@ impl World {
             );
             // FIXME: This spawn position calculation is incorrect. Should use vanilla's
             // proper spawn position calculation (see #1381).
+            let chunk_pos = Vector2::new(spawn_x >> 4, spawn_z >> 4);
+            self.level.get_or_fetch_chunk(chunk_pos, |_| ()).await;
             let top = self.get_top_block(Vector2::new(spawn_x, spawn_z));
             let fallback_pos = Vector3::new(
                 f64::from(spawn_x) + 0.5,

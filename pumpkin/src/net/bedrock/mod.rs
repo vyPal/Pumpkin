@@ -94,6 +94,8 @@ pub struct BedrockClient {
     output_split_number: AtomicU16,
     output_sequenced_index: AtomicU32,
     output_ordered_index: AtomicU32,
+    /// The next form ID to use for custom forms.
+    pub next_form_id: AtomicU32,
     /// An notifier that is triggered when this client is closed.
     close_token: CancellationToken,
     last_seen: Arc<AtomicCell<std::time::Instant>>,
@@ -133,6 +135,7 @@ impl BedrockClient {
             output_split_number: AtomicU16::new(0),
             output_sequenced_index: AtomicU32::new(0),
             output_ordered_index: AtomicU32::new(0),
+            next_form_id: AtomicU32::new(0),
             compounds: Arc::new(Mutex::new(HashMap::new())),
             close_token: CancellationToken::new(),
             last_seen: Arc::new(AtomicCell::new(std::time::Instant::now())),
@@ -788,6 +791,16 @@ impl BedrockClient {
             }
             SAnimate::PACKET_ID => {
                 self.handle_animate(player, server, &SAnimate::read(reader)?);
+            }
+            pumpkin_protocol::bedrock::server::modal_form_response::SModalFormResponse::PACKET_ID => {
+                self.handle_modal_form_response(
+                    player,
+                    server,
+                    pumpkin_protocol::bedrock::server::modal_form_response::SModalFormResponse::read(
+                        reader,
+                    )?,
+                )
+                .await;
             }
             SLoadingScreen::PACKET_ID => {
                 // Ignore for now

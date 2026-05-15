@@ -110,7 +110,7 @@ impl<'de, T: Deserialize<'de>> Visitor<'de> for IdOrVisitor<T> {
                         })?);
                     }
                     IdOrStateDeserializer::Id(id) => {
-                        debug_assert!(*id == 0);
+                        debug_assert_eq!(*id, 0);
                         // Get the data
                         let value = T::deserialize(deserializer)?;
                         *self = IdOrStateDeserializer::Value(value);

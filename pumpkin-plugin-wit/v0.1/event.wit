@@ -258,6 +258,13 @@ interface event {
         can-build: bool,
         cancelled: bool
     }
+
+    record bedrock-form-response-event-data {
+        player: player,
+        form-id: u32,
+        response-data: option<string>,
+    }
+
     record server-command-event-data {
         command: string,
         cancelled: bool
@@ -321,6 +328,7 @@ interface event {
         block-can-build-event,
         block-grow-event,
         block-place-event,
+        bedrock-form-response-event,
         server-command-event,
         spawn-change-event,
         server-broadcast-event,
@@ -358,6 +366,7 @@ interface event {
         block-can-build-event(block-can-build-event-data),
         block-grow-event(block-grow-event-data),
         block-place-event(block-place-event-data),
+        bedrock-form-response-event(bedrock-form-response-event-data),
         server-command-event(server-command-event-data),
         spawn-change-event(spawn-change-event-data),
         server-broadcast-event(server-broadcast-event-data),

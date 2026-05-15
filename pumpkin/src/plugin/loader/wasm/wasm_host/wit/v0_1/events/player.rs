@@ -11,8 +11,8 @@ use crate::plugin::{
             },
             player::to_wit_item_stack,
             pumpkin::plugin::event::{
-                Event, InteractAction as WasmInteractAction, InventoryClickEventData,
-                InventoryCloseEventData, PlayerChangeWorldEventData,
+                BedrockFormResponseEventData, Event, InteractAction as WasmInteractAction,
+                InventoryClickEventData, InventoryCloseEventData, PlayerChangeWorldEventData,
                 PlayerChangedMainHandEventData, PlayerChatEventData, PlayerCommandSendEventData,
                 PlayerCustomPayloadEventData, PlayerEggThrowEventData, PlayerExpChangeEventData,
                 PlayerFishEventData, PlayerFishState as WasmPlayerFishState,
@@ -26,6 +26,7 @@ use crate::plugin::{
         },
     },
     player::{
+        bedrock_form_response::BedrockFormResponseEvent,
         changed_main_hand::PlayerChangedMainHandEvent,
         egg_throw::PlayerEggThrowEvent,
         exp_change::PlayerExpChangeEvent,
@@ -728,6 +729,31 @@ impl ToFromWasmEvent for PlayerToggleSprintEvent {
                 player: consume_player(state, &data.player),
                 is_sprinting: data.is_sprinting,
                 cancelled: data.cancelled,
+            },
+            _ => panic!("unexpected event type"),
+        }
+    }
+}
+
+impl ToFromWasmEvent for BedrockFormResponseEvent {
+    fn to_wasm_event(&self, state: &mut PluginHostState) -> Event {
+        let player = state
+            .add_player(self.player.clone())
+            .expect("failed to add player resource");
+
+        Event::BedrockFormResponseEvent(BedrockFormResponseEventData {
+            player,
+            form_id: self.form_id,
+            response_data: self.response_data.clone(),
+        })
+    }
+
+    fn from_wasm_event(event: Event, state: &mut PluginHostState) -> Self {
+        match event {
+            Event::BedrockFormResponseEvent(data) => Self {
+                player: consume_player(state, &data.player),
+                form_id: data.form_id,
+                response_data: data.response_data,
             },
             _ => panic!("unexpected event type"),
         }
