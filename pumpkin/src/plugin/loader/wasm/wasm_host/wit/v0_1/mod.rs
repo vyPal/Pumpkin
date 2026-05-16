@@ -22,6 +22,7 @@ pub mod java_dialogs;
 pub mod logging;
 pub mod permission;
 pub mod player;
+pub mod recipe;
 pub mod scheduler;
 pub mod scoreboard;
 pub mod server;

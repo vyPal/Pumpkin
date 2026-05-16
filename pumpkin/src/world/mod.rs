@@ -63,6 +63,7 @@ use pumpkin_data::{
     world::{RAW, WorldEvent},
 };
 use pumpkin_data::{BlockDirection, BlockState, translation};
+use pumpkin_inventory::crafting::recipe_provider::RecipeProvider;
 use pumpkin_inventory::screen_handler::InventoryPlayer;
 use pumpkin_nbt::{compound::NbtCompound, to_bytes_unnamed};
 use pumpkin_protocol::bedrock::client::set_actor_data::{
@@ -2265,8 +2266,9 @@ impl World {
             java_client
                 .send_packet_now(&CRecipeBookSettings::default_closed())
                 .await;
+            let dynamic_recipes = server.recipe_manager.get_dynamic_recipes().await;
             java_client
-                .send_packet_now(&CRecipeBookAdd::new(true))
+                .send_packet_now(&CRecipeBookAdd::new(true, &dynamic_recipes))
                 .await;
         }
 

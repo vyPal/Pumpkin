@@ -28,7 +28,7 @@ use crate::{
         api::gui::PluginGui,
         loader::wasm::wasm_host::{WasmPlugin, args::OwnedArg},
     },
-    server::Server,
+    server::{RecipeManager, Server},
     world::World,
 };
 
@@ -54,6 +54,7 @@ pub type CommandSenderResource = WasmResource<CommandSender>;
 pub type ConsumedArgsResource = WasmResource<OwnedConsumedArgs>;
 pub type CommandNodeResource = WasmResource<NonLeafNodeBuilder>;
 pub type ItemStackResource = WasmResource<Arc<Mutex<pumpkin_data::item_stack::ItemStack>>>;
+pub type RecipeManagerResource = WasmResource<Arc<RecipeManager>>;
 
 pub type OwnedConsumedArgs = HashMap<String, OwnedArg>;
 
@@ -227,6 +228,16 @@ impl PluginHostState {
         provider: Arc<Mutex<pumpkin_data::item_stack::ItemStack>>,
     ) -> wasmtime::Result<wasmtime::component::Resource<T>> {
         let resource = self.resource_table.push(ItemStackResource { provider })?;
+        Ok(wasmtime::component::Resource::new_own(resource.rep()))
+    }
+
+    pub fn add_recipe_manager<T>(
+        &mut self,
+        provider: Arc<RecipeManager>,
+    ) -> wasmtime::Result<wasmtime::component::Resource<T>> {
+        let resource = self
+            .resource_table
+            .push(RecipeManagerResource { provider })?;
         Ok(wasmtime::component::Resource::new_own(resource.rep()))
     }
 }

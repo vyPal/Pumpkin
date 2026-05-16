@@ -125,6 +125,11 @@ fn parse_packet_file(
                     let wit_field = field_name.to_snake_case();
                     let (type_ident, is_ref, is_slice) = get_type_info(&field.ty);
 
+                    if type_ident == "DynamicRecipe" {
+                        field_inits.push_str(&format!("                {}: &[],\n", field_name));
+                        continue;
+                    }
+
                     if field_name == "type" {
                         field_name = "r#type".to_string();
                     }
