@@ -644,6 +644,11 @@ interface player {
         /// Returns the item in the specified inventory slot.
         get-inventory-item: func (slot: u8) -> option<item-stack>;
 
+        /// Sets the item in the specified hand.
+        set-item-in-hand: func (hand: hand, stack: option<item-stack>);
+        /// Sets the item in the specified inventory slot.
+        set-inventory-item: func (slot: u8, stack: option<item-stack>);
+
         // Status
 
         /// Returns the player's current health.

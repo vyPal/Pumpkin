@@ -17,11 +17,10 @@ pub struct PermissionCache {
 
 impl PermissionCache {
     pub async fn load(path: &Path) -> Self {
-        if let Ok(data) = fs::read_to_string(path).await {
-            serde_json::from_str(&data).unwrap_or_default()
-        } else {
-            Self::default()
-        }
+        fs::read_to_string(path).await.map_or_else(
+            |_| Self::default(),
+            |data| serde_json::from_str(&data).unwrap_or_default(),
+        )
     }
 
     pub async fn save(&self, path: &Path) -> tokio::io::Result<()> {
@@ -31,13 +30,14 @@ impl PermissionCache {
 }
 
 pub async fn calculate_hash(path: &Path) -> tokio::io::Result<String> {
+    use std::fmt::Write;
+
     let bytes = fs::read(path).await?;
     let mut hasher = Sha256::new();
     hasher.update(&bytes);
     let result = hasher.finalize();
-    Ok(result
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect::<Vec<String>>()
-        .join(""))
+    Ok(result.iter().fold(String::new(), |mut output, b| {
+        let _ = write!(output, "{b:02x}");
+        output
+    }))
 }

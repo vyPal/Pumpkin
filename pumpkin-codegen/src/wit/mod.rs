@@ -1,4 +1,6 @@
 pub mod bedrock_packet;
+pub mod data_component;
+pub mod enchantment;
 pub mod entity_type;
 pub mod java_packet;
 pub mod packet_mapping;
@@ -26,6 +28,8 @@ pub fn main() {
         (entity_type::build, "entity-types.wit"),
         (java_packet::build, "java-packets.wit"),
         (bedrock_packet::build, "bedrock-packets.wit"),
+        (data_component::build, "data-components.wit"),
+        (enchantment::build, "enchantments.wit"),
     ];
 
     for (build_fn, file) in build_functions {

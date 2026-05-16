@@ -750,39 +750,9 @@ impl PluginManager {
         for name in sorted_names {
             if let Some((instance, metadata, loader_data, loader, path)) = plugins_map.remove(&name)
             {
-                let hash = cache::calculate_hash(&path).await.unwrap_or_default();
-                let allowed;
-                let mut wait_time = std::time::Duration::ZERO;
-
-                if let Some(entry) = cache.entries.get(&hash) {
-                    if entry.permissions_requested == metadata.permissions {
-                        allowed = entry.approved;
-                        info!(
-                            "Found cached permission decision for plugin \"{}\" (approved: {})",
-                            metadata.name, allowed
-                        );
-                    } else {
-                        (allowed, wait_time) = Self::ask_permission_confirmation(&metadata);
-                        cache.entries.insert(
-                            hash,
-                            cache::PermissionCacheEntry {
-                                permissions_requested: metadata.permissions.clone(),
-                                approved: allowed,
-                            },
-                        );
-                        let _ = cache.save(&cache_path).await;
-                    }
-                } else {
-                    (allowed, wait_time) = Self::ask_permission_confirmation(&metadata);
-                    cache.entries.insert(
-                        hash,
-                        cache::PermissionCacheEntry {
-                            permissions_requested: metadata.permissions.clone(),
-                            approved: allowed,
-                        },
-                    );
-                    let _ = cache.save(&cache_path).await;
-                }
+                let (allowed, wait_time) = self
+                    .check_permissions_cached(&path, &metadata, &mut cache, &cache_path)
+                    .await;
 
                 total_wait_time += wait_time;
 
@@ -812,6 +782,37 @@ impl PluginManager {
         Ok(total_wait_time)
     }
 
+    async fn check_permissions_cached(
+        &self,
+        path: &Path,
+        metadata: &PluginMetadata,
+        cache: &mut cache::PermissionCache,
+        cache_path: &Path,
+    ) -> (bool, std::time::Duration) {
+        let hash = cache::calculate_hash(path).await.unwrap_or_default();
+
+        if let Some(entry) = cache.entries.get(&hash)
+            && entry.permissions_requested == metadata.permissions
+        {
+            info!(
+                "Found cached permission decision for plugin \"{}\" (approved: {})",
+                metadata.name, entry.approved
+            );
+            return (entry.approved, std::time::Duration::ZERO);
+        }
+
+        let (allowed, wait_time) = Self::ask_permission_confirmation(metadata);
+        cache.entries.insert(
+            hash,
+            cache::PermissionCacheEntry {
+                permissions_requested: metadata.permissions.clone(),
+                approved: allowed,
+            },
+        );
+        let _ = cache.save(cache_path).await;
+        (allowed, wait_time)
+    }
+
     /// Start loading a plugin asynchronously
     async fn start_loading_plugin(
         &self,
@@ -823,39 +824,10 @@ impl PluginManager {
 
                 let cache_path = Path::new(PLUGIN_DIR).join("permission_cache.json");
                 let mut cache = cache::PermissionCache::load(&cache_path).await;
-                let hash = cache::calculate_hash(path).await.unwrap_or_default();
 
-                let allowed;
-
-                if let Some(entry) = cache.entries.get(&hash) {
-                    if entry.permissions_requested == metadata.permissions {
-                        allowed = entry.approved;
-                        info!(
-                            "Found cached permission decision for plugin \"{}\" (approved: {})",
-                            metadata.name, allowed
-                        );
-                    } else {
-                        (allowed, _) = Self::ask_permission_confirmation(&metadata);
-                        cache.entries.insert(
-                            hash,
-                            cache::PermissionCacheEntry {
-                                permissions_requested: metadata.permissions.clone(),
-                                approved: allowed,
-                            },
-                        );
-                        let _ = cache.save(&cache_path).await;
-                    }
-                } else {
-                    (allowed, _) = Self::ask_permission_confirmation(&metadata);
-                    cache.entries.insert(
-                        hash,
-                        cache::PermissionCacheEntry {
-                            permissions_requested: metadata.permissions.clone(),
-                            approved: allowed,
-                        },
-                    );
-                    let _ = cache.save(&cache_path).await;
-                }
+                let (allowed, _) = self
+                    .check_permissions_cached(path, &metadata, &mut cache, &cache_path)
+                    .await;
 
                 if !allowed {
                     warn!(

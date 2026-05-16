@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use wasmtime::component::Resource;
 
+use super::player::{from_wit_item_stack, to_wit_item_stack};
 use crate::plugin::api::gui::{PluginGui, PluginInventory};
 use crate::plugin::loader::wasm::wasm_host::{
     state::{GuiResource, PluginHostState},
@@ -10,7 +11,6 @@ use crate::plugin::loader::wasm::wasm_host::{
         gui::{self, Gui, GuiType},
     },
 };
-use pumpkin_data::item_stack::ItemStack;
 
 impl PluginHostState {
     fn get_gui_res(&self, res: &Resource<Gui>) -> wasmtime::Result<&GuiResource> {
@@ -89,10 +89,7 @@ impl gui::HostGui for PluginHostState {
     ) -> wasmtime::Result<()> {
         let gui = self.get_gui_res(&res)?.provider.lock().await;
         if (slot as usize) < gui.inventory.slots.len() {
-            let item_id = item.registry_key;
-            let item_data = pumpkin_data::item::Item::from_registry_key(&item_id)
-                .ok_or_else(|| wasmtime::Error::msg("Invalid item"))?;
-            let item_stack = ItemStack::new(item.count, item_data);
+            let item_stack = from_wit_item_stack(item);
             *gui.inventory.slots[slot as usize].lock().await = item_stack;
         }
         Ok(())
@@ -106,14 +103,7 @@ impl gui::HostGui for PluginHostState {
         let gui = self.get_gui_res(&res)?.provider.lock().await;
         if (slot as usize) < gui.inventory.slots.len() {
             let stack = gui.inventory.slots[slot as usize].lock().await;
-            if stack.is_empty() {
-                Ok(None)
-            } else {
-                Ok(Some(WitItemStack {
-                    registry_key: stack.get_item().registry_key.to_string(),
-                    count: stack.item_count,
-                }))
-            }
+            Ok(to_wit_item_stack(&stack))
         } else {
             Ok(None)
         }
