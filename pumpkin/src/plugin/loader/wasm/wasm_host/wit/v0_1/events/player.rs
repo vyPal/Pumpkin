@@ -1,3 +1,4 @@
+use crate::plugin::api::events::player::custom_click_action::CustomClickActionEvent;
 use crate::plugin::{
     loader::wasm::wasm_host::{
         state::PluginHostState,
@@ -11,8 +12,9 @@ use crate::plugin::{
             },
             player::to_wit_item_stack,
             pumpkin::plugin::event::{
-                BedrockFormResponseEventData, Event, InteractAction as WasmInteractAction,
-                InventoryClickEventData, InventoryCloseEventData, PlayerChangeWorldEventData,
+                BedrockFormResponseEventData, CustomClickActionEventData, Event,
+                InteractAction as WasmInteractAction, InventoryClickEventData,
+                InventoryCloseEventData, PlayerChangeWorldEventData,
                 PlayerChangedMainHandEventData, PlayerChatEventData, PlayerCommandSendEventData,
                 PlayerCustomPayloadEventData, PlayerEggThrowEventData, PlayerExpChangeEventData,
                 PlayerFishEventData, PlayerFishState as WasmPlayerFishState,
@@ -23,6 +25,8 @@ use crate::plugin::{
                 PlayerToggleFlightEventData, PlayerToggleSneakEventData,
                 PlayerToggleSprintEventData,
             },
+            pumpkin::plugin::uuid::Uuid as WitUuid,
+            uuid::UuidExt,
         },
     },
     player::{
@@ -539,9 +543,9 @@ impl ToFromWasmEvent for PlayerFishEvent {
 
         Event::PlayerFishEvent(PlayerFishEventData {
             player,
-            caught_uuid: self.caught_uuid.map(|uuid| uuid.to_string()),
+            caught_uuid: self.caught_uuid.as_ref().map(WitUuid::to_wit),
             caught_type: self.caught_type.clone(),
-            hook_uuid: self.hook_uuid.to_string(),
+            hook_uuid: WitUuid::to_wit(&self.hook_uuid),
             state: to_wasm_fish_state(self.state),
             hand: to_wasm_hand(self.hand),
             exp_to_drop: self.exp_to_drop,
@@ -553,11 +557,9 @@ impl ToFromWasmEvent for PlayerFishEvent {
         match event {
             Event::PlayerFishEvent(data) => Self {
                 player: consume_player(state, &data.player),
-                caught_uuid: data
-                    .caught_uuid
-                    .map(|uuid| uuid::Uuid::parse_str(&uuid).expect("invalid caught UUID")),
+                caught_uuid: data.caught_uuid.map(|id| WitUuid::from_wit(&id)),
                 caught_type: data.caught_type,
-                hook_uuid: uuid::Uuid::parse_str(&data.hook_uuid).expect("invalid hook UUID"),
+                hook_uuid: WitUuid::from_wit(&data.hook_uuid),
                 state: from_wasm_fish_state(data.state),
                 hand: from_wasm_hand(data.hand),
                 exp_to_drop: data.exp_to_drop,
@@ -576,7 +578,7 @@ impl ToFromWasmEvent for PlayerEggThrowEvent {
 
         Event::PlayerEggThrowEvent(PlayerEggThrowEventData {
             player,
-            egg_uuid: self.egg_uuid.to_string(),
+            egg_uuid: WitUuid::to_wit(&self.egg_uuid),
             hatching: self.hatching,
             num_hatches: self.num_hatches,
             hatching_type: to_wasm_entity_type(self.hatching_type),
@@ -588,7 +590,7 @@ impl ToFromWasmEvent for PlayerEggThrowEvent {
         match event {
             Event::PlayerEggThrowEvent(data) => Self {
                 player: consume_player(state, &data.player),
-                egg_uuid: uuid::Uuid::parse_str(&data.egg_uuid).expect("invalid egg UUID"),
+                egg_uuid: WitUuid::from_wit(&data.egg_uuid),
                 hatching: data.hatching,
                 num_hatches: data.num_hatches,
                 hatching_type: from_wasm_entity_type(&data.hatching_type),
@@ -754,6 +756,29 @@ impl ToFromWasmEvent for BedrockFormResponseEvent {
                 player: consume_player(state, &data.player),
                 form_id: data.form_id,
                 response_data: data.response_data,
+            },
+            _ => panic!("unexpected event type"),
+        }
+    }
+}
+
+impl ToFromWasmEvent for CustomClickActionEvent {
+    fn to_wasm_event(&self, state: &mut PluginHostState) -> Event {
+        Event::CustomClickActionEvent(CustomClickActionEventData {
+            player: state
+                .add_player(self.player.clone())
+                .expect("failed to add player resource"),
+            id: self.id.clone(),
+            payload: self.payload.as_ref().map(|p| p.to_vec()),
+        })
+    }
+
+    fn from_wasm_event(event: Event, state: &mut PluginHostState) -> Self {
+        match event {
+            Event::CustomClickActionEvent(data) => Self {
+                player: consume_player(state, &data.player),
+                id: data.id,
+                payload: data.payload.map(Bytes::from),
             },
             _ => panic!("unexpected event type"),
         }

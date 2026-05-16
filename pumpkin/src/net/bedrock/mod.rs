@@ -68,12 +68,17 @@ pub mod login;
 pub mod open_connection;
 pub mod unconnected;
 use crate::{entity::player::Player, net::DisconnectReason, server::Server};
+use arc_swap::ArcSwap;
+use pumpkin_protocol::bedrock::server::login::ClientData;
+use pumpkin_util::version::BedrockMinecraftVersion;
 
 pub struct BedrockClient {
     socket: Arc<UdpSocket>,
     /// The client's IP address.
     pub address: SocketAddr,
     pub player: Mutex<Option<Arc<Player>>>,
+    pub version: AtomicCell<BedrockMinecraftVersion>,
+    pub client_data: ArcSwap<Option<Arc<ClientData>>>,
     /// All Bedrock clients
     /// This list is used to remove the client if the connection gets closed
     pub be_clients: Arc<Mutex<HashMap<SocketAddr, Arc<Self>>>>,
@@ -123,6 +128,8 @@ impl BedrockClient {
             socket,
             player: Mutex::new(None),
             address,
+            version: AtomicCell::new(BedrockMinecraftVersion::Unknown),
+            client_data: ArcSwap::new(Arc::new(None)),
             be_clients,
             network_writer: Arc::new(Mutex::new(UDPNetworkEncoder::new())),
             network_reader: Mutex::new(UDPNetworkDecoder::new()),

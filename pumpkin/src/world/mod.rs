@@ -112,7 +112,7 @@ use pumpkin_protocol::{
 };
 use pumpkin_util::resource_location::ResourceLocation;
 use pumpkin_util::text::{TextComponent, color::NamedColor};
-use pumpkin_util::version::MinecraftVersion;
+use pumpkin_util::version::JavaMinecraftVersion;
 use pumpkin_util::{
     Difficulty,
     math::{boundingbox::BoundingBox, position::BlockPos, vector3::Vector3},
@@ -455,8 +455,8 @@ impl World {
 
     fn collect_java_recipients_by_version<'a>(
         players: impl Iterator<Item = &'a Arc<Player>>,
-    ) -> BTreeMap<MinecraftVersion, Vec<&'a JavaClient>> {
-        let mut recipients_by_version: BTreeMap<MinecraftVersion, Vec<&'a JavaClient>> =
+    ) -> BTreeMap<JavaMinecraftVersion, Vec<&'a JavaClient>> {
+        let mut recipients_by_version: BTreeMap<JavaMinecraftVersion, Vec<&'a JavaClient>> =
             BTreeMap::new();
         for player in players {
             if let ClientPlatform::Java(java_client) = &player.client {
@@ -471,7 +471,7 @@ impl World {
 
     fn broadcast_java_grouped<P: ClientPacket>(
         packet: &P,
-        recipients_by_version: BTreeMap<MinecraftVersion, Vec<&JavaClient>>,
+        recipients_by_version: BTreeMap<JavaMinecraftVersion, Vec<&JavaClient>>,
     ) {
         for (version, recipients) in recipients_by_version {
             let packet_data = match JavaClient::serialize_packet_for_version(packet, version) {

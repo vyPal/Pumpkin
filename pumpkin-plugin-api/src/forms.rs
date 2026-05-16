@@ -1,8 +1,7 @@
-use crate::player::Player;
 use crate::text::TextComponent;
 use crate::wit::pumpkin::plugin::forms::{
-    self as wit_forms, CustomForm, CustomFormElement, Form, FormImage, ImageType, ModalForm,
-    SimpleForm, SimpleFormButton,
+    CustomForm, CustomFormElement, Form, FormImage, ImageType, ModalForm, SimpleForm,
+    SimpleFormButton,
 };
 
 pub struct SimpleFormBuilder {
@@ -158,10 +157,6 @@ impl CustomFormBuilder {
             elements: self.elements,
         })
     }
-}
-
-pub fn send_form(player: Player, form: Form) -> u32 {
-    wit_forms::send_form(player, form)
 }
 
 pub fn url_image(url: impl Into<String>) -> FormImage {

@@ -37,6 +37,8 @@ world plugin {
     import boss-bar;
     /// Provides Bedrock custom forms.
     import forms;
+    /// Provides Java Edition dialogs.
+    import java-dialogs;
 
     // --- Plugin-provided exports ---
 

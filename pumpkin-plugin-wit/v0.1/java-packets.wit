@@ -1,6 +1,8 @@
 package pumpkin:plugin@0.1.0;
 
 interface java-packets {
+  use uuid.{uuid};
+
   record s-attack {
     entity-id: s32,
   }
@@ -63,9 +65,13 @@ interface java-packets {
     key: string,
     payload: option<list<string>>,
   }
+  record s-custom-click-action {
+    action-id: string,
+    payload: option<list<string>>,
+  }
   record s-custom-payload {
     channel: string,
-    data: list<string>,
+    data: list<u8>,
   }
   record s-interact {
     entity-id: s32,
@@ -229,7 +235,7 @@ interface java-packets {
     state-id: s32,
   }
   record c-boss-event {
-    uuid: string,
+    uuid: uuid,
     action: string,
   }
   record c-center-chunk {
@@ -268,7 +274,7 @@ interface java-packets {
   }
   record c-custom-payload {
     channel: string,
-    data: string,
+    data: list<u8>,
   }
   record c-damage-event {
     entity-id: s32,
@@ -423,7 +429,7 @@ interface java-packets {
     max-speed: f32,
     particle-count: s32,
     particle-id: s32,
-    data: string,
+    data: list<u8>,
   }
   record c-ping-response {
     payload: s64,
@@ -461,7 +467,7 @@ interface java-packets {
     relatives: list<string>,
   }
   record c-remove-player-info {
-    players: string,
+    players: list<uuid>,
   }
   record c-player-spawn-position {
     dimension-name: string,
@@ -483,7 +489,7 @@ interface java-packets {
     smoker-filtering: bool,
   }
   record c-remove-entities {
-    entity-ids: string,
+    entity-ids: list<s32>,
   }
   record c-remove-mob-effect {
     entity-id: s32,
@@ -563,7 +569,7 @@ interface java-packets {
   }
   record c-set-passengers {
     entity-id: s32,
-    passengers: string,
+    passengers: list<s32>,
   }
   record c-set-player-inventory {
     slot: s32,
@@ -587,6 +593,9 @@ interface java-packets {
     stay-ticks: s32,
     fade-out-ticks: s32,
   }
+  record c-play-show-dialog {
+    dialog: string,
+  }
   record c-sound-effect {
     sound-event: string,
     sound-category: s32,
@@ -597,7 +606,7 @@ interface java-packets {
   }
   record c-spawn-entity {
     entity-id: s32,
-    entity-uuid: string,
+    entity-uuid: uuid,
     r-type: s32,
     position: tuple<f64, f64, f64>,
     velocity: string,
@@ -718,6 +727,7 @@ interface java-packets {
     s-confirm-teleport(s-confirm-teleport),
     s-container-button-click(s-container-button-click),
     s-cookie-response(s-cookie-response),
+    s-custom-click-action(s-custom-click-action),
     s-custom-payload(s-custom-payload),
     s-interact(s-interact),
     s-keep-alive(s-keep-alive),
@@ -763,6 +773,7 @@ interface java-packets {
     c-chunk-batch-end(c-chunk-batch-end),
     c-chunk-batch-start,
     c-chunk-data,
+    c-play-clear-dialog,
     c-clear-title(c-clear-title),
     c-close-container(c-close-container),
     c-combat-death(c-combat-death),
@@ -828,6 +839,7 @@ interface java-packets {
     c-update-time(c-update-time),
     c-title-text(c-title-text),
     c-title-animation(c-title-animation),
+    c-play-show-dialog(c-play-show-dialog),
     c-sound-effect(c-sound-effect),
     c-spawn-entity(c-spawn-entity),
     c-stop-sound(c-stop-sound),

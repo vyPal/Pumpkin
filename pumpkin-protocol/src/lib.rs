@@ -12,7 +12,7 @@ use hybrid_array::{Array, sizes::U1};
 use pumpkin_util::{
     resource_location::ResourceLocation,
     text::{TextComponent, style::Style},
-    version::MinecraftVersion,
+    version::JavaMinecraftVersion,
 };
 use ser::{ReadingError, WritingError};
 use serde::{
@@ -320,12 +320,12 @@ pub trait ClientPacket: MultiVersionJavaPacket {
     fn write_packet_data(
         &self,
         write: impl Write,
-        version: &MinecraftVersion,
+        version: &JavaMinecraftVersion,
     ) -> Result<(), WritingError>;
 }
 
 pub trait ServerPacket: MultiVersionJavaPacket + Sized {
-    fn read(read: impl Read, version: &MinecraftVersion) -> Result<Self, ReadingError>;
+    fn read(read: impl Read, version: &JavaMinecraftVersion) -> Result<Self, ReadingError>;
 }
 
 pub trait BClientPacket: Packet {

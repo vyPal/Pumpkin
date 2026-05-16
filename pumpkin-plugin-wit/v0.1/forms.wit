@@ -1,5 +1,4 @@
 interface forms {
-    use player.{player};
     use text.{text-component};
 
     enum image-type {
@@ -49,6 +48,4 @@ interface forms {
         modal(modal-form),
         custom(custom-form),
     }
-
-    send-form: func(player: player, form: form) -> u32;
 }
