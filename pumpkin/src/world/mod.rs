@@ -3428,6 +3428,20 @@ impl World {
             .get_sky_light_level(&self.level, position)
     }
 
+    pub fn set_block_light_level(&self, position: &BlockPos, light_level: u8) {
+        let _ = self
+            .level
+            .light_engine
+            .set_block_light_level(&self.level, position, light_level);
+    }
+
+    pub fn set_sky_light_level(&self, position: &BlockPos, light_level: u8) {
+        let _ = self
+            .level
+            .light_engine
+            .set_sky_light_level(&self.level, position, light_level);
+    }
+
     pub fn schedule_block_tick(
         &self,
         block: &Block,

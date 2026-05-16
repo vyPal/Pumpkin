@@ -47,8 +47,12 @@ use pumpkin_protocol::bedrock::client::set_actor_data::{
 use pumpkin_protocol::codec::var_ulong::VarULong;
 use pumpkin_util::version::{BedrockMinecraftVersion, JavaMinecraftVersion};
 
-struct WitSeqAccess<'a> {
-    deserializer: &'a mut Deserializer<&'a [u8]>,
+use pumpkin_protocol::ser::ReadingError;
+use pumpkin_protocol::ser::deserializer::Deserializer;
+use serde::de::SeqAccess;
+
+pub(crate) struct WitSeqAccess<'a> {
+    pub(crate) deserializer: &'a mut Deserializer<&'a [u8]>,
 }
 
 impl<'de> SeqAccess<'de> for WitSeqAccess<'_> {
@@ -494,132 +498,6 @@ fn world_from_resource(
         .clone()
 }
 
-use crate::plugin::loader::wasm::wasm_host::wit::v0_1::pumpkin::plugin::common::DataComponentValue as WitDataComponentValue;
-use crate::plugin::loader::wasm::wasm_host::wit::v0_1::pumpkin::plugin::common::EnchantmentValue as WitEnchantmentValue;
-use crate::plugin::loader::wasm::wasm_host::wit::v0_1::pumpkin::plugin::data_components::DataComponent as WitDataComponent;
-use crate::plugin::loader::wasm::wasm_host::wit::v0_1::pumpkin::plugin::enchantments::Enchantment as WitEnchantment;
-use pumpkin_data::Enchantment;
-use pumpkin_data::data_component::DataComponent;
-use pumpkin_data::data_component_impl::{DataComponentImpl, EnchantmentsImpl};
-use pumpkin_protocol::codec::data_component::{deserialize, serialize};
-use pumpkin_protocol::ser::ReadingError;
-use pumpkin_protocol::ser::deserializer::Deserializer;
-use pumpkin_protocol::ser::serializer::Serializer;
-use serde::de::SeqAccess;
-use serde::ser::SerializeStruct;
-use serde::ser::Serializer as _;
-use std::borrow::Cow;
-
-pub(super) fn to_wit_data_component(id: DataComponent) -> WitDataComponent {
-    // Safety: WIT enum is generated in the same order as the internal enum
-    unsafe { std::mem::transmute(id as u8) }
-}
-
-pub(super) fn from_wit_data_component(id: WitDataComponent) -> DataComponent {
-    // Safety: WIT enum is generated in the same order as the internal enum
-    unsafe { std::mem::transmute(id as u8) }
-}
-
-pub(super) fn to_wit_enchantment(id: &Enchantment) -> WitEnchantment {
-    // Safety: WIT enum is generated in the same order as the internal enum
-    unsafe { std::mem::transmute(id.id) }
-}
-
-pub(super) fn from_wit_enchantment(id: WitEnchantment) -> &'static Enchantment {
-    // Safety: WIT enum is generated in the same order as the internal enum
-    Enchantment::from_id(id as u8).unwrap()
-}
-
-pub(super) fn to_wit_item_stack(
-    stack: &pumpkin_data::item_stack::ItemStack,
-) -> Option<pumpkin::plugin::common::ItemStack> {
-    if stack.is_empty() {
-        return None;
-    }
-
-    let mut components = Vec::new();
-    let mut enchantments = Vec::new();
-    for (id, data) in &stack.patch {
-        if let Some(data) = data {
-            if *id == DataComponent::Enchantments {
-                if let Some(enc_impl) = data.as_any().downcast_ref::<EnchantmentsImpl>() {
-                    for (enc, level) in enc_impl.enchantment.iter() {
-                        enchantments.push(WitEnchantmentValue {
-                            enchantment: to_wit_enchantment(enc),
-                            level: *level as u32,
-                        });
-                    }
-                }
-                continue;
-            }
-
-            let mut buf = Vec::new();
-            let mut serializer = Serializer::new(&mut buf);
-            let mut struct_ser = serializer.serialize_struct("", 0).unwrap();
-            serialize(*id, data.as_ref(), &mut struct_ser).unwrap();
-            struct_ser.end().unwrap();
-
-            components.push(WitDataComponentValue {
-                component: to_wit_data_component(*id),
-                value: buf,
-            });
-        }
-    }
-
-    Some(pumpkin::plugin::common::ItemStack {
-        registry_key: stack.item.registry_key.to_string(),
-        count: stack.item_count,
-        components,
-        enchantments,
-    })
-}
-
-pub(super) fn from_wit_item_stack(
-    stack: pumpkin::plugin::common::ItemStack,
-) -> pumpkin_data::item_stack::ItemStack {
-    let mut patch: Vec<(DataComponent, Option<Box<dyn DataComponentImpl>>)> = Vec::new();
-    for component_value in stack.components {
-        let id = from_wit_data_component(component_value.component);
-        let mut deserializer = Deserializer::new(component_value.value.as_slice());
-
-        let mut seq = WitSeqAccess {
-            deserializer: &mut deserializer,
-        };
-
-        if let Ok(component_impl) = deserialize(id, &mut seq) {
-            patch.push((id, Some(component_impl)));
-        }
-    }
-
-    if !stack.enchantments.is_empty() {
-        let mut encs = Vec::new();
-        for enc_val in stack.enchantments {
-            encs.push((
-                from_wit_enchantment(enc_val.enchantment),
-                enc_val.level as i32,
-            ));
-        }
-        patch.push((
-            DataComponent::Enchantments,
-            Some(Box::new(EnchantmentsImpl {
-                enchantment: Cow::from(encs),
-            })),
-        ));
-    }
-
-    pumpkin_data::item_stack::ItemStack::new_with_component(
-        stack.count,
-        pumpkin_data::item::Item::from_registry_key(
-            stack
-                .registry_key
-                .strip_prefix("minecraft:")
-                .unwrap_or(&stack.registry_key),
-        )
-        .unwrap_or(&pumpkin_data::item::Item::AIR),
-        patch,
-    )
-}
-
 const fn to_wit_permission_level(
     level: PermissionLvl,
 ) -> pumpkin::plugin::permission::PermissionLevel {
@@ -705,18 +583,21 @@ use pumpkin_protocol::codec::item_stack_seralizer::ItemStackSerializer;
 use pumpkin_protocol::java::client::play::CSetContainerSlot;
 use pumpkin_world::inventory::Inventory;
 
+use crate::plugin::loader::wasm::wasm_host::wit::v0_1::pumpkin::plugin::item_stack::ItemStack as WitHostItemStack;
+
 impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     async fn set_item_in_hand(
         &mut self,
         player: Resource<Player>,
         hand: pumpkin::plugin::common::Hand,
-        stack: Option<pumpkin::plugin::common::ItemStack>,
+        stack: Option<Resource<WitHostItemStack>>,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        let stack = stack.map_or_else(
-            || pumpkin_data::item_stack::ItemStack::EMPTY.clone(),
-            from_wit_item_stack,
-        );
+        let stack = if let Some(stack_res) = stack {
+            self.get_item_stack(&stack_res)?.lock().await.clone()
+        } else {
+            pumpkin_data::item_stack::ItemStack::EMPTY.clone()
+        };
 
         let hand = from_wasm_hand(hand);
         let slot = match hand {
@@ -738,13 +619,14 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         &mut self,
         player: Resource<Player>,
         slot: u8,
-        stack: Option<pumpkin::plugin::common::ItemStack>,
+        stack: Option<Resource<WitHostItemStack>>,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        let stack = stack.map_or_else(
-            || pumpkin_data::item_stack::ItemStack::EMPTY.clone(),
-            from_wit_item_stack,
-        );
+        let stack = if let Some(stack_res) = stack {
+            self.get_item_stack(&stack_res)?.lock().await.clone()
+        } else {
+            pumpkin_data::item_stack::ItemStack::EMPTY.clone()
+        };
 
         player
             .inventory()
@@ -757,6 +639,35 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         player.client.enqueue_packet(&packet).await;
 
         Ok(())
+    }
+
+    async fn get_inventory_item(
+        &mut self,
+        player: Resource<Player>,
+        slot: u8,
+    ) -> wasmtime::Result<Option<Resource<WitHostItemStack>>> {
+        let player = player_from_resource(self, &player)?;
+        let stack = player.inventory().get_stack(slot as usize).await;
+        if stack.lock().await.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(self.add_item_stack(stack)?))
+        }
+    }
+
+    async fn get_item_in_hand(
+        &mut self,
+        player: Resource<Player>,
+        hand: pumpkin::plugin::common::Hand,
+    ) -> wasmtime::Result<Option<Resource<WitHostItemStack>>> {
+        let player = player_from_resource(self, &player)?;
+        let hand = from_wasm_hand(hand);
+        let stack = player.inventory().get_stack_in_hand(hand).await;
+        if stack.lock().await.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(self.add_item_stack(stack)?))
+        }
     }
 
     async fn as_entity(
@@ -1186,35 +1097,6 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     async fn get_selected_slot(&mut self, player: Resource<Player>) -> wasmtime::Result<u8> {
         let player = player_from_resource(self, &player)?;
         Ok(player.inventory.get_selected_slot())
-    }
-
-    async fn get_item_in_hand(
-        &mut self,
-        player: Resource<Player>,
-        hand: pumpkin::plugin::common::Hand,
-    ) -> wasmtime::Result<Option<pumpkin::plugin::common::ItemStack>> {
-        let player = player_from_resource(self, &player)?;
-        let inventory = player.inventory();
-        let item_stack = match hand {
-            pumpkin::plugin::common::Hand::Left => inventory.off_hand_item().await,
-            pumpkin::plugin::common::Hand::Right => inventory.held_item(),
-        };
-        let item_stack = item_stack.lock().await.clone();
-        Ok(to_wit_item_stack(&item_stack))
-    }
-
-    async fn get_inventory_item(
-        &mut self,
-        player: Resource<Player>,
-        slot: u8,
-    ) -> wasmtime::Result<Option<pumpkin::plugin::common::ItemStack>> {
-        let player = player_from_resource(self, &player)?;
-        let slot = slot as usize;
-        if slot >= PlayerInventory::MAIN_SIZE {
-            return Ok(None);
-        }
-        let item_stack = player.inventory.main_inventory[slot].lock().await.clone();
-        Ok(to_wit_item_stack(&item_stack))
     }
 
     async fn get_health(&mut self, player: Resource<Player>) -> wasmtime::Result<f32> {

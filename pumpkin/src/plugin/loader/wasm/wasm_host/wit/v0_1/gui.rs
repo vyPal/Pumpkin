@@ -2,13 +2,12 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use wasmtime::component::Resource;
 
-use super::player::{from_wit_item_stack, to_wit_item_stack};
 use crate::plugin::api::gui::{PluginGui, PluginInventory};
 use crate::plugin::loader::wasm::wasm_host::{
     state::{GuiResource, PluginHostState},
     wit::v0_1::pumpkin::plugin::{
-        common::ItemStack as WitItemStack,
         gui::{self, Gui, GuiType},
+        item_stack::ItemStack as WitHostItemStack,
     },
 };
 
@@ -85,11 +84,12 @@ impl gui::HostGui for PluginHostState {
         &mut self,
         res: Resource<Gui>,
         slot: u32,
-        item: WitItemStack,
+        item: Resource<WitHostItemStack>,
     ) -> wasmtime::Result<()> {
         let gui = self.get_gui_res(&res)?.provider.lock().await;
         if (slot as usize) < gui.inventory.slots.len() {
-            let item_stack = from_wit_item_stack(item);
+            let item_stack = self.get_item_stack(&item)?;
+            let item_stack = item_stack.lock().await.clone();
             *gui.inventory.slots[slot as usize].lock().await = item_stack;
         }
         Ok(())
@@ -99,11 +99,23 @@ impl gui::HostGui for PluginHostState {
         &mut self,
         res: Resource<Gui>,
         slot: u32,
-    ) -> wasmtime::Result<Option<WitItemStack>> {
-        let gui = self.get_gui_res(&res)?.provider.lock().await;
-        if (slot as usize) < gui.inventory.slots.len() {
-            let stack = gui.inventory.slots[slot as usize].lock().await;
-            Ok(to_wit_item_stack(&stack))
+    ) -> wasmtime::Result<Option<Resource<WitHostItemStack>>> {
+        let stack = {
+            let gui = self.get_gui_res(&res)?.provider.lock().await;
+            if (slot as usize) < gui.inventory.slots.len() {
+                let stack = gui.inventory.slots[slot as usize].lock().await;
+                if stack.is_empty() {
+                    None
+                } else {
+                    Some(stack.clone())
+                }
+            } else {
+                None
+            }
+        };
+
+        if let Some(stack) = stack {
+            Ok(Some(self.add_item_stack(Arc::new(Mutex::new(stack)))?))
         } else {
             Ok(None)
         }

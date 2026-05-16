@@ -1,5 +1,6 @@
 interface event {
-    use common.{block-position, game-mode, hand, item-stack, position, click-type};
+    use common.{block-position, game-mode, hand, position, click-type};
+    use item-stack.{item-stack};
     use player.{player};
     use text.{text-component};
     use %world.{%world};

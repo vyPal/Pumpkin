@@ -354,6 +354,55 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
         Ok(self.get_world_res(&world)?.provider.min_y)
     }
 
+    async fn get_sky_light(
+        &mut self,
+        world: Resource<World>,
+        pos: WitBlockPos,
+    ) -> wasmtime::Result<u8> {
+        let world_ref = self.get_world_res(&world)?;
+        let internal_pos = BlockPos::new(pos.x, pos.y, pos.z);
+        Ok(world_ref.provider.get_sky_light_level(&internal_pos))
+    }
+
+    async fn set_sky_light(
+        &mut self,
+        world: Resource<World>,
+        pos: WitBlockPos,
+        level: u8,
+    ) -> wasmtime::Result<()> {
+        let world_ref = self.get_world_res(&world)?;
+        let internal_pos = BlockPos::new(pos.x, pos.y, pos.z);
+        world_ref.provider.set_sky_light_level(&internal_pos, level);
+        Ok(())
+    }
+
+    async fn get_block_light(
+        &mut self,
+        world: Resource<World>,
+        pos: WitBlockPos,
+    ) -> wasmtime::Result<u8> {
+        let world_ref = self.get_world_res(&world)?;
+        let internal_pos = BlockPos::new(pos.x, pos.y, pos.z);
+        Ok(world_ref
+            .provider
+            .get_block_light_level(&internal_pos)
+            .unwrap_or(0))
+    }
+
+    async fn set_block_light(
+        &mut self,
+        world: Resource<World>,
+        pos: WitBlockPos,
+        level: u8,
+    ) -> wasmtime::Result<()> {
+        let world_ref = self.get_world_res(&world)?;
+        let internal_pos = BlockPos::new(pos.x, pos.y, pos.z);
+        world_ref
+            .provider
+            .set_block_light_level(&internal_pos, level);
+        Ok(())
+    }
+
     async fn get_entities(
         &mut self,
         world: Resource<World>,
