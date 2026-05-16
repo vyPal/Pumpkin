@@ -3444,6 +3444,23 @@ impl World {
             .set_sky_light_level(&self.level, position, light_level);
     }
 
+    pub fn get_biome(&self, position: &BlockPos) -> &'static Biome {
+        let chunk_pos = position.chunk_position();
+        if let Some(chunk) = self.level.loaded_chunks.get(&chunk_pos) {
+            let id = chunk
+                .section
+                .get_rough_biome_absolute_y(
+                    (position.0.x & 15) as usize,
+                    position.0.y,
+                    (position.0.z & 15) as usize,
+                )
+                .unwrap_or(0);
+            Biome::from_id(id).unwrap_or(&Biome::PLAINS)
+        } else {
+            &Biome::PLAINS
+        }
+    }
+
     pub fn schedule_block_tick(
         &self,
         block: &Block,
