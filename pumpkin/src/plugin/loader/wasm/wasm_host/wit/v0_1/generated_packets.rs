@@ -127,13 +127,14 @@ pub fn serialize_java_packet(
             Some(buf.into())
         }
         ClientboundPacket::CCustomPayload(data) => {
-            let p = pumpkin_protocol::java::client::play::CCustomPayload {
-                channel: &data.channel,
-                data: data.data.try_into().unwrap(),
-            };
-            let mut buf = Vec::new();
-            crate::net::java::JavaClient::write_packet_for_version(&p, version, &mut buf).unwrap();
-            Some(buf.into())
+            todo!();
+            // let p = pumpkin_protocol::java::client::play::CCustomPayload {
+            //     channel: &data.channel,
+            //     data: data.data,
+            // };
+            // let mut buf = Vec::new();
+            // crate::net::java::JavaClient::write_packet_for_version(&p, version, &mut buf).unwrap();
+            // Some(buf.into())
         }
         ClientboundPacket::CPlayDisconnect(data) => {
             let component_reason = pumpkin_util::text::TextComponent::text(data.reason.clone());
@@ -293,7 +294,7 @@ pub fn serialize_java_packet(
                 max_speed: data.max_speed.try_into().unwrap(),
                 particle_count: data.particle_count.try_into().unwrap(),
                 particle_id: VarInt(data.particle_id),
-                data: data.data.try_into().unwrap(),
+                data: data.data.as_slice(),
             };
             let mut buf = Vec::new();
             crate::net::java::JavaClient::write_packet_for_version(&p, version, &mut buf).unwrap();
@@ -369,12 +370,13 @@ pub fn serialize_java_packet(
             Some(buf.into())
         }
         ClientboundPacket::CRemoveEntities(data) => {
-            let p = pumpkin_protocol::java::client::play::CRemoveEntities {
-                entity_ids: VarInt(data.entity_ids),
-            };
-            let mut buf = Vec::new();
-            crate::net::java::JavaClient::write_packet_for_version(&p, version, &mut buf).unwrap();
-            Some(buf.into())
+            todo!();
+            // let p = pumpkin_protocol::java::client::play::CRemoveEntities {
+            //     entity_ids: VarInt(data.entity_ids),
+            // };
+            // let mut buf = Vec::new();
+            // crate::net::java::JavaClient::write_packet_for_version(&p, version, &mut buf).unwrap();
+            // Some(buf.into())
         }
         ClientboundPacket::CRemoveMobEffect(data) => {
             let p = pumpkin_protocol::java::client::play::CRemoveMobEffect {
@@ -449,13 +451,14 @@ pub fn serialize_java_packet(
             Some(buf.into())
         }
         ClientboundPacket::CSetPassengers(data) => {
-            let p = pumpkin_protocol::java::client::play::CSetPassengers {
-                entity_id: VarInt(data.entity_id),
-                passengers: VarInt(data.passengers),
-            };
-            let mut buf = Vec::new();
-            crate::net::java::JavaClient::write_packet_for_version(&p, version, &mut buf).unwrap();
-            Some(buf.into())
+            todo!();
+            // let p = pumpkin_protocol::java::client::play::CSetPassengers {
+            //     entity_id: VarInt(data.entity_id),
+            //     passengers: VarInt(data.passengers),
+            // };
+            // let mut buf = Vec::new();
+            // crate::net::java::JavaClient::write_packet_for_version(&p, version, &mut buf).unwrap();
+            // Some(buf.into())
         }
         ClientboundPacket::CTitleText(data) => {
             let component_title = pumpkin_util::text::TextComponent::text(data.title.clone());
