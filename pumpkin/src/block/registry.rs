@@ -17,6 +17,9 @@ use crate::block::blocks::chiseled_bookshelf::ChiseledBookshelfBlock;
 use crate::block::blocks::command::CommandBlock;
 use crate::block::blocks::composter::ComposterBlock;
 use crate::block::blocks::conduit::ConduitBlock;
+use crate::block::blocks::coral::coral_block::CoralBlock;
+use crate::block::blocks::coral::coral_fan::CoralFanBlock;
+use crate::block::blocks::coral::coral_plant::CoralPlantBlock;
 use crate::block::blocks::dirt_path::DirtPathBlock;
 use crate::block::blocks::doors::DoorBlock;
 use crate::block::blocks::dripstone::DripstoneBlock;
@@ -294,6 +297,9 @@ pub fn default_registry() -> Arc<BlockRegistry> {
     manager.register(SmallDripleafBlock);
     manager.register(BigDripleafStemBlock);
     manager.register(BigDripleafBlock);
+    manager.register(CoralFanBlock);
+    manager.register(CoralPlantBlock);
+    manager.register(CoralBlock);
     manager.register(AmethystBlock);
 
     manager.register(FallingBlock);
