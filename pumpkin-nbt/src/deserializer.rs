@@ -3,7 +3,7 @@ use std::io::{Seek, SeekFrom};
 
 use crate::{
     BYTE_ARRAY_ID, BYTE_ID, COMPOUND_ID, END_ID, Error, INT_ARRAY_ID, INT_ID, LIST_ID,
-    LONG_ARRAY_ID, LONG_ID, NbtTag, get_nbt_string, io,
+    LONG_ARRAY_ID, LONG_ID, MAX_ARRAY_LENGTH, NbtTag, get_nbt_string, io,
 };
 use io::Read;
 use serde::de::{self, DeserializeSeed, IntoDeserializer, MapAccess, SeqAccess, Visitor};
@@ -150,13 +150,18 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
                     return Err(Error::NegativeLength(remaining_values));
                 }
 
+                let remaining_values = remaining_values as usize;
+                if remaining_values > MAX_ARRAY_LENGTH {
+                    return Err(Error::LargeLength(remaining_values));
+                }
+
                 //TODO this is a bit hacky but I couldn't think of a better way
                 // This flag gets auto cleared in visit_seq
                 set_curr_visitor_seq_list_id(Some(list_type));
                 let result = visitor.visit_seq(ListAccess {
                     de: self,
                     list_type,
-                    remaining_values: remaining_values as usize,
+                    remaining_values,
                 })?;
                 Ok(result)
             }

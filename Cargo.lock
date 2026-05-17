@@ -2951,6 +2951,7 @@ version = "0.1.0-dev+26.1"
 dependencies = [
  "bytes",
  "cesu8",
+ "criterion",
  "flate2",
  "pumpkin-codecs",
  "serde",

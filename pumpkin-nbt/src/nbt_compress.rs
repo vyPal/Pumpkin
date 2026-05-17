@@ -14,7 +14,7 @@ use std::io::{Cursor, Read, Seek, Write};
 /// A Result containing either the parsed `NbtCompound` or an Error
 pub fn read_gzip_compound_tag(input: impl Read + Seek) -> Result<NbtCompound, Error> {
     // Create a GZip decoder and directly chain it to the NBT reader
-    let mut decoder = GzDecoder::new(input);
+    let mut decoder = GzDecoder::new(input).take(64 * 1024 * 1024); // 64 MB limit
     let mut buf = Vec::new();
     decoder.read_to_end(&mut buf).map_err(Error::Incomplete)?;
     let mut reader = NbtReadHelper::new(Cursor::new(buf));
@@ -69,7 +69,7 @@ pub fn write_gzip_compound_tag_to_bytes(compound: NbtCompound) -> Result<Vec<u8>
 /// A Result containing either the deserialized type or an Error
 pub fn from_gzip_bytes<'a, T: serde::Deserialize<'a>, R: Read>(input: R) -> Result<T, Error> {
     // Create a GZip decoder and directly use it for deserialization
-    let mut decoder = GzDecoder::new(input);
+    let mut decoder = GzDecoder::new(input).take(64 * 1024 * 1024); // 64 MB limit
     let mut buf = Vec::new();
     decoder.read_to_end(&mut buf).map_err(Error::Incomplete)?;
     deserializer::from_bytes(Cursor::new(buf))

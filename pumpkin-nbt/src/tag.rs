@@ -6,8 +6,8 @@ use serializer::WriteAdaptor;
 
 use crate::{
     BYTE_ARRAY_ID, BYTE_ID, COMPOUND_ID, DOUBLE_ID, END_ID, Error, FLOAT_ID, INT_ARRAY_ID, INT_ID,
-    LIST_ID, LONG_ARRAY_ID, LONG_ID, SHORT_ID, STRING_ID, Seek, Write, compound, deserializer,
-    get_nbt_string, io, nbt_byte_array, nbt_int_array, nbt_long_array, serializer,
+    LIST_ID, LONG_ARRAY_ID, LONG_ID, MAX_ARRAY_LENGTH, SHORT_ID, STRING_ID, Seek, Write, compound,
+    deserializer, get_nbt_string, io, nbt_byte_array, nbt_int_array, nbt_long_array, serializer,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -286,6 +286,9 @@ impl NbtTag {
                 }
 
                 let len = len as usize;
+                if len > MAX_ARRAY_LENGTH {
+                    return Err(Error::LargeLength(len));
+                }
                 let mut byte_array = Vec::with_capacity(len);
                 for _ in 0..len {
                     let byte = reader.get_i8_be()?;
@@ -301,7 +304,12 @@ impl NbtTag {
                     return Err(Error::NegativeLength(len));
                 }
 
-                let mut list = Vec::with_capacity(len as usize);
+                let len = len as usize;
+                if len > MAX_ARRAY_LENGTH {
+                    return Err(Error::LargeLength(len));
+                }
+
+                let mut list = Vec::with_capacity(len);
                 for _ in 0..len {
                     let tag = Self::deserialize_data(reader, tag_type_id)?;
                     assert_eq!(tag.get_type_id(), tag_type_id);
@@ -318,6 +326,9 @@ impl NbtTag {
                 }
 
                 let len = len as usize;
+                if len > MAX_ARRAY_LENGTH {
+                    return Err(Error::LargeLength(len));
+                }
                 let mut int_array = Vec::with_capacity(len);
                 for _ in 0..len {
                     let int = reader.get_i32_be()?;
@@ -332,6 +343,9 @@ impl NbtTag {
                 }
 
                 let len = len as usize;
+                if len > MAX_ARRAY_LENGTH {
+                    return Err(Error::LargeLength(len));
+                }
                 let mut long_array = Vec::with_capacity(len);
                 for _ in 0..len {
                     let long = reader.get_i64_be()?;

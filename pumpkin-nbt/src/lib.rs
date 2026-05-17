@@ -5,7 +5,6 @@ use std::{
 };
 
 use bytes::Bytes;
-use compound::NbtCompound;
 use deserializer::NbtReadHelper;
 use serde::{de, ser};
 use serializer::WriteAdaptor;
@@ -19,6 +18,7 @@ pub mod nbt_ops;
 pub mod serializer;
 pub mod tag;
 
+pub use compound::NbtCompound;
 pub use deserializer::{from_bytes, from_bytes_unnamed};
 pub use serializer::{to_bytes, to_bytes_named, to_bytes_unnamed};
 
@@ -37,6 +37,8 @@ pub const LIST_ID: u8 = 0x09;
 pub const COMPOUND_ID: u8 = 0x0A;
 pub const INT_ARRAY_ID: u8 = 0x0B;
 pub const LONG_ARRAY_ID: u8 = 0x0C;
+
+pub const MAX_ARRAY_LENGTH: usize = 2_000_000;
 
 #[derive(Error, Debug)]
 pub enum Error {
