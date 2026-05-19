@@ -140,7 +140,8 @@ fn value_to_feature(v: &Value) -> TokenStream {
     match v {
         Value::String(s) => {
             let name = s.strip_prefix("minecraft:").unwrap_or(s);
-            quote! { Feature::Named(#name.to_string()) }
+            let variant_name = format_ident!("{}", name.to_pascal_case());
+            quote! { Feature::Named(pumpkin_data::configured_feature::ConfiguredFeature::#variant_name) }
         }
         Value::Object(_) => {
             let cf = value_to_inline_configured_feature(v);

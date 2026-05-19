@@ -188,6 +188,10 @@ pub mod world {
 #[path = "generated/placed_feature.rs"]
 pub mod placed_feature;
 
+#[rustfmt::skip]
+#[path = "generated/configured_feature.rs"]
+pub mod configured_feature;
+
 #[cfg(feature = "scoreboard")]
 #[rustfmt::skip]
 #[path = "generated/scoreboard_slot.rs"]

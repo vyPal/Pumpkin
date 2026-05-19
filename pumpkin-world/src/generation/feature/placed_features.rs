@@ -44,7 +44,7 @@ pub struct PlacedFeature {
 }
 
 pub enum Feature {
-    Named(String),
+    Named(pumpkin_data::configured_feature::ConfiguredFeature),
     Inlined(Box<ConfiguredFeature>),
 }
 
@@ -82,8 +82,8 @@ impl PlacedFeature {
 
         let feature = match &self.feature {
             Feature::Named(name) => CONFIGURED_FEATURES
-                .get(name.strip_prefix("minecraft:").unwrap_or(name))
-                .expect("Name: {name} not found"),
+                .get(name)
+                .expect("Name: {name:?} not found"),
             Feature::Inlined(feature) => feature,
         };
 

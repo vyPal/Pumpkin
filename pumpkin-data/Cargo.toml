@@ -44,6 +44,7 @@ default = [
     "carver",
     "villager",
     "placed_feature",
+    "configured_feature",
 ]
 
 item = []
@@ -92,6 +93,7 @@ spawn_egg = []
 world_event = []
 message_type = []
 placed_feature = []
+configured_feature = []
 block = []
 item_id_remap = []
 entity_id_remap = []

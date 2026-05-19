@@ -126,6 +126,7 @@ pub fn main() {
         (recipe_remainder::build, "recipe_remainder.rs"),
         (placed_feature::build_enum, "placed_feature.rs"),
         (placed_feature::build, "placed_features_generated.rs"),
+        (configured_feature::build_enum, "configured_feature.rs"),
         (
             configured_feature::build,
             "configured_features_generated.rs",

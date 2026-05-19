@@ -71,8 +71,9 @@ use super::features::{
 use crate::generation::proto_chunk::GenerationCache;
 use crate::world::WorldPortalExt;
 
-pub static CONFIGURED_FEATURES: LazyLock<HashMap<String, ConfiguredFeature>> =
-    LazyLock::new(build_configured_features);
+pub static CONFIGURED_FEATURES: LazyLock<
+    HashMap<pumpkin_data::configured_feature::ConfiguredFeature, ConfiguredFeature>,
+> = LazyLock::new(build_configured_features);
 
 pub enum ConfiguredFeature {
     NoOp,
