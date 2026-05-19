@@ -1,5 +1,6 @@
+use heck::ToPascalCase;
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use serde_json::Value;
 use std::fs;
 
@@ -1447,19 +1448,22 @@ fn value_to_inline_placed_feature(v: &Value) -> TokenStream {
 /// – `v` – a JSON string (named reference) or object (inline placed feature).
 ///
 /// # Returns
-/// `PlacedFeatureWrapper::Named` for a string value or `PlacedFeatureWrapper::Direct` for an inline object; defaults to `PlacedFeatureWrapper::Named("")` for other types.
+/// `PlacedFeatureWrapper::Named` for a string value or `PlacedFeatureWrapper::Direct` for an inline object; defaults to `PlacedFeatureWrapper::Named(pumpkin_data::placed_feature::PlacedFeature::Acacia)` for other types.
 fn value_to_placed_feature_wrapper(v: &Value) -> TokenStream {
     match v {
         Value::String(s) => {
             let name = s.strip_prefix("minecraft:").unwrap_or(s);
-            quote! { PlacedFeatureWrapper::Named(#name.to_string()) }
+            let variant_name = format_ident!("{}", name.to_pascal_case());
+            quote! { PlacedFeatureWrapper::Named(pumpkin_data::placed_feature::PlacedFeature::#variant_name) }
         }
         Value::Object(_) => {
             // It might be a PlacedFeature object
             let pf = value_to_inline_placed_feature(v);
             quote! { PlacedFeatureWrapper::Direct(#pf) }
         }
-        _ => quote! { PlacedFeatureWrapper::Named(String::new()) },
+        _ => {
+            quote! { PlacedFeatureWrapper::Named(pumpkin_data::placed_feature::PlacedFeature::Acacia) }
+        }
     }
 }
 

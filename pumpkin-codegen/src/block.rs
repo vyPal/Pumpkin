@@ -1432,13 +1432,13 @@ fn get_be_data_from_nbt<R: Read + Seek>(
                         }
                     }
                     pumpkin_nbt::tag::NbtTag::Int(v) => v.to_string(),
-                    pumpkin_nbt::tag::NbtTag::String(v) => v,
+                    pumpkin_nbt::tag::NbtTag::String(v) => v.into(),
                     _ => {
                         panic!("Unexpected type for {}. Value: {val:?}", &key);
                     }
                 };
 
-                (key, unpacked)
+                (key.into(), unpacked)
             })
             .collect::<BTreeMap<_, _>>();
 

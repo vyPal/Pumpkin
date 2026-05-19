@@ -124,6 +124,7 @@ pub fn main() {
         (potion::build, "potion.rs"),
         (potion_brewing::build, "potion_brewing.rs"),
         (recipe_remainder::build, "recipe_remainder.rs"),
+        (placed_feature::build_enum, "placed_feature.rs"),
         (placed_feature::build, "placed_features_generated.rs"),
         (
             configured_feature::build,

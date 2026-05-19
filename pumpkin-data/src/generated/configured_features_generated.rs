@@ -285,15 +285,21 @@ fn build_configured_features() -> std::collections::HashMap<String, ConfiguredFe
         ConfiguredFeature::RandomSelector(RandomFeature {
             features: vec![
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fancy_oak_checked".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FancyOakChecked,
+                    ),
                     chance: 0.05f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("jungle_bush".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::JungleBush,
+                    ),
                     chance: 0.15f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("mega_jungle_tree_checked".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::MegaJungleTreeChecked,
+                    ),
                     chance: 0.7f32,
                 },
             ],
@@ -398,19 +404,27 @@ fn build_configured_features() -> std::collections::HashMap<String, ConfiguredFe
         ConfiguredFeature::RandomSelector(RandomFeature {
             features: vec![
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fallen_super_birch_tree".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FallenSuperBirchTree,
+                    ),
                     chance: 0.00625f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("super_birch_bees_0002".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::SuperBirchBees0002,
+                    ),
                     chance: 0.5f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fallen_birch_tree".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FallenBirchTree,
+                    ),
                     chance: 0.0125f32,
                 },
             ],
-            default: Box::new(PlacedFeatureWrapper::Named("birch_bees_0002".to_string())),
+            default: Box::new(PlacedFeatureWrapper::Named(
+                pumpkin_data::placed_feature::PlacedFeature::BirchBees0002,
+            )),
         }),
     );
     map.insert(
@@ -890,27 +904,39 @@ fn build_configured_features() -> std::collections::HashMap<String, ConfiguredFe
                     chance: 0.05f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("dark_oak_leaf_litter".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::DarkOakLeafLitter,
+                    ),
                     chance: 0.6666667f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fallen_birch_tree".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FallenBirchTree,
+                    ),
                     chance: 0.0025f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("birch_leaf_litter".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::BirchLeafLitter,
+                    ),
                     chance: 0.2f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fallen_oak_tree".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FallenOakTree,
+                    ),
                     chance: 0.0125f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fancy_oak_leaf_litter".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FancyOakLeafLitter,
+                    ),
                     chance: 0.1f32,
                 },
             ],
-            default: Box::new(PlacedFeatureWrapper::Named("oak_leaf_litter".to_string())),
+            default: Box::new(PlacedFeatureWrapper::Named(
+                pumpkin_data::placed_feature::PlacedFeature::OakLeafLitter,
+            )),
         }),
     );
     map . insert ("dark_oak" . to_string () , ConfiguredFeature :: Tree (Box :: new (TreeFeature { trunk_provider : BlockStateProvider :: Simple (SimpleStateProvider { state : { let mut props = std :: collections :: HashMap :: new () ; props . insert ("axis" . to_string () , "y" . to_string ()) ; BlockStateCodec { name : & pumpkin_data :: Block :: DARK_OAK_LOG , properties : Some (props) , } . get_state () } }) , trunk_placer : TrunkPlacer { base_height : 6u8 , height_rand_a : 2u8 , height_rand_b : 1u8 , r#type : TrunkType :: DarkOak (DarkOakTrunkPlacer) , } , foliage_provider : BlockStateProvider :: Simple (SimpleStateProvider { state : { let mut props = std :: collections :: HashMap :: new () ; props . insert ("waterlogged" . to_string () , "false" . to_string ()) ; props . insert ("persistent" . to_string () , "false" . to_string ()) ; props . insert ("distance" . to_string () , "7" . to_string ()) ; BlockStateCodec { name : & pumpkin_data :: Block :: DARK_OAK_LEAVES , properties : Some (props) , } . get_state () } }) , foliage_placer : FoliagePlacer { radius : IntProvider :: Constant (0i32) , offset : IntProvider :: Constant (0i32) , r#type : FoliageType :: DarkOak (DarkOakFoliagePlacer) } , minimum_size : FeatureSize { min_clipped_height : None , r#type : FeatureSizeType :: ThreeLayersFeatureSize (ThreeLayersFeatureSize { limit : 1u8 , upper_limit : 1u8 , lower_size : 0u8 , middle_size : 1u8 , upper_size : 2u8 , }) } , ignore_vines : true , below_trunk_provider : BlockStateProvider :: Rule (RuleBasedBlockStateProvider { fallback : None , rules : vec ! [BlockStateRule { if_true : BlockPredicate :: Not (NotBlockPredicate { predicate : Box :: new (BlockPredicate :: MatchingBlockTag (MatchingBlockTagPredicate { offset : OffsetBlocksBlockPredicate { offset : None } , tag : pumpkin_data :: tag :: Block :: MINECRAFT_CANNOT_REPLACE_BELOW_TREE_TRUNK , })) , }) , then : BlockStateProvider :: Simple (SimpleStateProvider { state : pumpkin_data :: Block :: DIRT . default_state }) }] , }) , decorators : vec ! [] , root_placer : None , }))) ;
@@ -2549,20 +2575,28 @@ fn build_configured_features() -> std::collections::HashMap<String, ConfiguredFe
         "mangrove_vegetation".to_string(),
         ConfiguredFeature::RandomSelector(RandomFeature {
             features: vec![RandomFeatureEntry {
-                feature: PlacedFeatureWrapper::Named("tall_mangrove_checked".to_string()),
+                feature: PlacedFeatureWrapper::Named(
+                    pumpkin_data::placed_feature::PlacedFeature::TallMangroveChecked,
+                ),
                 chance: 0.85f32,
             }],
-            default: Box::new(PlacedFeatureWrapper::Named("mangrove_checked".to_string())),
+            default: Box::new(PlacedFeatureWrapper::Named(
+                pumpkin_data::placed_feature::PlacedFeature::MangroveChecked,
+            )),
         }),
     );
     map.insert(
         "meadow_trees".to_string(),
         ConfiguredFeature::RandomSelector(RandomFeature {
             features: vec![RandomFeatureEntry {
-                feature: PlacedFeatureWrapper::Named("fancy_oak_bees".to_string()),
+                feature: PlacedFeatureWrapper::Named(
+                    pumpkin_data::placed_feature::PlacedFeature::FancyOakBees,
+                ),
                 chance: 0.5f32,
             }],
-            default: Box::new(PlacedFeatureWrapper::Named("super_birch_bees".to_string())),
+            default: Box::new(PlacedFeatureWrapper::Named(
+                pumpkin_data::placed_feature::PlacedFeature::SuperBirchBees,
+            )),
         }),
     );
     map . insert ("mega_jungle_tree" . to_string () , ConfiguredFeature :: Tree (Box :: new (TreeFeature { trunk_provider : BlockStateProvider :: Simple (SimpleStateProvider { state : { let mut props = std :: collections :: HashMap :: new () ; props . insert ("axis" . to_string () , "y" . to_string ()) ; BlockStateCodec { name : & pumpkin_data :: Block :: JUNGLE_LOG , properties : Some (props) , } . get_state () } }) , trunk_placer : TrunkPlacer { base_height : 10u8 , height_rand_a : 2u8 , height_rand_b : 19u8 , r#type : TrunkType :: MegaJungle (MegaJungleTrunkPlacer) , } , foliage_provider : BlockStateProvider :: Simple (SimpleStateProvider { state : { let mut props = std :: collections :: HashMap :: new () ; props . insert ("waterlogged" . to_string () , "false" . to_string ()) ; props . insert ("persistent" . to_string () , "false" . to_string ()) ; props . insert ("distance" . to_string () , "7" . to_string ()) ; BlockStateCodec { name : & pumpkin_data :: Block :: JUNGLE_LEAVES , properties : Some (props) , } . get_state () } }) , foliage_placer : FoliagePlacer { radius : IntProvider :: Constant (2i32) , offset : IntProvider :: Constant (0i32) , r#type : FoliageType :: Jungle (JungleFoliagePlacer { height : 2i32 }) } , minimum_size : FeatureSize { min_clipped_height : None , r#type : FeatureSizeType :: TwoLayersFeatureSize (TwoLayersFeatureSize { limit : 1u8 , lower_size : 1u8 , upper_size : 2u8 , }) } , ignore_vines : false , below_trunk_provider : BlockStateProvider :: Rule (RuleBasedBlockStateProvider { fallback : None , rules : vec ! [BlockStateRule { if_true : BlockPredicate :: Not (NotBlockPredicate { predicate : Box :: new (BlockPredicate :: MatchingBlockTag (MatchingBlockTagPredicate { offset : OffsetBlocksBlockPredicate { offset : None } , tag : pumpkin_data :: tag :: Block :: MINECRAFT_CANNOT_REPLACE_BELOW_TREE_TRUNK , })) , }) , then : BlockStateProvider :: Simple (SimpleStateProvider { state : pumpkin_data :: Block :: DIRT . default_state }) }] , }) , decorators : vec ! [TreeDecorator :: TrunkVine (TrunkVineTreeDecorator) , TreeDecorator :: LeaveVine (LeavesVineTreeDecorator { probability : 0.25f32 })] , root_placer : None , }))) ;
@@ -3334,15 +3368,21 @@ fn build_configured_features() -> std::collections::HashMap<String, ConfiguredFe
         ConfiguredFeature::RandomSelector(RandomFeature {
             features: vec![
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("pale_oak_creaking_checked".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::PaleOakCreakingChecked,
+                    ),
                     chance: 0.1f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("pale_oak_checked".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::PaleOakChecked,
+                    ),
                     chance: 0.9f32,
                 },
             ],
-            default: Box::new(PlacedFeatureWrapper::Named("pale_oak_checked".to_string())),
+            default: Box::new(PlacedFeatureWrapper::Named(
+                pumpkin_data::placed_feature::PlacedFeature::PaleOakChecked,
+            )),
         }),
     );
     map.insert(
@@ -3994,20 +4034,28 @@ fn build_configured_features() -> std::collections::HashMap<String, ConfiguredFe
         "trees_badlands".to_string(),
         ConfiguredFeature::RandomSelector(RandomFeature {
             features: vec![RandomFeatureEntry {
-                feature: PlacedFeatureWrapper::Named("fallen_oak_tree".to_string()),
+                feature: PlacedFeatureWrapper::Named(
+                    pumpkin_data::placed_feature::PlacedFeature::FallenOakTree,
+                ),
                 chance: 0.0125f32,
             }],
-            default: Box::new(PlacedFeatureWrapper::Named("oak_leaf_litter".to_string())),
+            default: Box::new(PlacedFeatureWrapper::Named(
+                pumpkin_data::placed_feature::PlacedFeature::OakLeafLitter,
+            )),
         }),
     );
     map.insert(
         "trees_birch".to_string(),
         ConfiguredFeature::RandomSelector(RandomFeature {
             features: vec![RandomFeatureEntry {
-                feature: PlacedFeatureWrapper::Named("fallen_birch_tree".to_string()),
+                feature: PlacedFeatureWrapper::Named(
+                    pumpkin_data::placed_feature::PlacedFeature::FallenBirchTree,
+                ),
                 chance: 0.0125f32,
             }],
-            default: Box::new(PlacedFeatureWrapper::Named("birch_bees_0002".to_string())),
+            default: Box::new(PlacedFeatureWrapper::Named(
+                pumpkin_data::placed_feature::PlacedFeature::BirchBees0002,
+            )),
         }),
     );
     map.insert(
@@ -4015,26 +4063,32 @@ fn build_configured_features() -> std::collections::HashMap<String, ConfiguredFe
         ConfiguredFeature::RandomSelector(RandomFeature {
             features: vec![
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fallen_birch_tree".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FallenBirchTree,
+                    ),
                     chance: 0.0025f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("birch_bees_0002_leaf_litter".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::BirchBees0002LeafLitter,
+                    ),
                     chance: 0.2f32,
                 },
                 RandomFeatureEntry {
                     feature: PlacedFeatureWrapper::Named(
-                        "fancy_oak_bees_0002_leaf_litter".to_string(),
+                        pumpkin_data::placed_feature::PlacedFeature::FancyOakBees0002LeafLitter,
                     ),
                     chance: 0.1f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fallen_oak_tree".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FallenOakTree,
+                    ),
                     chance: 0.0125f32,
                 },
             ],
             default: Box::new(PlacedFeatureWrapper::Named(
-                "oak_bees_0002_leaf_litter".to_string(),
+                pumpkin_data::placed_feature::PlacedFeature::OakBees0002LeafLitter,
             )),
         }),
     );
@@ -4043,29 +4097,41 @@ fn build_configured_features() -> std::collections::HashMap<String, ConfiguredFe
         ConfiguredFeature::RandomSelector(RandomFeature {
             features: vec![
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fallen_birch_tree".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FallenBirchTree,
+                    ),
                     chance: 0.0025f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("birch_bees_002".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::BirchBees002,
+                    ),
                     chance: 0.2f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fancy_oak_bees_002".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FancyOakBees002,
+                    ),
                     chance: 0.1f32,
                 },
             ],
-            default: Box::new(PlacedFeatureWrapper::Named("oak_bees_002".to_string())),
+            default: Box::new(PlacedFeatureWrapper::Named(
+                pumpkin_data::placed_feature::PlacedFeature::OakBees002,
+            )),
         }),
     );
     map.insert(
         "trees_grove".to_string(),
         ConfiguredFeature::RandomSelector(RandomFeature {
             features: vec![RandomFeatureEntry {
-                feature: PlacedFeatureWrapper::Named("pine_on_snow".to_string()),
+                feature: PlacedFeatureWrapper::Named(
+                    pumpkin_data::placed_feature::PlacedFeature::PineOnSnow,
+                ),
                 chance: 0.33333334f32,
             }],
-            default: Box::new(PlacedFeatureWrapper::Named("spruce_on_snow".to_string())),
+            default: Box::new(PlacedFeatureWrapper::Named(
+                pumpkin_data::placed_feature::PlacedFeature::SpruceOnSnow,
+            )),
         }),
     );
     map.insert(
@@ -4073,23 +4139,33 @@ fn build_configured_features() -> std::collections::HashMap<String, ConfiguredFe
         ConfiguredFeature::RandomSelector(RandomFeature {
             features: vec![
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fancy_oak_checked".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FancyOakChecked,
+                    ),
                     chance: 0.1f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("jungle_bush".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::JungleBush,
+                    ),
                     chance: 0.5f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("mega_jungle_tree_checked".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::MegaJungleTreeChecked,
+                    ),
                     chance: 0.33333334f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fallen_jungle_tree".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FallenJungleTree,
+                    ),
                     chance: 0.0125f32,
                 },
             ],
-            default: Box::new(PlacedFeatureWrapper::Named("jungle_tree".to_string())),
+            default: Box::new(PlacedFeatureWrapper::Named(
+                pumpkin_data::placed_feature::PlacedFeature::JungleTree,
+            )),
         }),
     );
     map.insert(
@@ -4097,23 +4173,33 @@ fn build_configured_features() -> std::collections::HashMap<String, ConfiguredFe
         ConfiguredFeature::RandomSelector(RandomFeature {
             features: vec![
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("mega_spruce_checked".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::MegaSpruceChecked,
+                    ),
                     chance: 0.025641026f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("mega_pine_checked".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::MegaPineChecked,
+                    ),
                     chance: 0.30769232f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("pine_checked".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::PineChecked,
+                    ),
                     chance: 0.33333334f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fallen_spruce_tree".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FallenSpruceTree,
+                    ),
                     chance: 0.0125f32,
                 },
             ],
-            default: Box::new(PlacedFeatureWrapper::Named("spruce_checked".to_string())),
+            default: Box::new(PlacedFeatureWrapper::Named(
+                pumpkin_data::placed_feature::PlacedFeature::SpruceChecked,
+            )),
         }),
     );
     map.insert(
@@ -4121,19 +4207,27 @@ fn build_configured_features() -> std::collections::HashMap<String, ConfiguredFe
         ConfiguredFeature::RandomSelector(RandomFeature {
             features: vec![
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("mega_spruce_checked".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::MegaSpruceChecked,
+                    ),
                     chance: 0.33333334f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("pine_checked".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::PineChecked,
+                    ),
                     chance: 0.33333334f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fallen_spruce_tree".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FallenSpruceTree,
+                    ),
                     chance: 0.0125f32,
                 },
             ],
-            default: Box::new(PlacedFeatureWrapper::Named("spruce_checked".to_string())),
+            default: Box::new(PlacedFeatureWrapper::Named(
+                pumpkin_data::placed_feature::PlacedFeature::SpruceChecked,
+            )),
         }),
     );
     map.insert(
@@ -4148,7 +4242,9 @@ fn build_configured_features() -> std::collections::HashMap<String, ConfiguredFe
                     chance: 0.33333334f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fallen_oak_tree".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FallenOakTree,
+                    ),
                     chance: 0.0125f32,
                 },
             ],
@@ -4163,25 +4259,35 @@ fn build_configured_features() -> std::collections::HashMap<String, ConfiguredFe
         ConfiguredFeature::RandomSelector(RandomFeature {
             features: vec![
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("acacia_checked".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::AcaciaChecked,
+                    ),
                     chance: 0.8f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fallen_oak_tree".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FallenOakTree,
+                    ),
                     chance: 0.0125f32,
                 },
             ],
-            default: Box::new(PlacedFeatureWrapper::Named("oak_checked".to_string())),
+            default: Box::new(PlacedFeatureWrapper::Named(
+                pumpkin_data::placed_feature::PlacedFeature::OakChecked,
+            )),
         }),
     );
     map.insert(
         "trees_snowy".to_string(),
         ConfiguredFeature::RandomSelector(RandomFeature {
             features: vec![RandomFeatureEntry {
-                feature: PlacedFeatureWrapper::Named("fallen_spruce_tree".to_string()),
+                feature: PlacedFeatureWrapper::Named(
+                    pumpkin_data::placed_feature::PlacedFeature::FallenSpruceTree,
+                ),
                 chance: 0.0125f32,
             }],
-            default: Box::new(PlacedFeatureWrapper::Named("spruce_checked".to_string())),
+            default: Box::new(PlacedFeatureWrapper::Named(
+                pumpkin_data::placed_feature::PlacedFeature::SpruceChecked,
+            )),
         }),
     );
     map.insert(
@@ -4189,19 +4295,27 @@ fn build_configured_features() -> std::collections::HashMap<String, ConfiguredFe
         ConfiguredFeature::RandomSelector(RandomFeature {
             features: vec![
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fancy_oak_checked".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FancyOakChecked,
+                    ),
                     chance: 0.1f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("jungle_bush".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::JungleBush,
+                    ),
                     chance: 0.5f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fallen_jungle_tree".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FallenJungleTree,
+                    ),
                     chance: 0.0125f32,
                 },
             ],
-            default: Box::new(PlacedFeatureWrapper::Named("jungle_tree".to_string())),
+            default: Box::new(PlacedFeatureWrapper::Named(
+                pumpkin_data::placed_feature::PlacedFeature::JungleTree,
+            )),
         }),
     );
     map.insert(
@@ -4209,25 +4323,35 @@ fn build_configured_features() -> std::collections::HashMap<String, ConfiguredFe
         ConfiguredFeature::RandomSelector(RandomFeature {
             features: vec![
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("pine_checked".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::PineChecked,
+                    ),
                     chance: 0.33333334f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fallen_spruce_tree".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FallenSpruceTree,
+                    ),
                     chance: 0.0125f32,
                 },
             ],
-            default: Box::new(PlacedFeatureWrapper::Named("spruce_checked".to_string())),
+            default: Box::new(PlacedFeatureWrapper::Named(
+                pumpkin_data::placed_feature::PlacedFeature::SpruceChecked,
+            )),
         }),
     );
     map.insert(
         "trees_water".to_string(),
         ConfiguredFeature::RandomSelector(RandomFeature {
             features: vec![RandomFeatureEntry {
-                feature: PlacedFeatureWrapper::Named("fancy_oak_checked".to_string()),
+                feature: PlacedFeatureWrapper::Named(
+                    pumpkin_data::placed_feature::PlacedFeature::FancyOakChecked,
+                ),
                 chance: 0.1f32,
             }],
-            default: Box::new(PlacedFeatureWrapper::Named("oak_checked".to_string())),
+            default: Box::new(PlacedFeatureWrapper::Named(
+                pumpkin_data::placed_feature::PlacedFeature::OakChecked,
+            )),
         }),
     );
     map.insert(
@@ -4235,23 +4359,33 @@ fn build_configured_features() -> std::collections::HashMap<String, ConfiguredFe
         ConfiguredFeature::RandomSelector(RandomFeature {
             features: vec![
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fallen_spruce_tree".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FallenSpruceTree,
+                    ),
                     chance: 0.008325f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("spruce_checked".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::SpruceChecked,
+                    ),
                     chance: 0.666f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fancy_oak_checked".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FancyOakChecked,
+                    ),
                     chance: 0.1f32,
                 },
                 RandomFeatureEntry {
-                    feature: PlacedFeatureWrapper::Named("fallen_oak_tree".to_string()),
+                    feature: PlacedFeatureWrapper::Named(
+                        pumpkin_data::placed_feature::PlacedFeature::FallenOakTree,
+                    ),
                     chance: 0.0125f32,
                 },
             ],
-            default: Box::new(PlacedFeatureWrapper::Named("oak_checked".to_string())),
+            default: Box::new(PlacedFeatureWrapper::Named(
+                pumpkin_data::placed_feature::PlacedFeature::OakChecked,
+            )),
         }),
     );
     map.insert(
