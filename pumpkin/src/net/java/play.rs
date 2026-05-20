@@ -2397,7 +2397,10 @@ impl JavaClient {
                                 6 => EquipmentSlot::CHEST,
                                 7 => EquipmentSlot::LEGS,
                                 8 => EquipmentSlot::FEET,
-                                _ => unreachable!(),
+                                _ => {
+                                    tracing::error!("Invalid armor slot: {}", packet.slot);
+                                    EquipmentSlot::HEAD
+                                }
                             },
                             &item_stack,
                         )

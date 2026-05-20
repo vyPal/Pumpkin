@@ -697,6 +697,26 @@ pub fn serialize_bedrock_packet(packet: &BClientboundPacket) -> Option<Bytes> {
             crate::net::bedrock::BedrockClient::write_raw_packet(&p, &mut buf).unwrap();
             Some(buf.into())
         }
+        BClientboundPacket::CSetDisplayObjective(data) => {
+            let p = pumpkin_protocol::bedrock::client::CSetDisplayObjective {
+                display_slot: data.display_slot.clone(),
+                objective_name: data.objective_name.clone(),
+                display_name: data.display_name.clone(),
+                criteria_name: data.criteria_name.clone(),
+                sort_order: VarInt(data.sort_order),
+            };
+            let mut buf = Vec::new();
+            crate::net::bedrock::BedrockClient::write_raw_packet(&p, &mut buf).unwrap();
+            Some(buf.into())
+        }
+        BClientboundPacket::CRemoveObjective(data) => {
+            let p = pumpkin_protocol::bedrock::client::CRemoveObjective {
+                objective_name: data.objective_name.clone(),
+            };
+            let mut buf = Vec::new();
+            crate::net::bedrock::BedrockClient::write_raw_packet(&p, &mut buf).unwrap();
+            Some(buf.into())
+        }
         BClientboundPacket::CSetHealth(data) => {
             let p = pumpkin_protocol::bedrock::client::CSetHealth {
                 health: VarInt(data.health),
