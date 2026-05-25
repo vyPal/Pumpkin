@@ -32,6 +32,7 @@ use pumpkin_protocol::{
             command_request::SCommandRequest,
             container_close::SContainerClose,
             interaction::SInteraction,
+            inventory_transaction::SInventoryTransaction,
             loading_screen::SLoadingScreen,
             login::SLogin,
             player_action::SPlayerAction,
@@ -905,6 +906,9 @@ impl BedrockClient {
             SRequestChunkRadius::PACKET_ID => {
                 self.handle_request_chunk_radius(player, SRequestChunkRadius::read(reader)?)
                     .await;
+            }
+            SInventoryTransaction::PACKET_ID => {
+                self.handle_inventory_action(player, SInventoryTransaction::read(reader)?).await;
             }
             SInteraction::PACKET_ID => {
                 self.handle_interaction(player, SInteraction::read(reader)?)

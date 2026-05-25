@@ -12,6 +12,7 @@ use pumpkin_protocol::{
             command_request::SCommandRequest,
             container_close::SContainerClose,
             interaction::{Action, SInteraction},
+            inventory_transaction::{SInventoryTransaction, TransactionData},
             player_action::{Action as PlayerAction, SPlayerAction},
             player_auth_input::{InputData, SPlayerAuthInput},
             request_chunk_radius::SRequestChunkRadius,
@@ -337,6 +338,51 @@ impl BedrockClient {
         }
     }
 
+    pub async fn handle_inventory_action(
+        &self,
+        player: &Arc<Player>,
+        packet: SInventoryTransaction,
+    ) {
+        match packet.transaction_data {
+            TransactionData::Normal(_data) => {
+                // TODO
+            }
+            TransactionData::Mismatch(_data) => {
+                // TODO
+            }
+            TransactionData::UseItem(_data) => {
+                // TODO
+            }
+            TransactionData::UseItemOnEntity(data) => {
+                let target_runtime_id = data.target_entity_runtime_id.0 as i32;
+                // TODO: replace with consts, i'm too lazy
+                match data.action_type.0 {
+                    // Interact
+                    0 => {
+                        // TODO
+                    }
+                    // Attack
+                    1 => {
+                        let world = player.world();
+                        if let Some(target) = world.get_entity_by_id(target_runtime_id) {
+                            player.attack(target).await;
+                        }
+                    }
+                    _ => {
+                        tracing::warn!(
+                            "invalid UseItemOnEntity action type {}",
+                            data.action_type.0
+                        );
+                        // Kick?
+                    }
+                }
+            }
+            TransactionData::ReleaseItem(_data) => {
+                // TODO
+            }
+        }
+    }
+
     pub async fn handle_interaction(&self, player: &Arc<Player>, packet: SInteraction) {
         match packet.action {
             Action::OpenInventory => {
@@ -348,6 +394,7 @@ impl BedrockClient {
                 })
                 .await;
             }
+            // No longer used in newer versions
             Action::Attack => {
                 let target_runtime_id = packet.target_runtime_id.0 as i32;
                 let world = player.world();

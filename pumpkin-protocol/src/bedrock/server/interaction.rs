@@ -19,6 +19,7 @@ pub struct SInteraction {
 pub enum Action {
     Invalid = 0,
     Interact = 1,
+    // No longer used in newer versions
     Attack = 2,
     StopRiding = 3,
     InteractUpdate = 4,

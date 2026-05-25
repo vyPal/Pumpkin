@@ -32,6 +32,7 @@ use pumpkin_data::{
     sound::{Sound, SoundCategory},
 };
 use pumpkin_nbt::{compound::NbtCompound, tag::NbtTag};
+use pumpkin_protocol::bedrock::client::CSetActorMotion;
 use pumpkin_protocol::java::client::play::{CUpdateEntityPos, CUpdateEntityPosRot};
 use pumpkin_protocol::{
     PositionFlag,
@@ -701,9 +702,14 @@ impl Entity {
     pub fn send_velocity(&self) {
         let velocity = self.velocity.load();
         let chunk_pos = self.chunk_pos.load();
-        self.world.load().broadcast_to_chunk(
+        self.world.load().broadcast_to_chunk_editioned_sync(
             chunk_pos,
             &CEntityVelocity::new(self.entity_id.into(), velocity),
+            &CSetActorMotion::new(
+                VarULong(self.entity_id as u64),
+                Vector3::new(velocity.x as f32, velocity.y as f32, velocity.z as f32),
+                VarULong(0),
+            ),
         );
     }
 
