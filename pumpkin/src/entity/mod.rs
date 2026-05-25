@@ -35,9 +35,18 @@ use pumpkin_nbt::{compound::NbtCompound, tag::NbtTag};
 use pumpkin_protocol::java::client::play::{CUpdateEntityPos, CUpdateEntityPosRot};
 use pumpkin_protocol::{
     PositionFlag,
-    bedrock::client::set_actor_data::{
-        CSetActorData, EntityMetadata, MetadataValue, PropertySyncData, entity_data_flag,
-        entity_data_key,
+    bedrock::client::{
+        move_actor_delta::{
+            CMoveActorDelta, MOVE_ACTOR_DELTA_FLAG_HAS_HEAD_YAW, MOVE_ACTOR_DELTA_FLAG_HAS_PITCH,
+            MOVE_ACTOR_DELTA_FLAG_HAS_X, MOVE_ACTOR_DELTA_FLAG_HAS_Y,
+            MOVE_ACTOR_DELTA_FLAG_HAS_YAW, MOVE_ACTOR_DELTA_FLAG_HAS_Z,
+            MOVE_ACTOR_DELTA_FLAG_ON_GROUND,
+        },
+        move_player::CMovePlayer,
+        set_actor_data::{
+            CSetActorData, EntityMetadata, MetadataValue, PropertySyncData, entity_data_flag,
+            entity_data_key,
+        },
     },
     codec::var_int::VarInt,
     codec::var_ulong::VarULong,
@@ -1129,6 +1138,7 @@ impl Entity {
         suffocating
     }
 
+    #[expect(clippy::too_many_lines)]
     pub fn send_pos_rot(&self) {
         let old = self.last_sent_pos.load();
         let new = self.pos.load();
@@ -1161,35 +1171,150 @@ impl Entity {
 
         // Dynamically pick the most efficient packet
         if pos_changed && rot_changed {
-            self.world.load().broadcast_to_chunk(
-                chunk_pos,
-                &CUpdateEntityPosRot::new(
-                    self.entity_id.into(),
-                    Vector3::new(converted.x, converted.y, converted.z),
-                    yaw,
-                    pitch,
-                    self.on_ground.load(Relaxed),
-                ),
+            let je_packet = CUpdateEntityPosRot::new(
+                self.entity_id.into(),
+                Vector3::new(converted.x, converted.y, converted.z),
+                yaw,
+                pitch,
+                self.on_ground.load(Relaxed),
             );
+            if self.entity_type == &EntityType::PLAYER {
+                self.world.load().broadcast_to_chunk_editioned_sync(
+                    chunk_pos,
+                    &je_packet,
+                    &CMovePlayer::new(
+                        VarULong(self.entity_id as u64),
+                        Vector3::new(new.x as f32, new.y as f32, new.z as f32),
+                        self.pitch.load(),
+                        self.yaw.load(),
+                        self.yaw.load(),
+                        CMovePlayer::MODE_NORMAL,
+                        self.on_ground.load(Relaxed),
+                        VarULong(0),
+                        0,
+                        0,
+                        VarULong(0),
+                    ),
+                );
+            } else {
+                let mut flags = MOVE_ACTOR_DELTA_FLAG_HAS_X
+                    | MOVE_ACTOR_DELTA_FLAG_HAS_Y
+                    | MOVE_ACTOR_DELTA_FLAG_HAS_Z
+                    | MOVE_ACTOR_DELTA_FLAG_HAS_PITCH
+                    | MOVE_ACTOR_DELTA_FLAG_HAS_YAW
+                    | MOVE_ACTOR_DELTA_FLAG_HAS_HEAD_YAW;
+                if self.on_ground.load(Relaxed) {
+                    flags |= MOVE_ACTOR_DELTA_FLAG_ON_GROUND;
+                }
+                self.world.load().broadcast_to_chunk_editioned_sync(
+                    chunk_pos,
+                    &je_packet,
+                    &CMoveActorDelta::new(
+                        VarULong(self.entity_id as u64),
+                        flags,
+                        new.x as f32,
+                        new.y as f32,
+                        new.z as f32,
+                        pitch,
+                        yaw,
+                        yaw,
+                    ),
+                );
+            }
         } else if pos_changed {
-            self.world.load().broadcast_to_chunk(
-                chunk_pos,
-                &CUpdateEntityPos::new(
-                    self.entity_id.into(),
-                    Vector3::new(converted.x, converted.y, converted.z),
-                    self.on_ground.load(Relaxed),
-                ),
+            let je_packet = CUpdateEntityPos::new(
+                self.entity_id.into(),
+                Vector3::new(converted.x, converted.y, converted.z),
+                self.on_ground.load(Relaxed),
             );
+            if self.entity_type == &EntityType::PLAYER {
+                self.world.load().broadcast_to_chunk_editioned_sync(
+                    chunk_pos,
+                    &je_packet,
+                    &CMovePlayer::new(
+                        VarULong(self.entity_id as u64),
+                        Vector3::new(new.x as f32, new.y as f32, new.z as f32),
+                        self.pitch.load(),
+                        self.yaw.load(),
+                        self.yaw.load(),
+                        CMovePlayer::MODE_NORMAL,
+                        self.on_ground.load(Relaxed),
+                        VarULong(0),
+                        0,
+                        0,
+                        VarULong(0),
+                    ),
+                );
+            } else {
+                let mut flags = MOVE_ACTOR_DELTA_FLAG_HAS_X
+                    | MOVE_ACTOR_DELTA_FLAG_HAS_Y
+                    | MOVE_ACTOR_DELTA_FLAG_HAS_Z;
+                if self.on_ground.load(Relaxed) {
+                    flags |= MOVE_ACTOR_DELTA_FLAG_ON_GROUND;
+                }
+
+                self.world.load().broadcast_to_chunk_editioned_sync(
+                    chunk_pos,
+                    &je_packet,
+                    &CMoveActorDelta::new(
+                        VarULong(self.entity_id as u64),
+                        flags,
+                        new.x as f32,
+                        new.y as f32,
+                        new.z as f32,
+                        0,
+                        0,
+                        0,
+                    ),
+                );
+            }
         } else if rot_changed {
-            self.world.load().broadcast_to_chunk(
-                chunk_pos,
-                &CUpdateEntityRot::new(
-                    self.entity_id.into(),
-                    yaw,
-                    pitch,
-                    self.on_ground.load(Relaxed),
-                ),
+            let je_packet = CUpdateEntityRot::new(
+                self.entity_id.into(),
+                yaw,
+                pitch,
+                self.on_ground.load(Relaxed),
             );
+            if self.entity_type == &EntityType::PLAYER {
+                self.world.load().broadcast_to_chunk_editioned_sync(
+                    chunk_pos,
+                    &je_packet,
+                    &CMovePlayer::new(
+                        VarULong(self.entity_id as u64),
+                        Vector3::new(new.x as f32, new.y as f32, new.z as f32),
+                        self.pitch.load(),
+                        self.yaw.load(),
+                        self.yaw.load(),
+                        CMovePlayer::MODE_ROTATION,
+                        self.on_ground.load(Relaxed),
+                        VarULong(0),
+                        0,
+                        0,
+                        VarULong(0),
+                    ),
+                );
+            } else {
+                let mut flags = MOVE_ACTOR_DELTA_FLAG_HAS_PITCH
+                    | MOVE_ACTOR_DELTA_FLAG_HAS_YAW
+                    | MOVE_ACTOR_DELTA_FLAG_HAS_HEAD_YAW;
+                if self.on_ground.load(Relaxed) {
+                    flags |= MOVE_ACTOR_DELTA_FLAG_ON_GROUND;
+                }
+                self.world.load().broadcast_to_chunk_editioned_sync(
+                    chunk_pos,
+                    &je_packet,
+                    &CMoveActorDelta::new(
+                        VarULong(self.entity_id as u64),
+                        flags,
+                        new.x as f32,
+                        new.y as f32,
+                        new.z as f32,
+                        pitch,
+                        yaw,
+                        yaw,
+                    ),
+                );
+            }
         }
         self.send_head_rot(yaw);
     }
@@ -1220,14 +1345,53 @@ impl Entity {
 
         self.last_sent_pos.store(new);
 
-        self.world.load().broadcast_to_chunk(
-            chunk_pos,
-            &CUpdateEntityPos::new(
-                self.entity_id.into(),
-                Vector3::new(converted.x, converted.y, converted.z),
-                self.on_ground.load(Relaxed),
-            ),
+        let je_packet = CUpdateEntityPos::new(
+            self.entity_id.into(),
+            Vector3::new(converted.x, converted.y, converted.z),
+            self.on_ground.load(Relaxed),
         );
+
+        if self.entity_type == &EntityType::PLAYER {
+            self.world.load().broadcast_to_chunk_editioned_sync(
+                chunk_pos,
+                &je_packet,
+                &CMovePlayer::new(
+                    VarULong(self.entity_id as u64),
+                    Vector3::new(new.x as f32, new.y as f32, new.z as f32),
+                    self.pitch.load(),
+                    self.yaw.load(),
+                    self.yaw.load(),
+                    CMovePlayer::MODE_NORMAL,
+                    self.on_ground.load(Relaxed),
+                    VarULong(0),
+                    0,
+                    0,
+                    VarULong(0),
+                ),
+            );
+        } else {
+            let mut flags = MOVE_ACTOR_DELTA_FLAG_HAS_X
+                | MOVE_ACTOR_DELTA_FLAG_HAS_Y
+                | MOVE_ACTOR_DELTA_FLAG_HAS_Z;
+            if self.on_ground.load(Relaxed) {
+                flags |= MOVE_ACTOR_DELTA_FLAG_ON_GROUND;
+            }
+
+            self.world.load().broadcast_to_chunk_editioned_sync(
+                chunk_pos,
+                &je_packet,
+                &CMoveActorDelta::new(
+                    VarULong(self.entity_id as u64),
+                    flags,
+                    new.x as f32,
+                    new.y as f32,
+                    new.z as f32,
+                    0,
+                    0,
+                    0,
+                ),
+            );
+        }
     }
 
     // updateWaterState() in yarn

@@ -18,6 +18,8 @@ pub struct SInteraction {
 #[repr(i8)]
 pub enum Action {
     Invalid = 0,
+    Interact = 1,
+    Attack = 2,
     StopRiding = 3,
     InteractUpdate = 4,
     NpcOpen = 5,
@@ -31,6 +33,8 @@ impl PacketRead for Action {
 
         let this = match byte[0] {
             0 => Self::Invalid,
+            1 => Self::Interact,
+            2 => Self::Attack,
             3 => Self::StopRiding,
             4 => Self::InteractUpdate,
             5 => Self::NpcOpen,

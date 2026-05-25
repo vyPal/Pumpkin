@@ -47,8 +47,7 @@ use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_nbt::tag::NbtTag;
 use pumpkin_protocol::codec::var_int::VarInt;
 use pumpkin_protocol::java::client::play::{
-    Animation, CEntityAnimation, CEntityStatus, CHurtAnimation, CSetPlayerInventory,
-    CTakeItemEntity, CUpdateMobEffect,
+    CEntityStatus, CHurtAnimation, CSetPlayerInventory, CTakeItemEntity, CUpdateMobEffect,
 };
 use pumpkin_protocol::{
     codec::item_stack_seralizer::ItemStackSerializer,
@@ -715,15 +714,22 @@ impl LivingEntity {
         }
     }
 
-    pub fn swing_hand(&self) {
-        // TODO: radius
-        self.entity
-            .world
-            .load()
-            .broadcast_packet_all(&CEntityAnimation::new(
-                self.entity_id().into(),
-                Animation::SwingMainArm,
-            ));
+    pub async fn swing_hand(&self) {
+        let world = self.entity.world.load();
+        let entity_id = self.entity_id();
+
+        let je_packet = pumpkin_protocol::java::client::play::CEntityAnimation::new(
+            entity_id.into(),
+            pumpkin_protocol::java::client::play::Animation::SwingMainArm,
+        );
+        let be_packet = pumpkin_protocol::bedrock::server::animate::SAnimate {
+            action: pumpkin_protocol::bedrock::server::animate::AnimateAction::SwingArm,
+            runtime_entity_id: pumpkin_protocol::codec::var_ulong::VarULong(entity_id as u64),
+            data: 0.0,
+            swing_source: None,
+        };
+
+        world.broadcast_editioned(&je_packet, &be_packet).await;
     }
 
     async fn tick_movement<'a>(&'a self, server: &'a Server, caller: &'a Arc<dyn EntityBase>) {
