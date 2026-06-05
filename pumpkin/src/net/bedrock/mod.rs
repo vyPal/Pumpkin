@@ -21,7 +21,8 @@ use pumpkin_protocol::{
         MTU, RAKNET_ACK, RAKNET_GAME_PACKET, RAKNET_NACK, RakReliability, SubClient,
         ack::Acknowledge,
         client::{
-            disconnect_player::CDisconnectPlayer, raknet::connection::CConnectionRequestAccepted,
+            disconnect_player::CDisconnectPlayer, level_chunk::CLevelChunk,
+            raknet::connection::CConnectionRequestAccepted,
         },
         frame_set::{Frame, FrameSet},
         packet_decoder::UDPNetworkDecoder,
@@ -73,11 +74,13 @@ pub mod unconnected;
 use crate::{
     entity::player::Player,
     net::{DisconnectReason, PacketHandlerResult},
+    plugin::api::events::world::chunk_send::ChunkSend,
     server::Server,
 };
 use arc_swap::ArcSwap;
 use pumpkin_protocol::bedrock::server::login::ClientData;
 use pumpkin_util::version::BedrockMinecraftVersion;
+use pumpkin_world::level::SyncChunk;
 
 pub struct OutgoingPacket {
     pub data: Bytes,
@@ -321,7 +324,53 @@ impl BedrockClient {
         self.close().await;
     }
 
+    pub async fn send_chunks(&self, chunks: &[SyncChunk]) {
+        let player = self.player.lock().await.clone();
+        let Some(player) = player.as_ref() else {
+            return;
+        };
+        let Some(server) = player.world().server.upgrade() else {
+            return;
+        };
+
+        for chunk in chunks {
+            let event = ChunkSend::new(player.world(), chunk.clone());
+            let event = server.plugin_manager.fire(event).await;
+            if event.cancelled {
+                continue;
+            }
+
+            self.enqueue_packet_internal(&CLevelChunk {
+                dimension: 0,
+                cache_enabled: false,
+                chunk,
+            })
+            .await;
+        }
+    }
+
     pub async fn enqueue_packet<P: BClientPacket>(&self, packet: &P) {
+        let mut packet_buf = Vec::new();
+        match self.write_game_packet(packet, &mut packet_buf).await {
+            Ok(()) => {
+                let payload = Bytes::from(packet_buf);
+                let player = self.player.lock().await.clone();
+                let cancelled = if let Some(player) = player.as_ref() {
+                    player
+                        .fire_packet_sent_no_obj(P::PACKET_ID, payload.clone())
+                        .await
+                } else {
+                    false
+                };
+                if !cancelled {
+                    self.enqueue_packet_data(payload).await;
+                }
+            }
+            Err(err) => error!("Failed to write game packet: {err}"),
+        }
+    }
+
+    pub async fn enqueue_packet_internal<P: BClientPacket>(&self, packet: &P) {
         let mut packet_buf = Vec::new();
         match self.write_game_packet(packet, &mut packet_buf).await {
             Ok(()) => self.enqueue_packet_data(packet_buf.into()).await,
@@ -443,10 +492,22 @@ impl BedrockClient {
         let mut packet_buf = Vec::new();
         match self.write_game_packet(packet, &mut packet_buf).await {
             Ok(()) => {
+                let payload = Bytes::from(packet_buf);
+                let player = self.player.lock().await.clone();
+                let cancelled = if let Some(player) = player.as_ref() {
+                    player
+                        .fire_packet_sent_no_obj(P::PACKET_ID, payload.clone())
+                        .await
+                } else {
+                    false
+                };
+                if cancelled {
+                    return;
+                }
                 let (tx, rx) = oneshot::channel();
                 if let Err(err) = self
                     .outgoing_packet_priority_send
-                    .send(OutgoingPacket::priority(packet_buf.into(), tx))
+                    .send(OutgoingPacket::priority(payload, tx))
                     .await
                 {
                     if !self.is_closed() {
@@ -896,6 +957,15 @@ impl BedrockClient {
         server: &Arc<Server>,
     ) {
         while let Some(packet) = self.get_packet().await {
+            let mut event = crate::plugin::server::packet::PacketReceivedEvent::new(
+                player.clone(),
+                packet.id,
+                packet.payload.clone(),
+            );
+            event = server.plugin_manager.fire(event).await;
+            if event.cancelled {
+                continue;
+            }
             if let Err(err) = self.handle_play_packet(player, server, packet).await {
                 error!("Failed to handle Bedrock play packet: {err}");
             }
