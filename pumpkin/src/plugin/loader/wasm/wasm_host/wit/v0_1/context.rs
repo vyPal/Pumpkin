@@ -234,11 +234,21 @@ async fn register_server_event(
     event_type: EventType,
 ) {
     use crate::plugin::server::{
-        server_broadcast::ServerBroadcastEvent, server_command::ServerCommandEvent,
-        server_tick_end::ServerTickEndEvent, server_tick_start::ServerTickStartEvent,
+        packet::{PacketReceivedEvent, PacketSentEvent},
+        server_broadcast::ServerBroadcastEvent,
+        server_command::ServerCommandEvent,
+        server_tick_end::ServerTickEndEvent,
+        server_tick_start::ServerTickStartEvent,
     };
 
     match event_type {
+        EventType::PacketReceivedEvent => {
+            register_typed_event::<PacketReceivedEvent>(resource, handler, priority, blocking)
+                .await;
+        }
+        EventType::PacketSentEvent => {
+            register_typed_event::<PacketSentEvent>(resource, handler, priority, blocking).await;
+        }
         EventType::ServerCommandEvent => {
             register_typed_event::<ServerCommandEvent>(resource, handler, priority, blocking).await;
         }
