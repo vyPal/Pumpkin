@@ -328,7 +328,9 @@ impl pumpkin::plugin::context::HostContext for PluginHostState {
         let handler = Arc::new(WasmPluginEventHandler { handler_id, plugin });
 
         match event_type {
-            event_type @ (EventType::ServerCommandEvent
+            event_type @ (EventType::PacketReceivedEvent
+            | EventType::PacketSentEvent
+            | EventType::ServerCommandEvent
             | EventType::ServerBroadcastEvent
             | EventType::ServerTickEndEvent
             | EventType::ServerTickStartEvent) => {
