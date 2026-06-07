@@ -2,9 +2,13 @@ use crate::block::entities::{BlockEntity, block_entity_from_nbt};
 use dashmap::DashMap;
 use pumpkin_data::attributes::Attributes;
 use pumpkin_data::chunk::Biome;
-use pumpkin_protocol::bedrock::client::EntityProperties;
+use pumpkin_data::item::{BedrockItem, BedrockItemVersion};
+use pumpkin_protocol::bedrock::client::item_registry::{CItemRegistry, ItemDefinition};
 use pumpkin_protocol::bedrock::client::level_event::{CLevelEvent, LevelEvent};
-use pumpkin_protocol::bedrock::network_item::NetworkItemDescriptor;
+use pumpkin_protocol::bedrock::client::{CInventoryContent, EntityProperties};
+use pumpkin_protocol::bedrock::network_item::{
+    ContainerName, FullContainerName, NetworkItemDescriptor, NetworkItemStackDescriptor,
+};
 use pumpkin_protocol::codec::data_component::data_to_proto_sound;
 use pumpkin_world::generation::proto_chunk::GenerationCache;
 use std::sync::atomic::Ordering::Relaxed;
@@ -85,7 +89,7 @@ use pumpkin_protocol::{
     bedrock::{
         client::{
             add_player::CAddPlayer,
-            creative_content::{CreativeContent, Group},
+            creative_content::{CCreativeContent, Group},
             gamerules_changed::GameRules,
             player_list::{CPlayerList, PlayerListEntry, Skin},
             remove_actor::CRemoveActor,
@@ -1841,13 +1845,52 @@ impl World {
             .await;
 
         client
-            .send_game_packet(&CreativeContent {
+            .send_game_packet(&CItemRegistry {
+                items: BedrockItem::ALL_BEDROCK_ITEMS
+                    .iter()
+                    .map(|b| ItemDefinition {
+                        name: b.registry_key.into(),
+                        id: b.id,
+                        component_based: b.component_based,
+                        item_version: VarInt::from(match b.version {
+                            BedrockItemVersion::Legacy => 0,
+                            BedrockItemVersion::DataDriven => 1,
+                            BedrockItemVersion::None => 2,
+                        }),
+                        component_data: b.definition_components.into(),
+                    })
+                    .collect::<Vec<_>>(),
+            })
+            .await;
+
+        client
+            .send_game_packet(&CCreativeContent {
                 groups: &[Group {
-                    creative_category: 1,
+                    creative_category:
+                        pumpkin_protocol::bedrock::client::CreativeCategory::Construction,
                     name: String::new(),
                     icon_item: NetworkItemDescriptor::default(),
                 }],
                 entries: &[],
+            })
+            .await;
+
+        client
+            .send_game_packet(&CInventoryContent {
+                container_id: VarUInt(0), // player inventory,
+                slots: futures::future::join_all(player.inventory.main_inventory.iter().map(
+                    async |s| {
+                        let stack = s.lock().await;
+
+                        NetworkItemStackDescriptor::from(&*stack)
+                    },
+                ))
+                .await,
+                full_container_name: FullContainerName {
+                    container_name: ContainerName::Inventory,
+                    dynamic_id: None,
+                },
+                storage_item: NetworkItemStackDescriptor::default(),
             })
             .await;
 
