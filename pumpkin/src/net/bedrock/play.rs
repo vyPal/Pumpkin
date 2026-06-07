@@ -29,6 +29,7 @@ use pumpkin_util::{GameMode, math::position::BlockPos, text::TextComponent};
 use pumpkin_world::world::BlockFlags;
 
 use crate::{
+    block::{BlockHitResult, registry::BlockActionResult},
     entity::{EntityBase, player::Player},
     net::{DisconnectReason, bedrock::BedrockClient},
     plugin::player::{
@@ -38,6 +39,7 @@ use crate::{
     server::{Server, seasonal_events},
     world::chunker::{self},
 };
+use pumpkin_data::BlockDirection;
 use tracing::{debug, info};
 
 impl BedrockClient {
@@ -386,8 +388,60 @@ impl BedrockClient {
             TransactionData::Mismatch(_data) => {
                 // TODO
             }
-            TransactionData::UseItem(_data) => {
-                // TODO
+            TransactionData::UseItem(data) => {
+                let face = match data.block_face.0 {
+                    0 => BlockDirection::Down,
+                    2 => BlockDirection::North,
+                    3 => BlockDirection::South,
+                    4 => BlockDirection::West,
+                    5 => BlockDirection::East,
+                    _ => BlockDirection::Up,
+                };
+                let world = player.world();
+                let block = world.get_block(&data.block_position);
+                let server = world.server.upgrade().expect("Server is gone");
+
+                if data.action_type.0 == 0 {
+                    // Click block
+                    let held_item = player.inventory.held_item();
+
+                    let result = server
+                        .block_registry
+                        .use_with_item(
+                            block,
+                            player,
+                            &data.block_position,
+                            &BlockHitResult {
+                                face: &face,
+                                cursor_pos: &data.click_position,
+                            },
+                            &held_item,
+                            &server,
+                            &world,
+                        )
+                        .await;
+
+                    if result.consumes_action() {
+                        return;
+                    }
+
+                    if matches!(result, BlockActionResult::PassToDefaultBlockAction) {
+                        server
+                            .block_registry
+                            .on_use(
+                                block,
+                                player,
+                                &data.block_position,
+                                &BlockHitResult {
+                                    face: &face,
+                                    cursor_pos: &data.click_position,
+                                },
+                                &server,
+                                &world,
+                            )
+                            .await;
+                    }
+                }
             }
             TransactionData::UseItemOnEntity(data) => {
                 let target_runtime_id = data.target_entity_runtime_id.0 as i32;
