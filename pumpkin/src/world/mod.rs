@@ -3722,9 +3722,8 @@ impl World {
     }
 
     pub fn spawn_entity_non_save(&self, entity: &Arc<dyn EntityBase>) {
-        let base_entity = entity.get_entity();
-        let chunk_pos = base_entity.chunk_pos.load();
-        self.broadcast_to_chunk(chunk_pos, &base_entity.create_spawn_packet());
+        let _base_entity = entity.get_entity();
+        self.broadcast_entity_spawn(entity);
         self.spawn_state.load().add_entity(self, entity.as_ref());
 
         self.entities.rcu(|current_entities| {
@@ -3735,11 +3734,24 @@ impl World {
     }
 
     pub async fn spawn_entity(&self, entity: Arc<dyn EntityBase>) {
-        let base_entity = entity.get_entity();
-        let chunk_pos = base_entity.chunk_pos.load();
-        self.broadcast_to_chunk(chunk_pos, &base_entity.create_spawn_packet());
+        self.broadcast_entity_spawn(&entity);
         entity.init_data_tracker().await;
         self.add_entity_silent(entity).await;
+    }
+
+    pub fn broadcast_entity_spawn(&self, entity: &Arc<dyn EntityBase>) {
+        let base_entity = entity.get_entity();
+        let chunk_pos = base_entity.chunk_pos.load();
+
+        let players = self.players.load();
+        for player in players.iter() {
+            let center = player.get_entity().chunk_pos.load();
+            let view_distance = get_view_distance(player).get() as i32;
+
+            if is_within_view_distance(chunk_pos, center, view_distance) {
+                player.client.try_enqueue_spawn_packet(entity);
+            }
+        }
     }
 
     pub async fn add_entity_silent(&self, entity: Arc<dyn EntityBase>) {

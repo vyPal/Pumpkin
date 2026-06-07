@@ -497,6 +497,7 @@ impl BedrockClient {
     }
 
     #[expect(clippy::match_same_arms)]
+    #[expect(clippy::too_many_lines)]
     pub async fn handle_player_action(
         &self,
         player: &Arc<Player>,
@@ -509,7 +510,9 @@ impl BedrockClient {
         player.update_last_action_time();
 
         match packet.action {
-            PlayerAction::StartBreak | PlayerAction::CreativePlayerDestroyBlock => {
+            PlayerAction::StartBreak
+            | PlayerAction::CreativePlayerDestroyBlock
+            | PlayerAction::ContinueDestroyBlock => {
                 let location = packet.block_pos;
                 if !player.can_interact_with_block_at(&location, 1.0) {
                     return;
@@ -534,9 +537,6 @@ impl BedrockClient {
                             .await;
                     }
                 } else if !state.is_air() {
-                    // Broadcast that breaking started
-                    world.set_block_breaking(entity, location, 0).await;
-
                     let speed = crate::block::calc_block_breaking(player, state, block).await;
                     if speed >= 1.0 {
                         let broken_state = world.get_block_state(&location);
@@ -565,11 +565,47 @@ impl BedrockClient {
                     }
                 }
             }
+            PlayerAction::PredictDestroyBlock | PlayerAction::StopBreak => {
+                let location = packet.block_pos;
+                if !player.can_interact_with_block_at(&location, 1.0) {
+                    return;
+                }
+
+                let entity = &player.get_entity();
+                let world = entity.world.load_full();
+
+                player.mining.store(false, Ordering::Relaxed);
+                world.set_block_breaking(entity, location, -1).await;
+
+                let (block, state) = world.get_block_and_state(&location);
+                if player.gamemode.load() != GameMode::Creative {
+                    let block_drop = player.can_harvest(state, block).await;
+
+                    let new_state = world
+                        .break_block(
+                            &location,
+                            Some(player.clone()),
+                            if block_drop {
+                                BlockFlags::NOTIFY_NEIGHBORS
+                            } else {
+                                BlockFlags::SKIP_DROPS | BlockFlags::NOTIFY_NEIGHBORS
+                            },
+                        )
+                        .await;
+                    if new_state.is_some() {
+                        server
+                            .block_registry
+                            .broken(&world, block, player, &location, server, state)
+                            .await;
+                        player.apply_tool_damage_for_block_break(state).await;
+                    }
+                }
+            }
             PlayerAction::CrackBreak => {
                 // Don't do anything for this action. It is no longer used. Block
                 // cracking is done fully server-side.
             }
-            PlayerAction::AbortBreak | PlayerAction::StopBreak => {
+            PlayerAction::AbortBreak => {
                 let location = packet.block_pos;
                 let entity = &player.get_entity();
                 let world = entity.world.load();

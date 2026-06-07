@@ -79,6 +79,12 @@ impl NetworkItemDescriptor {
     }
 }
 
+impl From<&ItemStack> for NetworkItemDescriptor {
+    fn from(stack: &ItemStack) -> Self {
+        NetworkItemStackDescriptor::from(stack).item
+    }
+}
+
 #[derive(Default, Clone)]
 pub struct NetworkItemStackDescriptor {
     // I hate mojang
