@@ -44,8 +44,7 @@ impl ItemBehaviour for EnderPearlItem {
 
             let entity = Entity::new(world.clone(), position, &EntityType::ENDER_PEARL);
             let pearl = EnderPearlEntity::new_shot(entity, player.get_entity());
-            let yaw = player.get_entity().yaw.load();
-            let pitch = player.get_entity().pitch.load();
+            let (yaw, pitch) = player.rotation();
             pearl.thrown.set_velocity_from(
                 player.get_entity(),
                 pitch,

@@ -2269,6 +2269,9 @@ impl Entity {
         self.sneaking.store(sneaking, Relaxed);
         self.set_flag(Flag::Sneaking, sneaking).await;
     }
+    pub fn is_sneaking(&self) -> bool {
+        self.sneaking.load(Ordering::Relaxed)
+    }
 
     pub async fn set_swimming(&self, invisible: bool) {
         if self.swimming.load(Ordering::Relaxed) != invisible {
@@ -2412,6 +2415,9 @@ impl Entity {
         self.set_flag(Flag::Sprinting, sprinting).await;
     }
 
+    pub fn is_sprinting(&self) -> bool {
+        self.sprinting.load(Ordering::Relaxed)
+    }
     pub fn check_fall_flying(&self) -> bool {
         !self.on_ground.load(Relaxed)
     }
@@ -2420,6 +2426,9 @@ impl Entity {
         assert_ne!(self.fall_flying.load(Relaxed), fall_flying);
         self.fall_flying.store(fall_flying, Relaxed);
         self.set_flag(Flag::FallFlying, fall_flying).await;
+    }
+    pub fn is_fall_flying(&self) -> bool {
+        self.fall_flying.load(Ordering::Relaxed)
     }
 
     async fn set_flag(&self, flag: Flag, value: bool) {
