@@ -9,7 +9,6 @@ use std::{
     process::{Command, Stdio},
 };
 
-mod advancement;
 mod attributes;
 mod biome;
 mod bitsets;
@@ -76,7 +75,6 @@ pub fn main() {
     wit::main();
 
     let mut build_functions: Vec<(BuilderFn, &str)> = vec![
-        (advancement::build, "advancement.rs"),
         (packet::build, "packet.rs"),
         (screen::build, "screen.rs"),
         (particle::build, "particle.rs"),
