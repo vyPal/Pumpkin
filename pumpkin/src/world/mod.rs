@@ -973,6 +973,13 @@ impl World {
         }
     }
 
+    pub async fn register_block_change(&self, position: BlockPos, block_state_id: BlockStateId) {
+        self.unsent_block_changes
+            .lock()
+            .await
+            .insert(position, block_state_id);
+    }
+
     pub async fn flush_block_updates(&self) {
         let mut block_state_updates_by_chunk_section: HashMap<
             Vector3<i32>,
