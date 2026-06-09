@@ -97,7 +97,7 @@ static ITEM_STACK_ID_GEN: ItemStackIdGenerator = ItemStackIdGenerator::new();
 
 impl ItemStack {
     #[must_use]
-    pub fn new(item_count: u8, item: &'static Item) -> Self {
+    pub const fn new(item_count: u8, item: &'static Item) -> Self {
         Self {
             item_count,
             item,
