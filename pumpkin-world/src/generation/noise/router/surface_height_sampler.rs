@@ -80,12 +80,66 @@ impl<'a> SurfaceHeightEstimateSampler<'a> {
         let sample_options =
             ChunkNoiseFunctionSampleOptions::new(false, SampleAction::SkipCellCaches, 0, 0, 0);
         let pos = Vector3::new(aligned_x, 0, aligned_z);
+
+        // If the top-most component is FindTopSurface, we want to perform a precise search
+        // rather than the coarse cell-stepping search it does internally.
+        if let Some(ChunkNoiseFunctionComponent::Dependent(
+            crate::generation::noise::router::proto_noise_router::DependentProtoNoiseFunctionComponent::FindTopSurface(fts),
+        )) = self.component_stack.last()
+        {
+            let upper = ChunkNoiseFunctionComponent::sample_from_stack(
+                &mut self.component_stack[..=fts.upper_bound_index()],
+                &pos,
+                &sample_options,
+            );
+
+            let mut low = self.minimum_y;
+            let mut high = upper.ceil() as i32;
+
+            // First find the coarse cell that contains the surface
+            let cell_height = fts.cell_height();
+            let mut y = (upper / cell_height as f64).floor() as i32 * cell_height;
+            while y >= self.minimum_y {
+                let density = ChunkNoiseFunctionComponent::sample_from_stack(
+                    &mut self.component_stack[..=fts.density_index()],
+                    &Vector3::new(aligned_x, y, aligned_z),
+                    &sample_options,
+                );
+                if density > 0.0 {
+                    low = y;
+                    high = (y + cell_height).min(high);
+                    break;
+                }
+                y -= cell_height;
+            }
+
+            if y < self.minimum_y {
+                return self.minimum_y;
+            }
+
+            // Binary search for precise surface
+            while high - low > 1 {
+                let mid = low + (high - low) / 2;
+                let density = ChunkNoiseFunctionComponent::sample_from_stack(
+                    &mut self.component_stack[..=fts.density_index()],
+                    &Vector3::new(aligned_x, mid, aligned_z),
+                    &sample_options,
+                );
+                if density > 0.0 {
+                    low = mid;
+                } else {
+                    high = mid;
+                }
+            }
+            return low + 1;
+        }
+
         let surface_y = ChunkNoiseFunctionComponent::sample_from_stack(
             &mut self.component_stack,
             &pos,
             &sample_options,
         );
-        surface_y.floor() as i32
+        surface_y.floor() as i32 + 1
     }
 
     #[must_use]
@@ -109,6 +163,13 @@ impl<'a> SurfaceHeightEstimateSampler<'a> {
                 ProtoNoiseFunctionComponent::PassThrough(pass_through) => {
                     ChunkNoiseFunctionComponent::PassThrough(pass_through.clone())
                 }
+                ProtoNoiseFunctionComponent::Beardifier(_) => ChunkNoiseFunctionComponent::Independent(
+                    Box::leak(Box::new(
+                        crate::generation::noise::router::proto_noise_router::IndependentProtoNoiseFunctionComponent::Constant(
+                            crate::generation::noise::router::density_function::math::Constant::new(0.0),
+                        ),
+                    )),
+                ),
                 ProtoNoiseFunctionComponent::Wrapper(wrapper) => {
                     //NOTE: Due to our previous invariant with the proto-function, it is guaranteed
                     // that the wrapped function is already on the stack

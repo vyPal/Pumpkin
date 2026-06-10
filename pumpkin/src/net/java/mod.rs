@@ -16,11 +16,11 @@ use pumpkin_protocol::java::server::play::{
     SAttack, SChangeGameMode, SChatCommand, SChatMessage, SChunkBatch, SClickSlot, SClientCommand,
     SClientInformationPlay, SClientTickEnd, SCloseContainer, SCommandSuggestion, SConfirmTeleport,
     SContainerButtonClick, SCookieResponse as SPCookieResponse, SCustomPayload, SInteract,
-    SMoveVehicle, SPaddleBoat, SPickItemFromBlock, SPlaceRecipe, SPlayPingRequest,
+    SJigsawGenerate, SMoveVehicle, SPaddleBoat, SPickItemFromBlock, SPlaceRecipe, SPlayPingRequest,
     SPlayerAbilities, SPlayerAction, SPlayerCommand, SPlayerInput, SPlayerLoaded, SPlayerPosition,
     SPlayerPositionRotation, SPlayerRotation, SPlayerSession, SRecipeBookChangeSettings,
     SRecipeBookSeenRecipe, SRenameItem, SSelectTrade, SSetCommandBlock, SSetCreativeSlot,
-    SSetHeldItem, SSetPlayerGround, SSwingArm, SUpdateSign, SUseItem, SUseItemOn,
+    SSetHeldItem, SSetJigsawBlock, SSetPlayerGround, SSwingArm, SUpdateSign, SUseItem, SUseItemOn,
 };
 use pumpkin_protocol::packet::MultiVersionJavaPacket;
 use pumpkin_protocol::{
@@ -965,6 +965,14 @@ impl JavaClient {
             }
             id if id == SSetCommandBlock::to_id(version) => {
                 self.handle_set_command_block(player, SSetCommandBlock::read(payload, &version)?)
+                    .await;
+            }
+            id if id == SSetJigsawBlock::to_id(version) => {
+                self.handle_set_jigsaw_block(player, SSetJigsawBlock::read(payload, &version)?)
+                    .await;
+            }
+            id if id == SJigsawGenerate::to_id(version) => {
+                self.handle_jigsaw_generate(player, SJigsawGenerate::read(payload, &version)?)
                     .await;
             }
             id if id == SPlayerCommand::to_id(version) => {

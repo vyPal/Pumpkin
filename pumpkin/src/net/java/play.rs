@@ -34,6 +34,7 @@ use crate::plugin::player::player_toggle_flight_event::PlayerToggleFlightEvent;
 use crate::plugin::player::player_toggle_sneak_event::PlayerToggleSneakEvent;
 
 use crate::block::entities::command_block::CommandBlockEntity;
+use crate::block::entities::jigsaw_block::JigsawBlockEntity;
 use crate::block::entities::sign::SignBlockEntity;
 use crate::plugin::player::player_toggle_sprint_event::PlayerToggleSprintEvent;
 use crate::server::{Server, seasonal_events};
@@ -66,17 +67,19 @@ use pumpkin_protocol::java::server::play::{
     Action, ActionType, CommandBlockMode, FLAG_ON_GROUND, SAttack, SChangeGameMode, SChatCommand,
     SChatMessage, SChunkBatch, SClientCommand, SClientInformationPlay, SCloseContainer,
     SCommandSuggestion, SConfirmTeleport, SCookieResponse as SPCookieResponse, SInteract,
-    SKeepAlive, SMoveVehicle, SPaddleBoat, SPickItemFromBlock, SPlaceRecipe, SPlayPingRequest,
-    SPlayerAbilities, SPlayerAction, SPlayerCommand, SPlayerInput, SPlayerPosition,
-    SPlayerPositionRotation, SPlayerRotation, SPlayerSession, SRecipeBookChangeSettings,
-    SRecipeBookSeenRecipe, SSelectTrade, SSetCommandBlock, SSetCreativeSlot, SSetHeldItem,
-    SSetPlayerGround, SSwingArm, SUpdateSign, SUseItem, SUseItemOn, Status,
+    SJigsawGenerate, SKeepAlive, SMoveVehicle, SPaddleBoat, SPickItemFromBlock, SPlaceRecipe,
+    SPlayPingRequest, SPlayerAbilities, SPlayerAction, SPlayerCommand, SPlayerInput,
+    SPlayerPosition, SPlayerPositionRotation, SPlayerRotation, SPlayerSession,
+    SRecipeBookChangeSettings, SRecipeBookSeenRecipe, SSelectTrade, SSetCommandBlock,
+    SSetCreativeSlot, SSetHeldItem, SSetJigsawBlock, SSetPlayerGround, SSwingArm, SUpdateSign,
+    SUseItem, SUseItemOn, Status,
 };
 use pumpkin_util::math::boundingbox::BoundingBox;
 use pumpkin_util::math::vector3::Vector3;
 use pumpkin_util::math::{polynomial_rolling_hash, position::BlockPos, wrap_degrees};
 use pumpkin_util::text::color::NamedColor;
 use pumpkin_util::{GameMode, text::TextComponent};
+use pumpkin_world::generation::structure::structures::jigsaw::JigsawJointType;
 use pumpkin_world::world::BlockFlags;
 use tokio::sync::Mutex;
 
@@ -835,6 +838,55 @@ impl JavaClient {
                     pumpkin_world::tick::TickPriority::Normal,
                 );
             }
+        }
+    }
+
+    pub async fn handle_set_jigsaw_block(&self, player: &Arc<Player>, jigsaw: SSetJigsawBlock) {
+        if !player.is_creative() {
+            return;
+        }
+        if player.permission_lvl.load() < PermissionLvl::Two {
+            return;
+        }
+        let pos = jigsaw.pos;
+        if let Some(block_entity) = player.world().get_block_entity(&pos) {
+            if block_entity.resource_location() != JigsawBlockEntity::ID {
+                warn!("Client tried to change Jigsaw block but not Jigsaw block entity found");
+                return;
+            }
+
+            let jigsaw_block: &JigsawBlockEntity = block_entity.as_any().downcast_ref().unwrap();
+
+            *jigsaw_block.name.lock().await = jigsaw.name;
+            *jigsaw_block.target.lock().await = jigsaw.target;
+            *jigsaw_block.pool.lock().await = jigsaw.pool;
+            *jigsaw_block.final_state.lock().await = jigsaw.final_state;
+            *jigsaw_block.joint.lock().await = JigsawJointType::from_str(&jigsaw.joint);
+            jigsaw_block
+                .selection_priority
+                .store(jigsaw.selection_priority.0, Ordering::SeqCst);
+            jigsaw_block
+                .placement_priority
+                .store(jigsaw.placement_priority.0, Ordering::SeqCst);
+
+            player.world().update_block_entity(&block_entity);
+        }
+    }
+
+    pub async fn handle_jigsaw_generate(&self, player: &Arc<Player>, generate: SJigsawGenerate) {
+        if !player.is_creative() {
+            return;
+        }
+        if player.permission_lvl.load() < PermissionLvl::Two {
+            return;
+        }
+        let pos = generate.pos;
+        if let Some(block_entity) = player.world().get_block_entity(&pos)
+            && let Some(jigsaw_block) = block_entity.as_any().downcast_ref::<JigsawBlockEntity>()
+        {
+            jigsaw_block
+                .generate(&player.world(), generate.levels.0, generate.keep_jigsaws)
+                .await;
         }
     }
 

@@ -734,6 +734,9 @@ mod random_positions_and_hypot {
             sampler,
             true,
             true,
+            Vec::new(),
+            Vec::new(),
+            None,
         );
         let options =
             ChunkNoiseFunctionSampleOptions::new(false, SampleAction::SkipCellCaches, 0, 0, 0);

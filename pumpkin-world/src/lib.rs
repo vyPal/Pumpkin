@@ -96,6 +96,9 @@ pub fn bench_create_and_populate_noise(
         sampler,
         settings.aquifers_enabled,
         settings.ore_veins_enabled,
+        Vec::new(),
+        Vec::new(),
+        None,
     );
 
     // Surface height estimator
@@ -223,6 +226,9 @@ pub fn bench_create_and_populate_noise_with_surface(
         sampler,
         settings.aquifers_enabled,
         settings.ore_veins_enabled,
+        Vec::new(),
+        Vec::new(),
+        None,
     );
 
     // Surface height estimator

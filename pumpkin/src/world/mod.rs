@@ -52,6 +52,7 @@ use bytes::BufMut;
 use explosion::Explosion;
 use pumpkin_config::BasicConfiguration;
 use pumpkin_data::block_properties::is_air;
+use pumpkin_data::block_rotation::{Mirror, Rotation};
 use pumpkin_data::chunk_gen_settings::GenerationSettings;
 use pumpkin_data::data_component_impl::EquipmentSlot;
 use pumpkin_data::dimension::Dimension;
@@ -4992,6 +4993,14 @@ impl WorldPortalExt for WorldPortal {
             None,
             None,
         )
+    }
+
+    fn mirror(&self, block: &Block, state_id: u16, mirror: Mirror) -> &'static BlockState {
+        self.0.block_registry.mirror(block, state_id, mirror)
+    }
+
+    fn rotate(&self, block: &Block, state_id: u16, rotation: Rotation) -> &'static BlockState {
+        self.0.block_registry.rotate(block, state_id, rotation)
     }
 
     fn spawn_mobs_for_chunk_generation(

@@ -21,6 +21,7 @@ use crate::block::registry::BlockActionResult;
 use crate::entity::EntityBase;
 use crate::server::Server;
 use pumpkin_data::BlockDirection;
+use pumpkin_data::block_rotation::{Mirror, Rotation};
 use pumpkin_data::item_stack::ItemStack;
 use pumpkin_protocol::java::server::play::SUseItemOn;
 use pumpkin_util::math::boundingbox::BoundingBox;
@@ -209,6 +210,14 @@ pub trait BlockBehaviour: Send + Sync {
         _args: GetInsideCollisionShapeArgs<'a>,
     ) -> BlockFuture<'a, BoundingBox> {
         Box::pin(async move { BoundingBox::full_block() })
+    }
+
+    fn mirror(&self, block: &Block, state_id: u16, mirror: Mirror) -> &'static BlockState {
+        block.mirror(state_id, mirror)
+    }
+
+    fn rotate(&self, block: &Block, state_id: u16, rotation: Rotation) -> &'static BlockState {
+        block.rotate(state_id, rotation)
     }
 }
 

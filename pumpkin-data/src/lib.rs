@@ -287,6 +287,8 @@ pub mod recipe_remainder;
 #[cfg(feature = "block")]
 mod block_direction;
 #[cfg(feature = "block")]
+pub mod block_rotation;
+#[cfg(feature = "block")]
 pub mod block_state;
 #[cfg(feature = "block")]
 mod blocks;
@@ -297,6 +299,8 @@ pub use block_direction::BlockDirection;
 pub use block_direction::FacingExt;
 #[cfg(feature = "block")]
 pub use block_direction::HorizontalFacingExt;
+#[cfg(feature = "block")]
+pub use block_rotation::{Mirror, Rotation};
 #[cfg(feature = "block")]
 pub use block_state::BlockState;
 #[cfg(feature = "block")]
