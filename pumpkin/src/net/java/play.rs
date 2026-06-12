@@ -15,6 +15,7 @@ use crate::block::registry::BlockActionResult;
 use crate::block::{self, BlockIsReplacing};
 use crate::entity::EntityBase;
 use crate::entity::equipment_break_status;
+use crate::entity::player::statistics::{CustomStatistic, StatisticCategory};
 use crate::entity::player::{ChatMode, ChatSession, Player};
 use crate::error::PumpkinError;
 use crate::log_at_level;
@@ -360,6 +361,15 @@ impl JavaClient {
                 let last_pos = entity.pos.load();
                 player.get_entity().set_pos(pos);
 
+                let distance = last_pos.squared_distance_to_vec(&pos).sqrt();
+                let cm = (distance * 100.0) as i32;
+                if cm > 0 {
+                    let stat = player.get_movement_statistic().await;
+                    player
+                        .increment_stat(StatisticCategory::Custom, stat as i32, cm)
+                        .await;
+                }
+
                 let height_difference = pos.y - last_pos.y;
                 if entity.on_ground.load(Ordering::Relaxed) && packet.collision & FLAG_ON_GROUND == 0 && height_difference > 0.0 {
                     player.jump().await;
@@ -485,6 +495,15 @@ impl JavaClient {
                 let entity = &player.get_entity();
                 let last_pos = entity.pos.load();
                 player.get_entity().set_pos(pos);
+
+                let distance = last_pos.squared_distance_to_vec(&pos).sqrt();
+                let cm = (distance * 100.0) as i32;
+                if cm > 0 {
+                    let stat = player.get_movement_statistic().await;
+                    player
+                        .increment_stat(StatisticCategory::Custom, stat as i32, cm)
+                        .await;
+                }
 
                 let height_difference = pos.y - last_pos.y;
                 if entity.on_ground.load(Ordering::Relaxed)
@@ -1609,7 +1628,7 @@ impl JavaClient {
             }
             1 => {
                 // Request stats
-                debug!("todo");
+                player.send_stats().await;
             }
             _ => {
                 self.kick(TextComponent::text("Invalid client status"))
@@ -1807,6 +1826,22 @@ impl JavaClient {
                     let world = entity.world.load_full();
                     let (block, state) = world.get_block_and_state(&position);
 
+                    if block == &pumpkin_data::Block::NOTE_BLOCK {
+                        let props =
+                            pumpkin_data::block_properties::NoteBlockLikeProperties::from_state_id(
+                                state.id, block,
+                            );
+                        crate::block::blocks::note::NoteBlock::play_note(&props, &world, &position)
+                            .await;
+                        player
+                            .increment_stat(
+                                StatisticCategory::Custom,
+                                CustomStatistic::PlayNoteblock as i32,
+                                1,
+                            )
+                            .await;
+                    }
+
                     let inventory = player.inventory();
                     let held = inventory.held_item();
                     if !server
@@ -1865,6 +1900,17 @@ impl JavaClient {
                                     .broken(&world, block, player, &position, server, broken_state)
                                     .await;
                                 player.apply_tool_damage_for_block_break(broken_state).await;
+                                let item_id = player.inventory().held_item().lock().await.item.id;
+                                player
+                                    .increment_stat(StatisticCategory::Used, item_id as i32, 1)
+                                    .await;
+                                player
+                                    .increment_stat(
+                                        StatisticCategory::Mined,
+                                        broken_state.id as i32,
+                                        1,
+                                    )
+                                    .await;
                             }
                             self.sync_block_state_to_client(&world, position).await;
                         } else {
@@ -1936,8 +1982,17 @@ impl JavaClient {
                             .block_registry
                             .broken(&world, block, player, &location, server, state)
                             .await;
+
                         player.apply_tool_damage_for_block_break(state).await;
+                        let item_id = player.inventory().held_item().lock().await.item.id;
+                        player
+                            .increment_stat(StatisticCategory::Used, item_id as i32, 1)
+                            .await;
+                        player
+                            .increment_stat(StatisticCategory::Mined, state.id as i32, 1)
+                            .await;
                     }
+
                     self.sync_block_state_to_client(&world, location).await;
 
                     self.update_sequence(player, player_action.sequence.0);
@@ -2086,6 +2141,11 @@ impl JavaClient {
         } else {
             off_hand_item
         };
+
+        let item_id = item.lock().await.item.id;
+        player
+            .increment_stat(StatisticCategory::Used, item_id as i32, 1)
+            .await;
 
         let entity = &player.get_entity();
         let world = entity.world.load_full();
@@ -2302,6 +2362,14 @@ impl JavaClient {
         } else {
             inventory.off_hand_item().await
         };
+
+        let (item_id, _item) = {
+            let guard = item_in_hand.lock().await;
+            (guard.item.id, guard.item)
+        };
+        player
+            .increment_stat(StatisticCategory::Used, item_id as i32, 1)
+            .await;
 
         let hit_result = player
             .world()

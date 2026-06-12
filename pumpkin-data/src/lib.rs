@@ -42,6 +42,11 @@ pub mod screen;
 #[path = "generated/particle.rs"]
 pub mod particle;
 
+#[cfg(feature = "statistic")]
+#[rustfmt::skip]
+#[path = "generated/statistic.rs"]
+pub mod statistic;
+
 #[cfg(feature = "sound")]
 #[rustfmt::skip]
 #[path = "generated/sound_category.rs"]

@@ -359,6 +359,13 @@ impl BlockBehaviour for BedBlock {
             }
 
             args.player.sleep(bed_head_pos);
+            args.player
+                .increment_stat(
+                    pumpkin_data::statistic::StatisticCategory::Custom,
+                    pumpkin_data::statistic::CustomStatistic::SleepInBed as i32,
+                    1,
+                )
+                .await;
             Self::set_occupied(true, args.world, args.block, args.position, state_id).await;
 
             BlockActionResult::SuccessServer

@@ -1,3 +1,4 @@
+use crate::entity::player::statistics::StatisticCategory;
 use crate::{entity::EntityBaseFuture, server::Server};
 use core::f32;
 use pumpkin_data::data_component_impl::DamageResistantImpl;
@@ -453,17 +454,41 @@ impl EntityBase for ItemEntity {
                 return;
             }
 
+            let (item_id, count_before) = {
+                let stack = self.item_stack.lock().await;
+                (stack.item.id, stack.item_count)
+            };
+
             let inserted = {
                 let mut stack = self.item_stack.lock().await;
                 player.inventory.insert_stack_anywhere(&mut stack).await
             };
 
             if inserted || player.is_creative() {
-                let (item_count, is_empty) = {
+                let (count_after, is_empty) = {
                     let stack = self.item_stack.lock().await;
                     (stack.item_count, stack.is_empty())
                 };
-                player.living_entity.pickup(&self.entity, item_count.into());
+
+                let amount_picked_up = if player.is_creative() {
+                    count_before
+                } else {
+                    count_before - count_after
+                };
+
+                if amount_picked_up > 0 {
+                    player
+                        .increment_stat(
+                            StatisticCategory::PickedUp,
+                            item_id as i32,
+                            amount_picked_up as i32,
+                        )
+                        .await;
+                }
+
+                player
+                    .living_entity
+                    .pickup(&self.entity, amount_picked_up.into());
 
                 player
                     .current_screen_handler

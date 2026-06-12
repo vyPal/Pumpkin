@@ -28,6 +28,7 @@ use crate::entity::attributes::AttributeInstance;
 use crate::entity::attributes::Modifier;
 use crate::entity::attributes::ModifierOperation;
 use crate::entity::mob::slime::SlimeEntity;
+use crate::entity::player::statistics::{CustomStatistic, StatisticCategory};
 use crate::entity::{EntityBaseFuture, NbtFuture};
 use crate::server::Server;
 use crate::world::loot::{LootContextParameters, LootTableExt};
@@ -1309,6 +1310,9 @@ impl LivingEntity {
             self.movement_input.store(Vector3::default());
             self.jumping.store(false, Relaxed);
 
+            // Statistics updates
+            self.update_death_stats(&*dyn_self, cause).await;
+
             // Plays the death sound
             world.send_entity_status(&self.entity, EntityStatus::Death);
             let params = LootContextParameters {
@@ -1336,38 +1340,105 @@ impl LivingEntity {
             }
             self.entity.pose.store(EntityPose::Dying);
 
-            let block_pos = self.entity.block_pos.load();
-
-            let armor_slots: Vec<Arc<Mutex<ItemStack>>> = {
-                let equipment_lock = self.entity_equipment.lock().await;
-                self.equipment_slots
-                    .values()
-                    .map(|slot| equipment_lock.get(slot))
-                    .collect()
-            };
-
-            for equipment in armor_slots {
-                let item = {
-                    let mut item_lock = equipment.lock().await;
-                    mem::replace(&mut *item_lock, ItemStack::EMPTY.clone())
-                };
-                world.drop_stack(&block_pos, item).await;
-            }
+            self.drop_equipment().await;
 
             // Broadcast death message if it's a player and the gamerule is enabled
-            let show_death_messages = { world.level_info.load().game_rules.show_death_messages };
-            if self.entity.entity_type == &EntityType::PLAYER && show_death_messages {
-                //TODO: KillCredit
-                let death_message =
-                    Self::get_death_message(&*dyn_self, damage_type, source, cause).await;
-                if let Some(server) = world.server.upgrade() {
-                    for player in server.get_all_players() {
-                        player.send_system_message(&death_message).await;
-                    }
-                }
-            }
+            self.broadcast_death_message(&*dyn_self, damage_type, source, cause)
+                .await;
 
             self.reset_effects_and_attributes().await;
+        }
+    }
+
+    async fn drop_equipment(&self) {
+        let world = self.entity.world.load();
+        let block_pos = self.entity.block_pos.load();
+
+        let armor_slots: Vec<Arc<Mutex<ItemStack>>> = {
+            let equipment_lock = self.entity_equipment.lock().await;
+            self.equipment_slots
+                .values()
+                .map(|slot| equipment_lock.get(slot))
+                .collect()
+        };
+
+        for equipment in armor_slots {
+            let item = {
+                let mut item_lock = equipment.lock().await;
+                mem::replace(&mut *item_lock, ItemStack::EMPTY.clone())
+            };
+            world.drop_stack(&block_pos, item).await;
+        }
+    }
+
+    async fn broadcast_death_message(
+        &self,
+        dyn_self: &dyn EntityBase,
+        damage_type: DamageType,
+        source: Option<&dyn EntityBase>,
+        cause: Option<&dyn EntityBase>,
+    ) {
+        let world = self.entity.world.load();
+        let show_death_messages = { world.level_info.load().game_rules.show_death_messages };
+        if self.entity.entity_type == &EntityType::PLAYER && show_death_messages {
+            //TODO: KillCredit
+            let death_message = Self::get_death_message(dyn_self, damage_type, source, cause).await;
+            if let Some(server) = world.server.upgrade() {
+                for player in server.get_all_players() {
+                    player.send_system_message(&death_message).await;
+                }
+            }
+        }
+    }
+
+    async fn update_death_stats(&self, dyn_self: &dyn EntityBase, cause: Option<&dyn EntityBase>) {
+        if let Some(victim_player) = dyn_self.get_player() {
+            victim_player
+                .increment_stat(StatisticCategory::Custom, CustomStatistic::Deaths as i32, 1)
+                .await;
+            victim_player
+                .set_stat(
+                    StatisticCategory::Custom,
+                    CustomStatistic::TimeSinceDeath as i32,
+                    0,
+                )
+                .await;
+            if let Some(killer_entity) = cause.map(EntityBase::get_entity) {
+                victim_player
+                    .increment_stat(
+                        StatisticCategory::KilledBy,
+                        killer_entity.entity_type.id as i32,
+                        1,
+                    )
+                    .await;
+            }
+        }
+
+        if let Some(killer_player) = cause.and_then(|c| c.get_player()) {
+            if dyn_self.get_player().is_some() {
+                killer_player
+                    .increment_stat(
+                        StatisticCategory::Custom,
+                        CustomStatistic::PlayerKills as i32,
+                        1,
+                    )
+                    .await;
+            } else {
+                killer_player
+                    .increment_stat(
+                        StatisticCategory::Custom,
+                        CustomStatistic::MobKills as i32,
+                        1,
+                    )
+                    .await;
+            }
+            killer_player
+                .increment_stat(
+                    StatisticCategory::Killed,
+                    self.entity.entity_type.id as i32,
+                    1,
+                )
+                .await;
         }
     }
 
@@ -1938,6 +2009,28 @@ impl EntityBase for LivingEntity {
             // Total damage after reductions
             let effective_amount = amount * (1.0 - resistance_reduction);
 
+            if resistance_reduction > 0.0 {
+                let resisted = amount * resistance_reduction;
+                if let Some(player) = caller.get_player() {
+                    player
+                        .increment_stat(
+                            StatisticCategory::Custom,
+                            CustomStatistic::DamageResisted as i32,
+                            (resisted * 10.0) as i32,
+                        )
+                        .await;
+                }
+                if let Some(attacker_player) = cause.and_then(|c| c.get_player()) {
+                    attacker_player
+                        .increment_stat(
+                            StatisticCategory::Custom,
+                            CustomStatistic::DamageDealtResisted as i32,
+                            (resisted * 10.0) as i32,
+                        )
+                        .await;
+                }
+            }
+
             // Check for shield blocking
             if self.is_blocking().await
                 && !damage_type.has_tag(&tag::DamageType::MINECRAFT_BYPASSES_SHIELD)
@@ -1950,6 +2043,16 @@ impl EntityBase for LivingEntity {
 
                 if source_to_player.dot(&look_vec) < 0.0 {
                     world.play_sound(Sound::ItemShieldBlock, SoundCategory::Players, &player_pos);
+
+                    if let Some(player) = caller.get_player() {
+                        player
+                            .increment_stat(
+                                StatisticCategory::Custom,
+                                CustomStatistic::DamageBlockedByShield as i32,
+                                (effective_amount * 10.0) as i32,
+                            )
+                            .await;
+                    }
 
                     if let Some(attacker_player) = cause.and_then(|c| c.get_player()) {
                         let held_item = attacker_player.inventory().held_item();
@@ -1995,6 +2098,15 @@ impl EntityBase for LivingEntity {
 
                         let durability_damage = (amount / 1.0).floor().max(1.0) as i32;
                         if stack.damage_item(durability_damage) == DamageResult::Broken {
+                            if let Some(player) = caller.get_player() {
+                                player
+                                    .increment_stat(
+                                        StatisticCategory::Broken,
+                                        stack.item.id as i32,
+                                        1,
+                                    )
+                                    .await;
+                            }
                             world.send_entity_status(
                                 &self.entity,
                                 crate::entity::equipment_break_status(&slot),
@@ -2084,6 +2196,27 @@ impl EntityBase for LivingEntity {
             let mut remaining = damage_amount;
             let current_abs = self.absorption.load();
             if current_abs > 0.0 {
+                let absorbed = current_abs.min(remaining);
+                if let Some(player) = caller.get_player() {
+                    player
+                        .increment_stat(
+                            StatisticCategory::Custom,
+                            CustomStatistic::DamageAbsorbed as i32,
+                            (absorbed * 10.0) as i32,
+                        )
+                        .await;
+                }
+
+                if let Some(attacker_player) = cause.and_then(|c| c.get_player()) {
+                    attacker_player
+                        .increment_stat(
+                            StatisticCategory::Custom,
+                            CustomStatistic::DamageDealtAbsorbed as i32,
+                            (absorbed * 10.0) as i32,
+                        )
+                        .await;
+                }
+
                 if current_abs >= remaining {
                     let new_abs = current_abs - remaining;
                     self.set_absorption(new_abs).await;
@@ -2108,6 +2241,27 @@ impl EntityBase for LivingEntity {
             let clamped_health = new_health.max(0.0).min(max_h);
             if remaining > 0.0 {
                 self.set_health(clamped_health);
+
+                // Statistics updates
+                if let Some(player) = caller.get_player() {
+                    player
+                        .increment_stat(
+                            StatisticCategory::Custom,
+                            CustomStatistic::DamageTaken as i32,
+                            (remaining * 10.0) as i32,
+                        )
+                        .await;
+                }
+
+                if let Some(attacker_player) = cause.and_then(|c| c.get_player()) {
+                    attacker_player
+                        .increment_stat(
+                            StatisticCategory::Custom,
+                            CustomStatistic::DamageDealt as i32,
+                            (remaining * 10.0) as i32,
+                        )
+                        .await;
+                }
 
                 // Track attacker for RevengeGoal (only after confirming damage)
                 if let Some(attacker) = cause.or(source) {

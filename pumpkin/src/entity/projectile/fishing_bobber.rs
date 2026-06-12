@@ -47,7 +47,8 @@ impl FishingBobberEntity {
         }
     }
 
-    pub fn reel_in(&self, player: &Player) -> i32 {
+    pub async fn reel_in(&self, player: &Player) -> i32 {
+        use pumpkin_data::item::Item;
         let world = self.entity.world.load();
         let hooked_id = self.hooked_entity_id.load(Ordering::Relaxed);
 
@@ -67,8 +68,15 @@ impl FishingBobberEntity {
 
         if self.bite_countdown.load(Ordering::Relaxed) > 0 {
             // Caught something!
+            player
+                .increment_stat(
+                    pumpkin_data::statistic::StatisticCategory::Custom,
+                    pumpkin_data::statistic::CustomStatistic::FishCaught as i32,
+                    1,
+                )
+                .await;
+
             // TODO: Use actual loot tables. For now, just give a raw cod.
-            use pumpkin_data::item::Item;
             let _item_stack = ItemStack::new(1, &Item::COD);
             // player.inventory().add_item(item_stack).await; // Need public add_item
 

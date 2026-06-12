@@ -14,6 +14,7 @@ default = [
     "registry",
     "screen",
     "particle",
+    "statistic",
     "sound",
     "recipes",
     "data_component",
@@ -57,6 +58,7 @@ translation = []
 registry = []
 screen = []
 particle = []
+statistic = []
 sound = []
 recipes = []
 data_component = []

@@ -466,6 +466,14 @@ impl Mob for VillagerEntity {
             }
             drop(offers);
 
+            player
+                .increment_stat(
+                    pumpkin_data::statistic::StatisticCategory::Custom,
+                    pumpkin_data::statistic::CustomStatistic::TalkedToVillager as i32,
+                    1,
+                )
+                .await;
+
             self.open_trading_screen(&player);
 
             true

@@ -60,6 +60,13 @@ impl BlockBehaviour for LecternBlock {
 
     fn normal_use<'a>(&'a self, args: NormalUseArgs<'a>) -> BlockFuture<'a, BlockActionResult> {
         Box::pin(async move {
+            args.player
+                .increment_stat(
+                    pumpkin_data::statistic::StatisticCategory::Custom,
+                    pumpkin_data::statistic::CustomStatistic::InteractWithLectern as i32,
+                    1,
+                )
+                .await;
             if let Some(block_entity) = args.world.get_block_entity(args.position)
                 && let Some(lectern_entity) =
                     block_entity.as_any().downcast_ref::<LecternBlockEntity>()

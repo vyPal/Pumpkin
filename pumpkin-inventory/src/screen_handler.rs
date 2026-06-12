@@ -35,6 +35,7 @@ use pumpkin_data::item_stack::ItemStack;
 use pumpkin_data::{
     data_component_impl::{EquipmentSlot, EquipmentType, EquippableImpl},
     screen::WindowType,
+    statistic::StatisticCategory,
 };
 use pumpkin_protocol::{
     codec::item_stack_seralizer::OptionalItemStackHash,
@@ -187,6 +188,14 @@ pub trait InventoryPlayer: Send + Sync {
 
     /// Awards experience points to the player (used for furnace smelting, etc.)
     fn award_experience(&self, amount: i32) -> PlayerFuture<'_, ()>;
+
+    /// Increments a statistic for the player.
+    fn increment_stat(
+        &self,
+        category: StatisticCategory,
+        stat_id: i32,
+        amount: i32,
+    ) -> PlayerFuture<'_, ()>;
 }
 
 /// Gives a stack to the player or drops it if inventory is full.

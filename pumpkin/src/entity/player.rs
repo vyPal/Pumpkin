@@ -1,4 +1,5 @@
 pub mod advancement;
+pub mod statistics;
 
 use core::f32;
 use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
@@ -42,6 +43,7 @@ use pumpkin_data::entity::{EntityPose, EntityStatus, EntityType};
 use pumpkin_data::item_stack::ItemStack;
 use pumpkin_data::particle::Particle;
 use pumpkin_data::sound::{Sound, SoundCategory};
+use pumpkin_data::statistic::StatisticCategory;
 use pumpkin_data::tag::Taggable;
 use pumpkin_data::{Block, BlockState, Enchantment, screen::WindowType, tag, translation};
 use pumpkin_inventory::player::{
@@ -61,15 +63,15 @@ use pumpkin_protocol::bedrock::client::container_open::CContainerOpen;
 use pumpkin_protocol::codec::var_int::VarInt;
 use pumpkin_protocol::codec::var_long::VarLong;
 use pumpkin_protocol::java::client::play::{
-    Animation, CAcknowledgeBlockChange, CActionBar, CChangeDifficulty, CCloseContainer,
-    CCombatDeath, CCustomPayload, CDisguisedChatMessage, CEntityAnimation, CEntityPositionSync,
-    CGameEvent, CItemCooldown, CMapItemData, COpenScreen, CParticle, CPlayerAbilities,
-    CPlayerInfoUpdate, CPlayerPosition, CPlayerSpawnPosition, CRespawn, CSetContainerContent,
-    CSetContainerProperty, CSetContainerSlot, CSetCursorItem, CSetEquipment, CSetExperience,
-    CSetHealth, CSetPlayerInventory, CSetSelectedSlot, CSoundEffect, CStopSound, CSubtitle,
-    CSystemChatMessage, CTabList, CTitleAnimation, CTitleText, CUnloadChunk, CUpdateMobEffect,
-    CUpdateTime, GameEvent, MapIcon, MapPatch, Metadata, PlayerAction, PlayerInfoFlags,
-    PreviousMessage,
+    Animation, CAcknowledgeBlockChange, CActionBar, CAwardStats, CChangeDifficulty,
+    CCloseContainer, CCombatDeath, CCustomPayload, CDisguisedChatMessage, CEntityAnimation,
+    CEntityPositionSync, CGameEvent, CItemCooldown, CMapItemData, COpenScreen, CParticle,
+    CPlayerAbilities, CPlayerInfoUpdate, CPlayerPosition, CPlayerSpawnPosition, CRespawn,
+    CSetContainerContent, CSetContainerProperty, CSetContainerSlot, CSetCursorItem, CSetEquipment,
+    CSetExperience, CSetHealth, CSetPlayerInventory, CSetSelectedSlot, CSoundEffect, CStopSound,
+    CSubtitle, CSystemChatMessage, CTabList, CTitleAnimation, CTitleText, CUnloadChunk,
+    CUpdateMobEffect, CUpdateTime, GameEvent, MapIcon, MapPatch, Metadata, PlayerAction,
+    PlayerInfoFlags, PreviousMessage, Statistic,
 };
 use pumpkin_protocol::java::server::play::{
     SClickSlot, SContainerButtonClick, SRenameItem, SlotActionType,
@@ -440,6 +442,8 @@ pub struct Player {
     ///
     /// **Note:** When the `abilities` field is updated, the server should send a `send_abilities_update` packet to the client to notify them of the changes.
     pub abilities: Mutex<Abilities>,
+    /// Player statistics
+    pub stats: Mutex<statistics::Statistics>,
     /// The current stage of block destruction of the block the player is breaking.
     pub current_block_destroy_stage: AtomicI32,
     /// Indicates if the player is currently mining a block.
@@ -647,6 +651,7 @@ impl Player {
             mining: AtomicBool::new(false),
             mining_pos: Mutex::new(BlockPos::ZERO),
             abilities: Mutex::new(abilities),
+            stats: Mutex::new(statistics::Statistics::default()),
             gamemode: AtomicCell::new(gamemode),
             previous_gamemode: AtomicCell::new(None),
             // TODO: Send the CPlayerSpawnPosition packet when the client connects with proper values
@@ -852,6 +857,10 @@ impl Player {
 
     /// Removes the [`Player`] out of the current [`World`].
     pub async fn remove(self: &Arc<Self>) {
+        self.stats
+            .lock()
+            .await
+            .increment_custom(statistics::CustomStatistic::LeaveGame, 1);
         let world = self.world();
         world.remove_player(self, true).await;
 
@@ -1170,6 +1179,12 @@ impl Player {
             // Send the break status before clearing the slot so the client can
             // use the item texture for break particles.
             if result == pumpkin_data::item_stack::DamageResult::Broken {
+                self.increment_stat(
+                    statistics::StatisticCategory::Broken,
+                    updated_stack.item.id as i32,
+                    1,
+                )
+                .await;
                 self.world().send_entity_status(
                     &self.living_entity.entity,
                     super::equipment_break_status(slot),
@@ -1656,6 +1671,13 @@ impl Player {
             None::<BlockPos>,
         )]);
 
+        self.set_stat(
+            statistics::StatisticCategory::Custom,
+            statistics::CustomStatistic::TimeSinceRest as i32,
+            0,
+        )
+        .await;
+
         let chunk_pos = self.living_entity.entity.chunk_pos.load();
         world.broadcast_to_chunk(
             chunk_pos,
@@ -1815,6 +1837,19 @@ impl Player {
                 .send_packet_now(&CAcknowledgeBlockChange::new(seq.into()))
                 .await;
         }
+
+        // Statistics updates
+        {
+            let mut stats = self.stats.lock().await;
+            stats.increment_custom(statistics::CustomStatistic::PlayTime, 1);
+            stats.increment_custom(statistics::CustomStatistic::TotalWorldTime, 1);
+            stats.increment_custom(statistics::CustomStatistic::TimeSinceDeath, 1);
+            stats.increment_custom(statistics::CustomStatistic::TimeSinceRest, 1);
+            if self.living_entity.entity.sneaking.load(Ordering::Relaxed) {
+                stats.increment_custom(statistics::CustomStatistic::SneakTime, 1);
+            }
+        }
+
         {
             let mut xp = self.experience_pick_up_delay.lock().await;
             if *xp > 0 {
@@ -1942,6 +1977,10 @@ impl Player {
     }
 
     pub async fn jump(&self) {
+        self.stats
+            .lock()
+            .await
+            .increment_custom(statistics::CustomStatistic::Jump, 1);
         if self.living_entity.entity.is_sprinting() {
             self.add_exhaustion(0.2).await;
         } else {
@@ -2142,6 +2181,122 @@ impl Player {
                 bedrock.send_game_packet(&packet).await;
             }
         }
+    }
+
+    pub async fn send_stats(&self) {
+        if let ClientPlatform::Java(java) = &self.client {
+            let stats_guard = self.stats.lock().await;
+            let packet_stats: Vec<Statistic> = stats_guard
+                .stats
+                .iter()
+                .map(|((category, stat), value)| Statistic {
+                    category_id: VarInt(*category),
+                    statistic_id: VarInt(*stat),
+                    value: VarInt(*value),
+                })
+                .collect();
+
+            java.enqueue_packet(&CAwardStats {
+                stats: &packet_stats,
+            })
+            .await;
+        }
+    }
+
+    pub async fn increment_stat(
+        &self,
+        category: statistics::StatisticCategory,
+        stat: i32,
+        amount: i32,
+    ) {
+        self.stats.lock().await.increment(category, stat, amount);
+    }
+
+    pub async fn set_stat(&self, category: statistics::StatisticCategory, stat: i32, value: i32) {
+        self.stats.lock().await.set(category, stat, value);
+    }
+
+    pub async fn get_movement_statistic(&self) -> statistics::CustomStatistic {
+        let entity = self.get_entity();
+        if entity.has_vehicle().await {
+            let vehicle = entity.vehicle.lock().await;
+            if let Some(vehicle) = vehicle.as_ref() {
+                let entity_type = vehicle.get_entity().entity_type;
+                if entity_type == &EntityType::OAK_BOAT
+                    || entity_type == &EntityType::SPRUCE_BOAT
+                    || entity_type == &EntityType::BIRCH_BOAT
+                    || entity_type == &EntityType::JUNGLE_BOAT
+                    || entity_type == &EntityType::ACACIA_BOAT
+                    || entity_type == &EntityType::DARK_OAK_BOAT
+                    || entity_type == &EntityType::MANGROVE_BOAT
+                    || entity_type == &EntityType::CHERRY_BOAT
+                    || entity_type == &EntityType::BAMBOO_RAFT
+                {
+                    return statistics::CustomStatistic::BoatOneCm;
+                }
+                if entity_type == &EntityType::MINECART
+                    || entity_type == &EntityType::CHEST_MINECART
+                    || entity_type == &EntityType::FURNACE_MINECART
+                    || entity_type == &EntityType::TNT_MINECART
+                    || entity_type == &EntityType::HOPPER_MINECART
+                    || entity_type == &EntityType::COMMAND_BLOCK_MINECART
+                    || entity_type == &EntityType::SPAWNER_MINECART
+                {
+                    return statistics::CustomStatistic::MinecartOneCm;
+                }
+                if entity_type == &EntityType::HORSE
+                    || entity_type == &EntityType::DONKEY
+                    || entity_type == &EntityType::MULE
+                    || entity_type == &EntityType::SKELETON_HORSE
+                    || entity_type == &EntityType::ZOMBIE_HORSE
+                {
+                    return statistics::CustomStatistic::HorseOneCm;
+                }
+                if entity_type == &EntityType::PIG {
+                    return statistics::CustomStatistic::PigOneCm;
+                }
+                if entity_type == &EntityType::STRIDER {
+                    return statistics::CustomStatistic::StriderOneCm;
+                }
+            }
+        }
+
+        if self.is_flying().await {
+            return statistics::CustomStatistic::FlyOneCm;
+        }
+
+        if entity.fall_flying.load(Ordering::Relaxed) {
+            return statistics::CustomStatistic::AviateOneCm;
+        }
+
+        if entity.swimming.load(Ordering::Relaxed) {
+            return statistics::CustomStatistic::SwimOneCm;
+        }
+
+        let pos = entity.block_pos.load();
+        let world = entity.world.load_full();
+        let block = world.get_block(&pos);
+        if block.has_tag(&pumpkin_data::tag::Block::MINECRAFT_CLIMBABLE) {
+            return statistics::CustomStatistic::ClimbOneCm;
+        }
+
+        if entity.touching_water.load(Ordering::Relaxed) {
+            return statistics::CustomStatistic::WalkUnderWaterOneCm;
+        }
+
+        if entity.sneaking.load(Ordering::Relaxed) {
+            return statistics::CustomStatistic::CrouchOneCm;
+        }
+
+        if entity.sprinting.load(Ordering::Relaxed) {
+            return statistics::CustomStatistic::SprintOneCm;
+        }
+
+        if !entity.on_ground.load(Ordering::Relaxed) && entity.velocity.load().y < -0.005 {
+            return statistics::CustomStatistic::FallOneCm;
+        }
+
+        statistics::CustomStatistic::WalkOneCm
     }
 
     /// Updates the client of the player's current permission level.
@@ -2805,6 +2960,18 @@ impl Player {
     }
 
     pub async fn drop_item(&self, item_stack: ItemStack) {
+        self.increment_stat(
+            statistics::StatisticCategory::Dropped,
+            item_stack.item.id as i32,
+            item_stack.item_count as i32,
+        )
+        .await;
+        self.increment_stat(
+            statistics::StatisticCategory::Custom,
+            statistics::CustomStatistic::Drop as i32,
+            1,
+        )
+        .await;
         let item_pos = self.living_entity.entity.pos.load()
             + Vector3::new(0.0, self.living_entity.entity.get_eye_height() - 0.3, 0.0);
         let entity = Entity::new(self.world(), item_pos, &EntityType::ITEM);
@@ -3926,6 +4093,7 @@ impl NBTStorage for Player {
                 nbt.put_bool("SpawnForced", respawn.force);
             }
             nbt.put_int("XpSeed", self.enchantment_seed.load(Ordering::Relaxed));
+            self.stats.lock().await.write_nbt(nbt);
         })
     }
 
@@ -3983,6 +4151,7 @@ impl NBTStorage for Player {
                 nbt.get_int("XpSeed").unwrap_or(rand::random()),
                 Ordering::Relaxed,
             );
+            self.stats.lock().await.read_nbt(nbt);
         })
     }
 }
@@ -4684,6 +4853,17 @@ impl InventoryPlayer for Player {
                     player.add_experience_points(amount).await;
                 }
             }
+        })
+    }
+
+    fn increment_stat(
+        &self,
+        category: StatisticCategory,
+        stat_id: i32,
+        amount: i32,
+    ) -> PlayerFuture<'_, ()> {
+        Box::pin(async move {
+            self.increment_stat(category, stat_id, amount).await;
         })
     }
 }

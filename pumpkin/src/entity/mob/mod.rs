@@ -72,6 +72,7 @@ pub struct MobEntity {
     pub position_target_range: AtomicI32,
     pub love_ticks: AtomicI32,
     pub breeding_cooldown: AtomicI32,
+    pub breeder: AtomicCell<Option<Uuid>>,
     mob_flags: AtomicU8,
     last_sent_yaw: AtomicU8,
     last_sent_pitch: AtomicU8,
@@ -108,6 +109,7 @@ impl MobEntity {
             position_target_range: AtomicI32::new(-1),
             love_ticks: AtomicI32::new(0),
             breeding_cooldown: AtomicI32::new(0),
+            breeder: AtomicCell::new(None),
             mob_flags: AtomicU8::new(0),
             last_sent_yaw: AtomicU8::new(0),
             last_sent_pitch: AtomicU8::new(0),
@@ -153,8 +155,9 @@ impl MobEntity {
         self.love_ticks.load(Relaxed) > 0
     }
 
-    pub fn set_love_ticks(&self, ticks: i32) {
+    pub fn set_love_ticks(&self, ticks: i32, breeder: Option<Uuid>) {
         self.love_ticks.store(ticks, Relaxed);
+        self.breeder.store(breeder);
     }
 
     pub fn reset_love_ticks(&self) {

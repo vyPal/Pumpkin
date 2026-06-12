@@ -54,6 +54,7 @@ mod screen;
 mod sound;
 mod sound_category;
 mod spawn_egg;
+mod statistic;
 mod structures;
 mod tag;
 mod tracked_data;
@@ -95,6 +96,7 @@ pub fn main() {
         (scoreboard_slot::build, "scoreboard_slot.rs"),
         (world_event::build, "world_event.rs"),
         (entity_type::build, "entity_type.rs"),
+        (statistic::build, "statistic.rs"),
         (noise_parameter::build, "noise_parameter.rs"),
         (biome::build, "biome.rs"),
         (damage_type::build, "damage_type.rs"),

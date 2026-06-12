@@ -537,6 +537,13 @@ impl Server {
     }
 
     pub async fn remove_player(&self, player: &Player) {
+        player
+            .increment_stat(
+                pumpkin_data::statistic::StatisticCategory::Custom,
+                pumpkin_data::statistic::CustomStatistic::LeaveGame as i32,
+                1,
+            )
+            .await;
         // TODO: Config if we want decrease online
         self.listing.lock().await.remove_player(player);
     }

@@ -65,6 +65,13 @@ impl BlockBehaviour for BarrelBlock {
                 && let Some(inventory) = block_entity.get_inventory()
             {
                 args.player
+                    .increment_stat(
+                        pumpkin_data::statistic::StatisticCategory::Custom,
+                        pumpkin_data::statistic::CustomStatistic::OpenBarrel as i32,
+                        1,
+                    )
+                    .await;
+                args.player
                     .open_handled_screen(&BarrelScreenFactory(inventory), Some(*args.position))
                     .await;
             }
