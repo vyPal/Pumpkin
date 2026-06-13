@@ -1,6 +1,8 @@
 use super::{Entity, EntityBase, NBTStorage, ai::pathfinder::Navigator, living::LivingEntity};
 use crate::entity::EntityBaseFuture;
+use crate::entity::ai::control::MoveControlTrait;
 use crate::entity::ai::control::look_control::LookControl;
+use crate::entity::ai::control::move_control::MoveControl;
 use crate::entity::ai::goal::goal_selector::GoalSelector;
 use crate::entity::player::Player;
 use crate::server::Server;
@@ -68,6 +70,7 @@ pub struct MobEntity {
     pub navigator: std::sync::Mutex<Navigator>,
     pub target: tokio::sync::Mutex<Option<Arc<dyn EntityBase>>>,
     pub look_control: std::sync::Mutex<LookControl>,
+    pub move_control: std::sync::Mutex<Box<dyn MoveControlTrait>>,
     pub position_target: AtomicCell<BlockPos>,
     pub position_target_range: AtomicI32,
     pub love_ticks: AtomicI32,
@@ -90,9 +93,7 @@ const NIGHT_START: i64 = 12542;
 const NIGHT_END: i64 = 23459;
 
 impl MobEntity {
-    #[expect(dead_code)]
     const AI_DISABLED_FLAG: u8 = 1;
-    #[expect(dead_code)]
     const LEFT_HANDED_FLAG: u8 = 2;
     const ATTACKING_FLAG: u8 = 4;
 
@@ -105,6 +106,7 @@ impl MobEntity {
             navigator: std::sync::Mutex::new(Navigator::default()),
             target: tokio::sync::Mutex::new(None),
             look_control: std::sync::Mutex::new(LookControl::default()),
+            move_control: std::sync::Mutex::new(Box::new(MoveControl::default())),
             position_target: AtomicCell::new(BlockPos::ZERO),
             position_target_range: AtomicI32::new(-1),
             love_ticks: AtomicI32::new(0),
@@ -133,6 +135,26 @@ impl MobEntity {
 
     pub fn set_attacking(&self, attacking: bool) {
         self.set_mob_flag(Self::ATTACKING_FLAG, attacking);
+    }
+
+    pub fn is_attacking(&self) -> bool {
+        (self.mob_flags.load(Relaxed) & Self::ATTACKING_FLAG) != 0
+    }
+
+    pub fn set_left_handed(&self, left_handed: bool) {
+        self.set_mob_flag(Self::LEFT_HANDED_FLAG, left_handed);
+    }
+
+    pub fn is_left_handed(&self) -> bool {
+        (self.mob_flags.load(Relaxed) & Self::LEFT_HANDED_FLAG) != 0
+    }
+
+    pub fn set_no_ai(&self, no_ai: bool) {
+        self.set_mob_flag(Self::AI_DISABLED_FLAG, no_ai);
+    }
+
+    pub fn is_no_ai(&self) -> bool {
+        (self.mob_flags.load(Relaxed) & Self::AI_DISABLED_FLAG) != 0
     }
 
     fn set_mob_flag(&self, flag: u8, value: bool) {
@@ -178,22 +200,19 @@ impl MobEntity {
 
         let target_hitbox = target.get_entity().bounding_box.load();
 
-        let attack_box_max = self.get_attack_box(max_range).await;
-
-        let intersects_max = attack_box_max.intersects(&target_hitbox);
-
-        if !intersects_max {
+        if !self
+            .get_attack_box(max_range)
+            .await
+            .intersects(&target_hitbox)
+        {
             return false;
         }
 
-        if min_range > 0.0 {
-            let attack_box_min = self.get_attack_box(min_range).await;
-            if attack_box_min.intersects(&target_hitbox) {
-                return false;
-            }
-        }
-
-        true
+        min_range <= 0.0
+            || !self
+                .get_attack_box(min_range)
+                .await
+                .intersects(&target_hitbox)
     }
 
     pub fn is_dark_enough_to_spawn(world: &World, pos: &BlockPos, is_thundering: bool) -> bool {
@@ -445,6 +464,10 @@ pub trait Mob: EntityBase + Send + Sync {
         Box::pin(async { false })
     }
 
+    fn mob_player_collision<'a>(&'a self, _player: &'a Arc<Player>) -> EntityBaseFuture<'a, ()> {
+        Box::pin(async {})
+    }
+
     fn get_owner_uuid(&self) -> Option<Uuid> {
         None
     }
@@ -517,10 +540,15 @@ impl<T: Mob + Send + 'static> EntityBase for T {
                 *mob_entity.navigator.lock().unwrap() = navigator;
             };
 
-            // Look Control is synchronous, so we can just use a normal block
+            // Controllers are synchronous, so we can just use normal blocks
             {
                 let mut look_control = mob_entity.look_control.lock().unwrap();
                 look_control.tick(self);
+            };
+
+            {
+                let mut move_control = mob_entity.move_control.lock().unwrap();
+                move_control.tick(self);
             };
 
             mob_entity.living_entity.tick(caller, server).await;
@@ -606,6 +634,10 @@ impl<T: Mob + Send + 'static> EntityBase for T {
         item_stack: &'a mut ItemStack,
     ) -> EntityBaseFuture<'a, bool> {
         Box::pin(async move { self.mob_interact(player, item_stack).await })
+    }
+
+    fn on_player_collision<'a>(&'a self, player: &'a Arc<Player>) -> EntityBaseFuture<'a, ()> {
+        Box::pin(async move { self.mob_player_collision(player).await })
     }
 
     fn get_entity(&self) -> &Entity {

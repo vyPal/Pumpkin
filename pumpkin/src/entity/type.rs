@@ -338,6 +338,9 @@ pub fn check_spawn_rules(
     if id == EntityType::BAT.id {
         return bat::BatEntity::check_bat_spawn_rules(world, pos);
     }
+    if id == EntityType::SLIME.id {
+        return SlimeEntity::check_slime_spawn_rules(world, pos);
+    }
 
     // TODO
     true

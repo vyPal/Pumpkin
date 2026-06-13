@@ -288,6 +288,25 @@ impl TextComponentBase {
     pub fn to_translated(self) -> Self {
         // NOTE: Divide the translation into slices and inserts the substitutions.
         let component = match *self.content {
+            TextContent::Translate {
+                translate,
+                bedrock_translate,
+                with,
+            } => {
+                let mut translated_with = vec![];
+                for w in with {
+                    translated_with.push(w.to_translated());
+                }
+                Self {
+                    content: Box::new(TextContent::Translate {
+                        translate,
+                        bedrock_translate,
+                        with: translated_with,
+                    }),
+                    style: self.style,
+                    extra: self.extra,
+                }
+            }
             TextContent::Custom { key, with, locale } => {
                 let translation = get_translation(&key, locale);
                 let mut translation_parent = translation.clone();
