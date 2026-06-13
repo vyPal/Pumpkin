@@ -232,6 +232,45 @@ impl PartialEq for World {
 impl Eq for World {}
 
 impl World {
+    pub async fn get_block_state_id_async(&self, position: &BlockPos) -> BlockStateId {
+        if !self.is_in_build_limit(*position) {
+            return Block::AIR.default_state.id;
+        }
+
+        let (chunk_coordinate, relative) = position.chunk_and_chunk_relative_position();
+        self.level
+            .get_or_fetch_chunk(chunk_coordinate, |chunk| {
+                chunk
+                    .section
+                    .get_block_absolute_y(relative.x as usize, relative.y, relative.z as usize)
+                    .unwrap_or(Block::AIR.default_state.id)
+            })
+            .await
+    }
+
+    pub async fn get_block_state_async(&self, position: &BlockPos) -> &'static BlockState {
+        let id = self.get_block_state_id_async(position).await;
+        BlockState::from_id(id)
+    }
+
+    pub async fn get_heightmap_height_async(
+        &self,
+        height_map: ChunkHeightmapType,
+        x: i32,
+        z: i32,
+    ) -> i32 {
+        let chunk_pos = Vector2::new(x >> 4, z >> 4);
+        self.level
+            .get_or_fetch_chunk(chunk_pos, |chunk| {
+                chunk
+                    .heightmap
+                    .lock()
+                    .unwrap()
+                    .get(height_map, x, z, self.min_y)
+            })
+            .await
+    }
+
     #[must_use]
     pub fn load(
         level: Arc<Level>,
@@ -245,8 +284,8 @@ impl World {
 
         // Load portal POI from disk (PoiStorage::new automatically loads from disk if files exist)
         let portal_poi = portal::PortalPoiStorage::new(&level.level_folder.root_folder);
-        let dragon_fight =
-            (dimension == Dimension::THE_END).then(|| Mutex::new(dragon_fight::DragonFight::new()));
+        let dragon_fight = (dimension.minecraft_name == Dimension::THE_END.minecraft_name)
+            .then(|| Mutex::new(dragon_fight::DragonFight::new()));
         Self {
             uuid: Uuid::new_v4(),
             level,

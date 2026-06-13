@@ -187,13 +187,12 @@ impl SlimeEntity {
         false
     }
 
-    fn get_spawn_chance(moon_phase: i64) -> f32 {
+    const fn get_spawn_chance(moon_phase: i64) -> f32 {
         match moon_phase {
             0 => 1.0,
             1 | 7 => 0.75,
             2 | 6 => 0.5,
             3 | 5 => 0.25,
-            4 => 0.0,
             _ => 0.0,
         }
     }
@@ -206,11 +205,11 @@ impl SlimeEntity {
         }
     }
 
-    fn get_jump_delay(&self) -> i32 {
+    fn get_jump_delay() -> i32 {
         rand::random_range(10..30)
     }
 
-    fn rot_lerp(&self, start: f32, end: f32, max_step: f32) -> f32 {
+    fn rot_lerp(start: f32, end: f32, max_step: f32) -> f32 {
         let mut diff = (end - start).rem_euclid(360.0);
         if diff > 180.0 {
             diff -= 360.0;
@@ -363,7 +362,7 @@ impl Mob for SlimeEntity {
                         pos.z + zd as f64,
                     );
                     let new_entity = Entity::new(world.clone(), new_pos, &EntityType::SLIME);
-                    let slime = SlimeEntity::new(new_entity);
+                    let slime = Self::new(new_entity);
                     slime.set_size(half_size, true);
                     slime
                         .entity
@@ -383,7 +382,8 @@ pub struct SlimeMoveControl {
 }
 
 impl SlimeMoveControl {
-    pub fn new(slime: Weak<SlimeEntity>) -> Self {
+    #[must_use]
+    pub const fn new(slime: Weak<SlimeEntity>) -> Self {
         Self { slime }
     }
 }
@@ -400,7 +400,7 @@ impl MoveControlTrait for SlimeMoveControl {
         let entity = &living_entity.entity;
 
         let current_yaw = entity.yaw.load();
-        let new_yaw = slime.rot_lerp(current_yaw, slime.target_yaw.load(), 90.0);
+        let new_yaw = SlimeEntity::rot_lerp(current_yaw, slime.target_yaw.load(), 90.0);
         entity.yaw.store(new_yaw);
         entity.head_yaw.store(new_yaw);
         entity.body_yaw.store(new_yaw);
@@ -415,7 +415,7 @@ impl MoveControlTrait for SlimeMoveControl {
                 let current_delay = slime.jump_delay.load(Ordering::Relaxed);
                 if current_delay <= 0 {
                     // Start jump
-                    let mut next_delay = slime.get_jump_delay();
+                    let mut next_delay = SlimeEntity::get_jump_delay();
                     if slime.is_aggressive.load(Ordering::Relaxed) {
                         next_delay /= 3;
                     }
@@ -455,7 +455,7 @@ pub struct SlimeFloatGoal {
 }
 
 impl SlimeFloatGoal {
-    pub fn new(slime: Arc<SlimeEntity>) -> Self {
+    pub const fn new(slime: Arc<SlimeEntity>) -> Self {
         Self { slime }
     }
 }
@@ -497,7 +497,7 @@ pub struct SlimeAttackGoal {
 }
 
 impl SlimeAttackGoal {
-    pub fn new(slime: Arc<SlimeEntity>) -> Self {
+    pub const fn new(slime: Arc<SlimeEntity>) -> Self {
         Self {
             slime,
             grow_tired_timer: 0,
@@ -558,7 +558,7 @@ pub struct SlimeRandomDirectionGoal {
 }
 
 impl SlimeRandomDirectionGoal {
-    pub fn new(slime: Arc<SlimeEntity>) -> Self {
+    pub const fn new(slime: Arc<SlimeEntity>) -> Self {
         Self {
             slime,
             chosen_degrees: 0.0,
@@ -618,7 +618,7 @@ pub struct SlimeKeepOnJumpingGoal {
 }
 
 impl SlimeKeepOnJumpingGoal {
-    pub fn new(slime: Arc<SlimeEntity>) -> Self {
+    pub const fn new(slime: Arc<SlimeEntity>) -> Self {
         Self { slime }
     }
 }

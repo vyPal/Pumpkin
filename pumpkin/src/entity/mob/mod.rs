@@ -224,7 +224,7 @@ impl MobEntity {
         let dimension = &world.dimension;
         let block_light_limit = dimension.monster_spawn_block_light_limit;
 
-        let block_light = world.get_block_light_level(pos).unwrap();
+        let block_light = world.get_block_light_level(pos).unwrap_or(0);
         if block_light_limit < 15 && block_light > block_light_limit {
             return false;
         }

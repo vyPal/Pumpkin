@@ -221,6 +221,24 @@ impl Server {
             }
         });
 
+        let dimensions = {
+            let mut dimensions = vec![Dimension::OVERWORLD];
+            if basic_config.allow_nether {
+                dimensions.push(Dimension::THE_NETHER);
+            }
+            if basic_config.allow_end {
+                dimensions.push(Dimension::THE_END);
+            }
+            dimensions
+        };
+        info!(
+            "Enabled dimensions: {:?}",
+            dimensions
+                .iter()
+                .map(|d| d.minecraft_name)
+                .collect::<Vec<_>>()
+        );
+
         let server = Self {
             basic_config,
             advanced_config,
@@ -234,11 +252,7 @@ impl Server {
             recipe_manager: Arc::new(recipe::RecipeManager::new()),
             map_id: level_info.load().map_id.into(),
             worlds: ArcSwap::from_pointee(vec![]),
-            dimensions: vec![
-                Dimension::OVERWORLD,
-                Dimension::THE_NETHER,
-                Dimension::THE_END,
-            ],
+            dimensions,
             command_dispatcher,
             block_registry: block_registry.clone(),
             item_registry: super::item::items::default_registry(),
@@ -305,18 +319,19 @@ impl Server {
         };
 
         info!("Starting parallel world load...");
-        let (overworld, nether, end, keys) = tokio::join!(
-            world_loader(Dimension::OVERWORLD),
-            world_loader(Dimension::THE_NETHER),
-            world_loader(Dimension::THE_END),
-            mojang_keys_task
-        );
+        let mut world_futures = Vec::new();
+        for dim in &server.dimensions {
+            world_futures.push(world_loader(dim.clone()));
+        }
 
-        let worlds_vec = vec![
-            overworld.expect("Overworld panicked"),
-            nether.expect("Nether panicked"),
-            end.expect("End panicked"),
-        ];
+        let (worlds_results, keys) =
+            tokio::join!(futures::future::join_all(world_futures), mojang_keys_task);
+
+        let mut worlds_vec = Vec::new();
+        for world_result in worlds_results {
+            worlds_vec.push(world_result.expect("World loading panicked"));
+        }
+
         server.worlds.store(Arc::new(worlds_vec));
         if let Ok(k) = keys {
             server.mojang_public_keys.store(Arc::new(k));
@@ -354,18 +369,18 @@ impl Server {
     }
 
     pub fn get_world_from_dimension(&self, dimension: &Dimension) -> Arc<World> {
-        // TODO: this is really bad
-        let world_guard = self.worlds.load();
-
-        if dimension == &Dimension::OVERWORLD {
-            world_guard.first()
-        } else if dimension == &Dimension::THE_NETHER {
-            world_guard.get(1)
-        } else {
-            world_guard.get(2)
-        }
-        .cloned()
-        .unwrap()
+        self.worlds
+            .load()
+            .iter()
+            .find(|w| w.dimension.minecraft_name == dimension.minecraft_name)
+            .cloned()
+            .unwrap_or_else(|| {
+                self.worlds
+                    .load()
+                    .first()
+                    .expect("Default world should exist")
+                    .clone()
+            })
     }
 
     pub async fn create_world(self: &Arc<Self>, name: String, dimension: Dimension) -> Arc<World> {

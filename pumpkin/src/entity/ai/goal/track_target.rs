@@ -42,7 +42,7 @@ impl TrackTargetGoal {
         Self::new(check_visibility, false)
     }
 
-    pub fn set_unseen_memory_ticks(mut self, ticks: i32) -> Self {
+    pub const fn set_unseen_memory_ticks(mut self, ticks: i32) -> Self {
         self.max_time_without_visibility = ticks;
         self
     }

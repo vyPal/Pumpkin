@@ -44,23 +44,8 @@ impl MoveControlTrait for MoveControl {
         let mob_entity = mob.get_mob_entity();
         let living_entity = &mob_entity.living_entity;
         let entity = &living_entity.entity;
-
         if self.operation == Operation::Strafe {
-            let movement_speed = living_entity.get_attribute_value(&Attributes::MOVEMENT_SPEED);
-            let speed_modified = (self.speed_modifier * movement_speed) as f32;
-            let xa = self.strafe_forwards;
-            let za = self.strafe_right;
-            let mut dist = xa.hypot(za);
-            if dist < 1.0 {
-                dist = 1.0;
-            }
-
-            let dist_norm = speed_modified / dist;
-            let _xa_norm = xa * dist_norm;
-            let _za_norm = za * dist_norm;
-
             // TODO: is_walkable check
-
             living_entity.movement_input.store(Vector3::new(
                 self.strafe_right as f64,
                 0.0,
@@ -121,11 +106,13 @@ impl MoveControlTrait for MoveControl {
 }
 
 impl MoveControl {
+    #[must_use]
     pub fn has_wanted(&self) -> bool {
         self.operation == Operation::MoveTo
     }
 
-    pub fn get_speed_modifier(&self) -> f64 {
+    #[must_use]
+    pub const fn get_speed_modifier(&self) -> f64 {
         self.speed_modifier
     }
 
@@ -139,7 +126,7 @@ impl MoveControl {
         }
     }
 
-    pub fn strafe(&mut self, forwards: f32, right: f32) {
+    pub const fn strafe(&mut self, forwards: f32, right: f32) {
         self.operation = Operation::Strafe;
         self.strafe_forwards = forwards;
         self.strafe_right = right;

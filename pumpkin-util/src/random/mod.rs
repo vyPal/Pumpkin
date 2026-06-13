@@ -159,7 +159,7 @@ pub fn get_region_seed(world_seed: u64, region_x: i32, region_z: i32, salt: u32)
 /// A seed value to be used with a legacy random generator.
 #[inline]
 #[must_use]
-pub fn seed_slime_chunk(x: i32, z: i32, seed: u64, salt: u64) -> u64 {
+pub const fn seed_slime_chunk(x: i32, z: i32, seed: u64, salt: u64) -> u64 {
     (seed
         .wrapping_add((x.wrapping_mul(x).wrapping_mul(4_987_142)) as i64 as u64)
         .wrapping_add((x.wrapping_mul(5_947_611)) as i64 as u64)
