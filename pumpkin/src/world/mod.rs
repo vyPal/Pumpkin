@@ -90,7 +90,7 @@ use pumpkin_protocol::{
     bedrock::{
         client::{
             add_player::CAddPlayer,
-            creative_content::{CCreativeContent, Group},
+            creative_content::{CCreativeContent, CreativeCategory, Entry, Group},
             gamerules_changed::GameRules,
             player_list::{CPlayerList, PlayerListEntry, Skin},
             remove_actor::CRemoveActor,
@@ -1755,6 +1755,8 @@ impl World {
         player: Arc<Player>,
         server: &Server,
     ) {
+        static CREATIVE_CONTENT: std::sync::OnceLock<(Vec<Group>, Vec<Entry>)> =
+            std::sync::OnceLock::new();
         let level_info = server.level_info.load();
         let weather = self.weather.lock().await;
         let runtime_id = player.entity_id() as u64;
@@ -1909,16 +1911,65 @@ impl World {
             })
             .await;
 
+        let (groups, entries) = CREATIVE_CONTENT.get_or_init(|| {
+            let groups = pumpkin_data::bedrock_creative::CREATIVE_GROUPS
+                .iter()
+                .map(|g| {
+                    let creative_category = match g.category {
+                        1 => CreativeCategory::Construction,
+                        2 => CreativeCategory::Nature,
+                        3 => CreativeCategory::Equipment,
+                        4 => CreativeCategory::Items,
+                        5 => CreativeCategory::CommandOnly,
+                        _ => CreativeCategory::Undefined,
+                    };
+                    let icon_item = if g.icon_item_id != 0 {
+                        NetworkItemDescriptor {
+                            id: VarInt::from(g.icon_item_id),
+                            stack_size: 1,
+                            aux_value: VarUInt(g.icon_item_aux_value),
+                            block_runtime_id: VarInt(0),
+                            nbt_data: pumpkin_nbt::Nbt::default(),
+                            place_on_blocks: Vec::new(),
+                            destroy_blocks: Vec::new(),
+                            shield_blocking_tick: 0,
+                        }
+                    } else {
+                        NetworkItemDescriptor::default()
+                    };
+
+                    Group {
+                        creative_category,
+                        name: g.name.to_string(),
+                        icon_item,
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            let entries = pumpkin_data::bedrock_creative::CREATIVE_ENTRIES
+                .iter()
+                .enumerate()
+                .map(|(i, e)| Entry {
+                    id: VarUInt((i + 1) as u32),
+                    item: NetworkItemDescriptor {
+                        id: VarInt::from(e.item_id),
+                        stack_size: 1,
+                        aux_value: VarUInt(e.item_aux_value),
+                        block_runtime_id: VarInt(0),
+                        nbt_data: pumpkin_nbt::Nbt::default(),
+                        place_on_blocks: Vec::new(),
+                        destroy_blocks: Vec::new(),
+                        shield_blocking_tick: 0,
+                    },
+                    group_index: VarUInt(e.group_index),
+                })
+                .collect::<Vec<_>>();
+
+            (groups, entries)
+        });
+
         client
-            .send_game_packet(&CCreativeContent {
-                groups: &[Group {
-                    creative_category:
-                        pumpkin_protocol::bedrock::client::CreativeCategory::Construction,
-                    name: String::new(),
-                    icon_item: NetworkItemDescriptor::default(),
-                }],
-                entries: &[],
-            })
+            .send_game_packet(&CCreativeContent { groups, entries })
             .await;
 
         client
@@ -4982,7 +5033,7 @@ impl World {
         Self::broadcast_java_grouped(je_packet, je_recipients_by_version);
 
         for recipient in bedrock_recipients {
-            recipient.send_game_packet(be_packet).await;
+            recipient.enqueue_packet(be_packet).await;
         }
     }
 }

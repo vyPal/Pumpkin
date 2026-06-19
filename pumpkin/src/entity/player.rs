@@ -3400,16 +3400,40 @@ impl Player {
     }
 
     pub async fn close_handled_screen(self: &Arc<Self>) {
+        let (sync_id, bedrock_window_type) = {
+            let current_handler_guard = self.current_screen_handler.lock().await;
+            let handler = current_handler_guard.lock().await;
+            let sync_id = handler.sync_id();
+            let window_type = handler.window_type();
+            let bedrock_window_type = match window_type {
+                Some(WindowType::Crafting) => 1,
+                Some(WindowType::Furnace) => 2,
+                Some(WindowType::Enchantment) => 3,
+                Some(WindowType::BrewingStand) => 4,
+                Some(WindowType::Anvil) => 5,
+                Some(WindowType::Hopper) => 8,
+                Some(WindowType::Beacon) => 13,
+                Some(WindowType::BlastFurnace) => 27,
+                Some(WindowType::Smoker) => 28,
+                Some(WindowType::Stonecutter) => 29,
+                Some(WindowType::CartographyTable) => 30,
+                Some(WindowType::Grindstone) => 26,
+                Some(WindowType::Loom) => 24,
+                Some(WindowType::Smithing) => 34,
+                _ => 0,
+            };
+            (sync_id, bedrock_window_type)
+        };
+
         self.client
-            .enqueue_packet(&CCloseContainer::new(
-                self.current_screen_handler
-                    .lock()
-                    .await
-                    .lock()
-                    .await
-                    .sync_id()
-                    .into(),
-            ))
+            .enqueue_packet_editioned(
+                &CCloseContainer::new(sync_id.into()),
+                &pumpkin_protocol::bedrock::server::container_close::SContainerClose {
+                    container_id: sync_id,
+                    container_type: bedrock_window_type,
+                    server_initiated: true,
+                },
+            )
             .await;
         self.on_handled_screen_closed().await;
     }
