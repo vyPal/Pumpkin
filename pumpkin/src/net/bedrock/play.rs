@@ -532,7 +532,7 @@ impl BedrockClient {
                 // Actions are already applied to the inventory screen handler above.
             }
             TransactionData::UseItem(data) => {
-                let face = match data.block_face.0 {
+                let face = match data.block_face {
                     0 => BlockDirection::Down,
                     2 => BlockDirection::North,
                     3 => BlockDirection::South,

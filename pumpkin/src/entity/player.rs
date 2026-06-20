@@ -71,7 +71,7 @@ use pumpkin_protocol::java::client::play::{
     CSetExperience, CSetHealth, CSetPlayerInventory, CSetSelectedSlot, CSoundEffect, CStopSound,
     CSubtitle, CSystemChatMessage, CTabList, CTitleAnimation, CTitleText, CUnloadChunk,
     CUpdateMobEffect, CUpdateTime, GameEvent, MapIcon, MapPatch, Metadata, PlayerAction,
-    PlayerInfoFlags, PreviousMessage, Statistic,
+    PlayerInfoFlags, PlayerSpawnData, PreviousMessage, Statistic,
 };
 use pumpkin_protocol::java::server::play::{
     SClickSlot, SContainerButtonClick, SRenameItem, SlotActionType,
@@ -120,7 +120,7 @@ use pumpkin_world::chunk_system::ChunkLoading;
 const MAX_CACHED_SIGNATURES: u8 = 128; // Vanilla: 128
 const MAX_PREVIOUS_MESSAGES: u8 = 20; // Vanilla: 20
 
-pub const DATA_VERSION: i32 = 4790; // 26.1.2
+pub const DATA_VERSION: i32 = 4903; // 26.2
 
 struct HeapNode(i32, Vector2<i32>, Weak<ChunkData>);
 
@@ -2437,8 +2437,8 @@ impl Player {
                 ));
                 self.client
                     .send_packet_now(&CRespawn::new(
-                        (new_world.dimension.id).into(),
-                        new_world.dimension.minecraft_name.to_string(),
+                        PlayerSpawnData::new(
+                        new_world.dimension.clone(),
                         biome::hash_seed(new_world.level.seed.0), // seed
                         self.gamemode.load() as u8,
                         self.gamemode.load() as i8,
@@ -2447,6 +2447,7 @@ impl Player {
                         Some((death_dimension, death_location)),
                         VarInt(self.get_entity().portal_cooldown.load(Ordering::Relaxed) as i32),
                         new_world.sea_level.into(),
+                        ),
                         1,
                     )).await;
 

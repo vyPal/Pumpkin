@@ -944,6 +944,7 @@ pub fn build() -> TokenStream {
                 "magma_block" => "magma".into(),
                 "map" => "empty_map".into(),
                 "melon" => "melon_block".into(),
+                "music_disc_bounce" => "music_disc_13".into(),
                 "nether_brick" => "netherbrick".into(),
                 "nether_bricks" => "nether_brick".into(),
                 "nether_quartz_ore" => "quartz_ore".into(),
@@ -972,6 +973,7 @@ pub fn build() -> TokenStream {
                 "tipped_arrow" | "spectral_arrow" => "arrow".into(),
                 "waxed_copper_block" => "waxed_copper".into(),
                 "zombified_piglin_spawn_egg" => "zombie_pigman_spawn_egg".into(),
+                n if n.contains("sulfur") => "unknown".into(),
                 n => {
                     if n.ends_with("banner") {
                         "banner".into()
@@ -1224,14 +1226,20 @@ pub fn build() -> TokenStream {
 
     for (java_name, mapping) in &be_item_remaps {
         let java_const_ident = format_ident!("{}", java_name.to_shouty_snake_case());
-        let bedrock_id = *bedrock_id_by_key.get(&mapping.identifier).unwrap_or_else(|| {
-            panic!("Missing bedrock item for identifier: {}", mapping.identifier)
-        });
+        let bedrock_id = *bedrock_id_by_key
+            .get(&mapping.identifier)
+            .unwrap_or_else(|| {
+                panic!(
+                    "Missing bedrock item for identifier: {}",
+                    mapping.identifier
+                )
+            });
         let bedrock_data = mapping.data;
 
         if seen_bedrock_pairs.insert((bedrock_id, bedrock_data)) {
             let id_lit = syn::LitInt::new(&bedrock_id.to_string(), proc_macro2::Span::call_site());
-            let data_lit = syn::LitInt::new(&bedrock_data.to_string(), proc_macro2::Span::call_site());
+            let data_lit =
+                syn::LitInt::new(&bedrock_data.to_string(), proc_macro2::Span::call_site());
             bedrock_to_java_arms.extend(quote! {
                 (#id_lit, #data_lit) => Some(&Self::#java_const_ident),
             });

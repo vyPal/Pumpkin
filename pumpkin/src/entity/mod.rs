@@ -442,7 +442,8 @@ impl RemovalReason {
     }
 }
 
-static CURRENT_ID: AtomicI32 = AtomicI32::new(0);
+// IMPORTANT: have that 1 and not 0 because fetch_add returns previous value and 0 would be invalid
+static CURRENT_ID: AtomicI32 = AtomicI32::new(1);
 
 /// Represents a non-living Entity (e.g. Item, Egg, Snowball...)
 pub struct Entity {

@@ -111,29 +111,114 @@ impl NetworkItemDescriptor {
 
 impl From<&ItemStack> for NetworkItemDescriptor {
     fn from(stack: &ItemStack) -> Self {
-        NetworkItemStackDescriptor::from(stack).item
+        if stack.is_empty() {
+            Self::default()
+        } else {
+            JavaToBedrockItemMapping::from_java_item_id(stack.get_item().id).map_or(
+                Self::default(),
+                |mapping| Self {
+                    id: VarInt::from(mapping.bedrock_item.id),
+                    stack_size: stack.item_count as u16,
+                    aux_value: VarUInt(mapping.bedrock_data),
+                    block_runtime_id: VarInt::from(mapping.bedrock_block_state),
+                    nbt_data: Nbt::default(),
+                    place_on_blocks: Vec::default(),
+                    destroy_blocks: Vec::default(),
+                    shield_blocking_tick: 0,
+                },
+            )
+        }
     }
 }
 
 #[derive(Default, Clone, Debug)]
 pub struct NetworkItemStackDescriptor {
-    // I hate mojang
-    // https://mojang.github.io/bedrock-protocol-docs/html/cerealizer_NetworkItemStackDescriptor___SerializedData.html
-    pub item: NetworkItemDescriptor,
+    pub id: i16,
+    pub stack_size: u16,
+    pub aux_value: VarUInt,
+    pub block_runtime_id: VarInt,
+    pub nbt_data: Nbt,
+    pub place_on_blocks: Vec<String>,
+    pub destroy_blocks: Vec<String>,
+    pub shield_blocking_tick: i64,
     pub net_id: Option<NonZeroI32>,
 }
 
 impl PacketWrite for NetworkItemStackDescriptor {
     fn write<W: Write>(&self, writer: &mut W) -> Result<(), Error> {
-        self.item
-            .write_with_net_id(writer, Some(self.net_id.map(|id| VarInt(id.get()))))
+        self.id.write(writer)?;
+        if self.id != 0 {
+            self.stack_size.write(writer)?;
+            self.aux_value.write(writer)?;
+
+            self.net_id.is_some().write(writer)?;
+            if let Some(id) = self.net_id {
+                VarUInt(0).write(writer)?; // variant
+                VarInt(id.get()).write(writer)?;
+            }
+
+            self.block_runtime_id.write(writer)?;
+
+            let mut buf = Vec::new();
+
+            if self.nbt_data.is_empty() {
+                (0i16).write(&mut buf)?;
+            } else {
+                (-1i16).write(&mut buf)?;
+                (1i8).write(&mut buf)?;
+
+                self.nbt_data.clone().write_to_writer_bedrock(&mut buf)?;
+            }
+
+            (self.place_on_blocks.len() as u32).write(&mut buf)?;
+            self.place_on_blocks.write(&mut buf)?;
+
+            (self.destroy_blocks.len() as u32).write(&mut buf)?;
+            self.destroy_blocks.write(&mut buf)?;
+
+            if self.id == BedrockItem::SHIELD.id {
+                self.shield_blocking_tick.write(&mut buf)?;
+            }
+
+            VarUInt(buf.len() as u32).write(writer)?;
+            writer.write_all(&buf)?;
+        }
+        Ok(())
     }
 }
 
 impl PacketRead for NetworkItemStackDescriptor {
     fn read<R: Read>(buf: &mut R) -> Result<Self, Error> {
-        let item = NetworkItemDescriptor::read(buf)?;
-        Ok(Self { item, net_id: None })
+        let id = i16::read(buf)?;
+        if id == 0 {
+            return Ok(Self::default());
+        }
+        let stack_size = u16::read(buf)?;
+        let aux_value = VarUInt::read(buf)?;
+
+        let has_net_id = bool::read(buf)?;
+        let net_id = if has_net_id {
+            let _variant = VarUInt::read(buf)?;
+            let stack_id = VarInt::read(buf)?;
+            NonZeroI32::new(stack_id.0)
+        } else {
+            None
+        };
+
+        let block_runtime_id = VarInt::read(buf)?;
+
+        let user_data_len = VarUInt::read(buf)?.0;
+        let mut user_data = vec![0u8; user_data_len as usize];
+        buf.read_exact(&mut user_data)?;
+
+        Ok(Self {
+            id,
+            stack_size,
+            aux_value,
+            block_runtime_id,
+            net_id,
+            ..Default::default()
+        })
     }
 }
 
@@ -145,16 +230,14 @@ impl From<&ItemStack> for NetworkItemStackDescriptor {
             JavaToBedrockItemMapping::from_java_item_id(stack.get_item().id).map_or(
                 Self::default(),
                 |mapping| Self {
-                    item: NetworkItemDescriptor {
-                        id: VarInt::from(mapping.bedrock_item.id),
-                        stack_size: stack.item_count as u16,
-                        aux_value: VarUInt(mapping.bedrock_data),
-                        block_runtime_id: VarInt::from(mapping.bedrock_block_state),
-                        nbt_data: Nbt::default(),
-                        place_on_blocks: Vec::default(),
-                        destroy_blocks: Vec::default(),
-                        shield_blocking_tick: 0,
-                    },
+                    id: mapping.bedrock_item.id,
+                    stack_size: stack.item_count as u16,
+                    aux_value: VarUInt(mapping.bedrock_data),
+                    block_runtime_id: VarInt::from(mapping.bedrock_block_state),
+                    nbt_data: Nbt::default(),
+                    place_on_blocks: Vec::default(),
+                    destroy_blocks: Vec::default(),
+                    shield_blocking_tick: 0,
                     net_id: Some(stack.uid),
                 },
             )

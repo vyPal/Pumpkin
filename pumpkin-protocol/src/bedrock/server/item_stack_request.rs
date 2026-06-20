@@ -185,12 +185,12 @@ impl PacketRead for ItemStackRequestAction {
                 let repetitions = u8::read(buf)?;
                 let repetitions2 = u8::read(buf)?;
                 let count = u8::read(buf)?;
-                // Skip ingredients
+                // Read and discard ingredients if present (we don't need them server-side)
                 if count > 0 {
-                    return Err(Error::new(
-                        ErrorKind::InvalidData,
-                        "CraftRecipeAuto stack action is unimplemented",
-                    ));
+                    for _ in 0..count {
+                        // NetworkItemStack includes id, count, aux_value, block_runtime_id and extra_data
+                        let _ = crate::bedrock::network_item::NetworkItemStack::read(buf)?;
+                    }
                 }
                 Ok(Self::CraftRecipeAuto {
                     recipe_id,

@@ -79,7 +79,7 @@ use pumpkin_protocol::bedrock::client::start_game::{CStartGame, ServerTelemetryD
 use pumpkin_protocol::bedrock::frame_set::FrameSet;
 use pumpkin_protocol::java::client::play::{
     CBlockUpdate, CChunkBatchEnd, CChunkBatchStart, CChunkData, CDisguisedChatMessage, CExplosion,
-    CRespawn, CSetBlockDestroyStage, CWorldEvent,
+    CRespawn, CSetBlockDestroyStage, CWorldEvent, PlayerSpawnData,
 };
 use pumpkin_protocol::java::client::play::{
     CPlayerSpawnPosition, CRecipeBookAdd, CRecipeBookSettings, CSystemChatMessage,
@@ -1844,6 +1844,8 @@ impl World {
             override_force_experimental_gameplay_has_value: false,
             chat_restriction_level: 0,
             disable_player_interactions: false,
+            server_editor_connection_policy: VarInt(0),
+            allow_anonymous_block_drops_in_editor_worlds: false,
         };
         drop(level_info);
         drop(weather);
@@ -1881,7 +1883,8 @@ impl World {
                 world_template_id: Uuid::nil(),
                 enable_clientside_generation: false,
                 blocknetwork_ids_are_hashed: false,
-                server_auth_sounds: false,
+                server_auth_sounds: true,
+                is_logging_chat: false,
                 server_join_information: None,
                 telemetry: ServerTelemetryData {
                     server_id: String::new(),
@@ -2339,18 +2342,21 @@ impl World {
                 false,
                 true,
                 false,
-                self.dimension.clone(),
-                biome::hash_seed(self.level.seed.0), // seed
-                gamemode as u8,
-                player
-                    .previous_gamemode
-                    .load()
-                    .map_or(-1, |gamemode| gamemode as i8),
-                false,
-                false,
-                None,
-                VarInt(player.get_entity().portal_cooldown.load(Ordering::Relaxed) as i32),
-                self.sea_level.into(),
+                PlayerSpawnData::new(
+                    self.dimension.clone(),
+                    biome::hash_seed(self.level.seed.0), // seed
+                    gamemode as u8,
+                    player
+                        .previous_gamemode
+                        .load()
+                        .map_or(-1, |gamemode| gamemode as i8),
+                    false,
+                    false,
+                    None,
+                    VarInt(player.get_entity().portal_cooldown.load(Ordering::Relaxed) as i32),
+                    self.sea_level.into(),
+                ),
+                base_config.online_mode,
                 // This should stay true even when reports are disabled.
                 // It prevents the annoying popup when joining the server.
                 true,
@@ -3155,16 +3161,17 @@ impl World {
         player
             .client
             .send_packet_now(&CRespawn::new(
-                (target_world.dimension.id).into(),
-                ResourceLocation::from(target_world.dimension.minecraft_name),
-                biome::hash_seed(target_world.level.seed.0),
-                player.gamemode.load() as u8,
-                player.gamemode.load() as i8,
-                false,
-                false,
-                Some((death_dimension, death_location)),
-                VarInt(player.get_entity().portal_cooldown.load(Ordering::Relaxed) as i32),
-                target_world.sea_level.into(),
+                PlayerSpawnData::new(
+                    target_world.dimension.clone(),
+                    biome::hash_seed(target_world.level.seed.0),
+                    player.gamemode.load() as u8,
+                    player.gamemode.load() as i8,
+                    false,
+                    false,
+                    Some((death_dimension, death_location)),
+                    VarInt(player.get_entity().portal_cooldown.load(Ordering::Relaxed) as i32),
+                    target_world.sea_level.into(),
+                ),
                 data_kept,
             ))
             .await;
