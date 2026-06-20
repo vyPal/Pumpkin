@@ -105,7 +105,7 @@ pub struct UseItemTransactionData {
     pub action_type: VarUInt,
     pub trigger_type: u8,
     pub block_position: BlockPos,
-    pub block_face: i32, 
+    pub block_face: i32,
     pub hot_bar_slot: VarInt,
     pub item_in_hand: NetworkItemDescriptor,
     pub player_position: Vector3<f32>,
