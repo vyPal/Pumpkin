@@ -325,6 +325,9 @@ impl JavaClient {
         if !player.has_client_loaded() {
             return;
         }
+        if player.get_entity().has_vehicle().await {
+            return;
+        }
         // Ignore movement packets while awaiting a teleport confirmation (vanilla behavior)
         if player.awaiting_teleport.lock().await.is_some() {
             return;
@@ -453,6 +456,9 @@ impl JavaClient {
         packet: SPlayerPositionRotation,
     ) {
         if !player.has_client_loaded() {
+            return;
+        }
+        if player.get_entity().has_vehicle().await {
             return;
         }
         // Ignore movement packets while awaiting a teleport confirmation (vanilla behavior)
@@ -978,6 +984,8 @@ impl JavaClient {
         input: SPlayerInput,
         server: &Server,
     ) {
+        player.last_input.store(input.input, Ordering::Relaxed);
+
         let sneak = input.input & SPlayerInput::SNEAK != 0;
         if player.get_entity().is_sneaking() != sneak {
             send_cancellable! {{

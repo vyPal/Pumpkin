@@ -406,16 +406,15 @@ impl EntityBase for ArrowEntity {
 
                     if target.get_living_entity().is_some() {
                         let punch = self.punch_level.load(Ordering::Relaxed);
-                        if punch > 0 {
-                            if let Some(owner_id) = self.owner_id {
-                                if let Some(owner_entity) = world.get_entity_by_id(owner_id) {
-                                    crate::entity::combat::handle_knockback(
-                                        owner_entity.get_entity(),
-                                        target.get_entity(),
-                                        f64::from(punch) * 0.6,
-                                    );
-                                }
-                            }
+                        if punch > 0
+                            && let Some(owner_id) = self.owner_id
+                            && let Some(owner_entity) = world.get_entity_by_id(owner_id)
+                        {
+                            crate::entity::combat::handle_knockback(
+                                owner_entity.get_entity(),
+                                target.get_entity(),
+                                f64::from(punch) * 0.6,
+                            );
                         }
 
                         // Play hit sound

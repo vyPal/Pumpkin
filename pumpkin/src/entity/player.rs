@@ -7,7 +7,7 @@ use std::f64::consts::TAU;
 use std::mem;
 use std::num::NonZeroU8;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU8, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI8, AtomicI32, AtomicU8, AtomicU32, Ordering};
 use std::sync::{Arc, Weak};
 use std::time::{Duration, Instant};
 
@@ -452,6 +452,7 @@ pub struct Player {
     pub tick_counter: AtomicI32,
     pub packet_sequence: AtomicI32,
     pub mining_pos: Mutex<BlockPos>,
+    pub last_input: AtomicI8,
     /// A counter for teleport IDs used to track pending teleports.
     pub teleport_id_count: AtomicI32,
     /// The pending teleport information, including the teleport ID and target location.
@@ -645,6 +646,7 @@ impl Player {
             tick_counter: AtomicI32::new(0),
             packet_sequence: AtomicI32::new(-1),
             start_mining_time: AtomicI32::new(0),
+            last_input: AtomicI8::new(0),
             carried_item: Mutex::new(None),
             experience_pick_up_delay: Mutex::new(0),
             teleport_id_count: AtomicI32::new(0),
@@ -4469,6 +4471,10 @@ impl EntityBase for Player {
 
     fn is_spectator(&self) -> bool {
         self.gamemode.load() == GameMode::Spectator
+    }
+
+    fn is_pushable(&self) -> bool {
+        self.gamemode.load() != GameMode::Spectator && self.gamemode.load() != GameMode::Creative
     }
 
     fn get_name(&self) -> TextComponent {

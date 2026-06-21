@@ -284,10 +284,10 @@ impl EntityBase for TridentEntity {
             }
 
             // Handle hit
-            if let Some(h) = hit {
-                if !self.has_hit.swap(true, Ordering::SeqCst) {
-                    caller.on_hit(h).await;
-                }
+            if let Some(h) = hit
+                && !self.has_hit.swap(true, Ordering::SeqCst)
+            {
+                caller.on_hit(h).await;
             }
         })
     }

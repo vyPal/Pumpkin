@@ -173,8 +173,7 @@ impl BowItem {
         {
             for (enchantment, level) in enchantments.enchantment.iter() {
                 if **enchantment == pumpkin_data::Enchantment::POWER {
-                    arrow.base_damage =
-                        arrow.base_damage * (1.0 + 0.25 * (f64::from(*level) + 1.0));
+                    arrow.base_damage *= 1.0 + 0.25 * (f64::from(*level) + 1.0);
                 } else if **enchantment == pumpkin_data::Enchantment::PUNCH {
                     arrow.punch_level.store(*level as u8, Ordering::Relaxed);
                 } else if **enchantment == pumpkin_data::Enchantment::FLAME {
