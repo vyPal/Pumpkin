@@ -1775,13 +1775,15 @@ impl JavaClient {
                         }
                         ActionType::Interact | ActionType::InteractAt => {
                             let held = player.inventory.held_item();
-                            let mut stack = held.lock().await;
-                            if !event.target.interact(player, &mut stack).await {
+                            let mut stack = held.lock().await.clone();
+                            let interacted = event.target.interact(player, &mut stack).await;
+                            if !interacted {
                                 server
                                     .item_registry
                                     .use_on_entity(&mut stack, player, event.target)
                                     .await;
                             }
+                            *held.lock().await = stack;
                         }
                     }
                 }

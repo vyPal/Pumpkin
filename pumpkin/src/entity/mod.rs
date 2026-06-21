@@ -147,6 +147,14 @@ pub trait EntityBase: Send + Sync + NBTStorage + std::any::Any {
         })
     }
 
+    fn get_job_site_pos(&self) -> Option<pumpkin_util::math::position::BlockPos> {
+        None
+    }
+
+    fn get_home_pos(&self) -> Option<pumpkin_util::math::position::BlockPos> {
+        None
+    }
+
     fn as_any(&self) -> &dyn std::any::Any
     where
         Self: Sized,

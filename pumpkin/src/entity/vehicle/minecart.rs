@@ -150,13 +150,11 @@ impl EntityBase for MinecartEntity {
                                     &pos,
                                 );
                             }
-                        } else {
-                            if self.vehicle.get_hurt_time() == 0 {
-                                self.vehicle.set_hurt_dir(-self.vehicle.get_hurt_dir());
-                                self.vehicle.set_hurt_time(10);
-                                self.vehicle.set_damage(50.0);
-                                // TODO: Send entity status
-                            }
+                        } else if self.vehicle.get_hurt_time() == 0 {
+                            self.vehicle.set_hurt_dir(-self.vehicle.get_hurt_dir());
+                            self.vehicle.set_hurt_time(10);
+                            self.vehicle.set_damage(50.0);
+                            // TODO: Send entity status
                         }
                     }
                 } else if is_powered_rail {

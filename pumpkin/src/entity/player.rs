@@ -4796,6 +4796,10 @@ impl MessageCache {
 }
 
 impl InventoryPlayer for Player {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     fn drop_item(&self, item: ItemStack, _retain_ownership: bool) -> PlayerFuture<'_, ()> {
         Box::pin(async move {
             self.drop_item(item).await;
