@@ -152,7 +152,7 @@ impl SlimeEntity {
         // For now, we assume natural spawning as that's what we are implementing.
 
         // Swamp/Surface Spawning
-        // TOOD: fix
+        // TODO: fix
         // let biome = world.get_biome(pos);
         // if biome.has_tag(&pumpkin_data::tag::WorldgenBiome::MINECRAFT_ALLOWS_SURFACE_SLIME_SPAWNS)
         //     && pos.0.y > 50
