@@ -916,6 +916,8 @@ impl DataComponentCodec<Self> for UseCooldownImpl {
 fn deserialize_item_stack_template<'a, A: SeqAccess<'a>>(
     seq: &mut A,
 ) -> Result<pumpkin_data::item_stack::ItemStack, A::Error> {
+    const MAX_COMPONENTS: i32 = 256;
+
     let item_id = seq
         .next_element::<VarInt>()?
         .ok_or_else(|| de::Error::custom("Missing item_id in ItemStackTemplate"))?
@@ -933,7 +935,6 @@ fn deserialize_item_stack_template<'a, A: SeqAccess<'a>>(
         return Err(de::Error::custom("Negative component count"));
     }
 
-    const MAX_COMPONENTS: i32 = 256;
     let total_components = num_to_add
         .checked_add(num_to_remove)
         .ok_or_else(|| de::Error::custom("Component count overflow"))?;

@@ -31,20 +31,19 @@ impl ItemBehaviour for BundleItem {
                 matched = true;
                 if let Some(bundle_contents) =
                     held_item.get_data_component_mut::<BundleContentsImpl>()
+                    && let Some(extracted_stack) = bundle_contents.try_extract()
                 {
-                    if let Some(extracted_stack) = bundle_contents.try_extract() {
-                        let position = player.position();
-                        player.world().play_sound(
-                            Sound::ItemBundleRemoveOne,
-                            pumpkin_data::sound::SoundCategory::Players,
-                            &position,
-                        );
-                        let updated_bundle = held_item.clone();
-                        drop(held_item);
+                    let position = player.position();
+                    player.world().play_sound(
+                        Sound::ItemBundleRemoveOne,
+                        pumpkin_data::sound::SoundCategory::Players,
+                        &position,
+                    );
+                    let updated_bundle = held_item.clone();
+                    drop(held_item);
 
-                        player.drop_item(extracted_stack).await;
-                        player.sync_hand_slot(used_slot_index, updated_bundle).await;
-                    }
+                    player.drop_item(extracted_stack).await;
+                    player.sync_hand_slot(used_slot_index, updated_bundle).await;
                 }
             }
 
@@ -55,20 +54,19 @@ impl ItemBehaviour for BundleItem {
                     used_slot_index = 40; // OFF_HAND_SLOT
                     if let Some(bundle_contents) =
                         off_hand_item.get_data_component_mut::<BundleContentsImpl>()
+                        && let Some(extracted_stack) = bundle_contents.try_extract()
                     {
-                        if let Some(extracted_stack) = bundle_contents.try_extract() {
-                            let position = player.position();
-                            player.world().play_sound(
-                                Sound::ItemBundleRemoveOne,
-                                pumpkin_data::sound::SoundCategory::Players,
-                                &position,
-                            );
-                            let updated_bundle = off_hand_item.clone();
-                            drop(off_hand_item);
+                        let position = player.position();
+                        player.world().play_sound(
+                            Sound::ItemBundleRemoveOne,
+                            pumpkin_data::sound::SoundCategory::Players,
+                            &position,
+                        );
+                        let updated_bundle = off_hand_item.clone();
+                        drop(off_hand_item);
 
-                            player.drop_item(extracted_stack).await;
-                            player.sync_hand_slot(used_slot_index, updated_bundle).await;
-                        }
+                        player.drop_item(extracted_stack).await;
+                        player.sync_hand_slot(used_slot_index, updated_bundle).await;
                     }
                 }
             }
