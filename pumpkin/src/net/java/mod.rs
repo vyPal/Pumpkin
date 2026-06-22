@@ -13,11 +13,12 @@ use pumpkin_config::networking::compression::CompressionInfo;
 use pumpkin_data::packet::CURRENT_MC_VERSION;
 use pumpkin_data::translation;
 use pumpkin_protocol::java::server::play::{
-    SAttack, SChangeGameMode, SChatCommand, SChatMessage, SChunkBatch, SClickSlot, SClientCommand,
-    SClientInformationPlay, SClientTickEnd, SCloseContainer, SCommandSuggestion, SConfirmTeleport,
-    SContainerButtonClick, SCookieResponse as SPCookieResponse, SCustomPayload, SInteract,
-    SJigsawGenerate, SMoveVehicle, SPaddleBoat, SPickItemFromBlock, SPlaceRecipe, SPlayPingRequest,
-    SPlayerAbilities, SPlayerAction, SPlayerCommand, SPlayerInput, SPlayerLoaded, SPlayerPosition,
+    SAttack, SBundleItemSelected, SChangeGameMode, SChatCommand, SChatMessage, SChunkBatch,
+    SClickSlot, SClientCommand, SClientInformationPlay, SClientTickEnd, SCloseContainer,
+    SCommandSuggestion, SConfirmTeleport, SContainerButtonClick,
+    SCookieResponse as SPCookieResponse, SCustomPayload, SInteract, SJigsawGenerate, SMoveVehicle,
+    SPaddleBoat, SPickItemFromBlock, SPlaceRecipe, SPlayPingRequest, SPlayerAbilities,
+    SPlayerAction, SPlayerCommand, SPlayerInput, SPlayerLoaded, SPlayerPosition,
     SPlayerPositionRotation, SPlayerRotation, SPlayerSession, SRecipeBookChangeSettings,
     SRecipeBookSeenRecipe, SRenameItem, SSelectTrade, SSetCommandBlock, SSetCreativeSlot,
     SSetHeldItem, SSetJigsawBlock, SSetPlayerGround, SSwingArm, SUpdateSign, SUseItem, SUseItemOn,
@@ -910,6 +911,13 @@ impl JavaClient {
             id if id == SInteract::to_id(version) => {
                 self.handle_interact(player, SInteract::read(payload, &version)?, server)
                     .await;
+            }
+            id if id == SBundleItemSelected::to_id(version) => {
+                self.handle_bundle_item_selected(
+                    player,
+                    SBundleItemSelected::read(payload, &version)?,
+                )
+                .await;
             }
             id if id == SAttack::to_id(version) => {
                 self.handle_attack(player, SAttack::read(payload, &version)?, server)

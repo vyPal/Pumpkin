@@ -65,15 +65,15 @@ use pumpkin_protocol::java::client::play::{
     CUpdateEntityPos, CUpdateEntityPosRot, CUpdateEntityRot, InitChat, PlayerAction,
 };
 use pumpkin_protocol::java::server::play::{
-    Action, ActionType, CommandBlockMode, FLAG_ON_GROUND, SAttack, SChangeGameMode, SChatCommand,
-    SChatMessage, SChunkBatch, SClientCommand, SClientInformationPlay, SCloseContainer,
-    SCommandSuggestion, SConfirmTeleport, SCookieResponse as SPCookieResponse, SInteract,
-    SJigsawGenerate, SKeepAlive, SMoveVehicle, SPaddleBoat, SPickItemFromBlock, SPlaceRecipe,
-    SPlayPingRequest, SPlayerAbilities, SPlayerAction, SPlayerCommand, SPlayerInput,
-    SPlayerPosition, SPlayerPositionRotation, SPlayerRotation, SPlayerSession,
-    SRecipeBookChangeSettings, SRecipeBookSeenRecipe, SSelectTrade, SSetCommandBlock,
-    SSetCreativeSlot, SSetHeldItem, SSetJigsawBlock, SSetPlayerGround, SSwingArm, SUpdateSign,
-    SUseItem, SUseItemOn, Status,
+    Action, ActionType, CommandBlockMode, FLAG_ON_GROUND, SAttack, SBundleItemSelected,
+    SChangeGameMode, SChatCommand, SChatMessage, SChunkBatch, SClientCommand,
+    SClientInformationPlay, SCloseContainer, SCommandSuggestion, SConfirmTeleport,
+    SCookieResponse as SPCookieResponse, SInteract, SJigsawGenerate, SKeepAlive, SMoveVehicle,
+    SPaddleBoat, SPickItemFromBlock, SPlaceRecipe, SPlayPingRequest, SPlayerAbilities,
+    SPlayerAction, SPlayerCommand, SPlayerInput, SPlayerPosition, SPlayerPositionRotation,
+    SPlayerRotation, SPlayerSession, SRecipeBookChangeSettings, SRecipeBookSeenRecipe,
+    SSelectTrade, SSetCommandBlock, SSetCreativeSlot, SSetHeldItem, SSetJigsawBlock,
+    SSetPlayerGround, SSwingArm, SUpdateSign, SUseItem, SUseItemOn, Status,
 };
 use pumpkin_util::math::boundingbox::BoundingBox;
 use pumpkin_util::math::vector3::Vector3;
@@ -2918,5 +2918,28 @@ impl JavaClient {
                 .set_selected_offer(packet.selected_slot.0 as usize)
                 .await;
         }
+    }
+
+    pub async fn handle_bundle_item_selected(
+        &self,
+        player: &Arc<Player>,
+        packet: SBundleItemSelected,
+    ) {
+        if !player.has_client_loaded() {
+            return;
+        }
+        player.update_last_action_time();
+
+        let selected_item_index = packet.selected_item_index.0;
+        if selected_item_index < 0 && selected_item_index != -1 {
+            self.kick(TextComponent::text("Invalid selected item index"))
+                .await;
+            return;
+        }
+
+        debug!(
+            "Bundle item selected: Slot ID {}, Selected Item Index {}",
+            packet.slot_id.0, selected_item_index
+        );
     }
 }
