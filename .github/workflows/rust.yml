@@ -127,10 +127,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Build Release
         shell: bash
+        # Removed this because this it seems not worth the hussle
+        #  if [[ "${{ runner.arch }}" == "X64" ]]; then
+        #     export RUSTFLAGS="$RUSTFLAGS -C target-cpu=x86-64-v3"
+        #   fi
         run: |
-          if [[ "${{ runner.arch }}" == "X64" ]]; then
-            export RUSTFLAGS="$RUSTFLAGS -C target-cpu=x86-64-v3"
-          fi
           cargo build --verbose --release
       - name: Prepare artifacts
         shell: bash

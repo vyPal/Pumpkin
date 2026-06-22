@@ -152,21 +152,22 @@ impl SlimeEntity {
         // For now, we assume natural spawning as that's what we are implementing.
 
         // Swamp/Surface Spawning
-        let biome = world.get_biome(pos);
-        if biome.has_tag(&pumpkin_data::tag::WorldgenBiome::MINECRAFT_ALLOWS_SURFACE_SLIME_SPAWNS)
-            && pos.0.y > 50
-            && pos.0.y < 70
-        {
-            let time = world.level_time.blocking_lock().time_of_day;
-            let moon_phase = (time / 24000) % 8;
-            let surface_slime_spawn_chance = Self::get_spawn_chance(moon_phase);
-            let mut rng = rand::rng();
-            if rng.random::<f32>() < surface_slime_spawn_chance
-                && world.get_max_local_raw_brightness(pos) <= rng.random_range(0..8)
-            {
-                return true;
-            }
-        }
+        // TOOD: fix
+        // let biome = world.get_biome(pos);
+        // if biome.has_tag(&pumpkin_data::tag::WorldgenBiome::MINECRAFT_ALLOWS_SURFACE_SLIME_SPAWNS)
+        //     && pos.0.y > 50
+        //     && pos.0.y < 70
+        // {
+        //     let time = world.level_time.lock().await.time_of_day;
+        //     let moon_phase = (time / 24000) % 8;
+        //     let surface_slime_spawn_chance = Self::get_spawn_chance(moon_phase);
+        //     let mut rng = rand::rng();
+        //     if rng.random::<f32>() < surface_slime_spawn_chance
+        //         && world.get_max_local_raw_brightness(pos) <= rng.random_range(0..8)
+        //     {
+        //         return true;
+        //     }
+        // }
 
         // Slime Chunk Spawning
         let chunk_pos = pos.chunk_position();
