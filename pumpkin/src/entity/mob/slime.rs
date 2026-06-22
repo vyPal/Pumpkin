@@ -5,7 +5,6 @@ use crossbeam::atomic::AtomicCell;
 use pumpkin_data::attributes::Attributes;
 use pumpkin_data::entity::EntityType;
 use pumpkin_data::sound::{Sound, SoundCategory};
-use pumpkin_data::tag::Taggable;
 use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_util::Difficulty;
 use pumpkin_util::math::boundingbox::{BoundingBox, EntityDimensions};
@@ -188,15 +187,15 @@ impl SlimeEntity {
         false
     }
 
-    const fn get_spawn_chance(moon_phase: i64) -> f32 {
-        match moon_phase {
-            0 => 1.0,
-            1 | 7 => 0.75,
-            2 | 6 => 0.5,
-            3 | 5 => 0.25,
-            _ => 0.0,
-        }
-    }
+    // const fn get_spawn_chance(moon_phase: i64) -> f32 {
+    //     match moon_phase {
+    //         0 => 1.0,
+    //         1 | 7 => 0.75,
+    //         2 | 6 => 0.5,
+    //         3 | 5 => 0.25,
+    //         _ => 0.0,
+    //     }
+    // }
 
     pub(crate) const fn hurt_sound_for_size(size: i32) -> Sound {
         if size == 1 {
