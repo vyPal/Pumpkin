@@ -2494,6 +2494,7 @@ impl World {
                         name: &player.gameprofile.name,
                         properties,
                     },
+                    PlayerAction::UpdateGameMode(VarInt(player.gamemode.load() as i32)),
                     PlayerAction::UpdateListed(player.tab_list_listed.load(Ordering::Relaxed)),
                     PlayerAction::UpdateLatency(VarInt(
                         player.tab_list_latency.load(Ordering::Relaxed),
@@ -2501,7 +2502,6 @@ impl World {
                     PlayerAction::UpdateListOrder(VarInt(
                         player.tab_list_order.load(Ordering::Relaxed),
                     )),
-                    PlayerAction::UpdateGameMode(VarInt(player.gamemode.load() as i32)),
                 ];
 
                 if base_config.allow_chat_reports {
@@ -2722,8 +2722,8 @@ impl World {
                     name: &gameprofile.name,
                     properties: &gameprofile.properties.load(),
                 },
-                PlayerAction::UpdateListed(existing_player.tab_list_listed.load(Ordering::Relaxed)),
                 PlayerAction::UpdateGameMode(VarInt(existing_player.gamemode.load() as i32)),
+                PlayerAction::UpdateListed(existing_player.tab_list_listed.load(Ordering::Relaxed)),
                 PlayerAction::UpdateLatency(VarInt(
                     existing_player.tab_list_latency.load(Ordering::Relaxed),
                 )),
