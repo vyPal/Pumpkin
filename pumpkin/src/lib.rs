@@ -391,6 +391,15 @@ impl PumpkinServer {
             error!("Error saving all players during shutdown: {e}");
         }
 
+        if let Err(e) = self
+            .server
+            .advancement_manager
+            .save_all_players(&self.server.get_all_players())
+            .await
+        {
+            error!("Error saving all players advancements during shutdown: {e}");
+        }
+
         let kick_message = TextComponent::text("Server stopped");
         for player in self.server.get_all_players() {
             player
@@ -479,6 +488,11 @@ impl PumpkinServer {
                                         .handle_player_leave(&player)
                                         .await {
                                             error!("Failed to save player data on disconnect: {e}");
+                                        }
+                                    if let Err(e) = server_clone.advancement_manager
+                                        .save_player(&player)
+                                        .await {
+                                            error!("Failed to save player advancement on disconnect: {e}");
                                         }
                                     }
                                 },
