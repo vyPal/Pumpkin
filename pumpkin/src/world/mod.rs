@@ -3414,10 +3414,19 @@ impl World {
                         }
                     }
                     if !ids_to_remove.is_empty() {
-                        player
-                            .client
-                            .enqueue_packet(&CRemoveEntities::new(&ids_to_remove))
-                            .await;
+                        match player.client.as_ref() {
+                            crate::net::ClientPlatform::Java(java) => {
+                                java.enqueue_packet(&CRemoveEntities::new(&ids_to_remove))
+                                    .await;
+                            }
+                            crate::net::ClientPlatform::Bedrock(bedrock) => {
+                                for id in &ids_to_remove {
+                                    bedrock
+                                        .enqueue_packet(&CRemoveActor::new(VarLong(id.0 as i64)))
+                                        .await;
+                                }
+                            }
+                        }
                     }
                     continue 'main;
                 }
@@ -3979,9 +3988,10 @@ impl World {
         });
 
         let chunk_pos = base_entity.chunk_pos.load();
-        self.broadcast_to_chunk(
+        self.broadcast_to_chunk_editioned_sync(
             chunk_pos,
             &CRemoveEntities::new(&[base_entity.entity_id.into()]),
+            &CRemoveActor::new(VarLong(base_entity.entity_id as i64)),
         );
 
         self.remove_entity_data(base_entity).await;
