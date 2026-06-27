@@ -49,6 +49,7 @@ use pumpkin_protocol::{
                 open_connection::{SOpenConnectionRequest1, SOpenConnectionRequest2},
                 unconnected_ping::SUnconnectedPing,
             },
+            request_ability::SRequestAbility,
             request_chunk_radius::SRequestChunkRadius,
             request_network_settings::SRequestNetworkSettings,
             resource_pack_response::SResourcePackResponse,
@@ -1119,6 +1120,10 @@ impl BedrockClient {
             }
             SBlockPickRequest::PACKET_ID => {
                 self.handle_block_pick_request(player, SBlockPickRequest::read(reader)?)
+                    .await;
+            }
+            SRequestAbility::PACKET_ID => {
+                self.handle_request_ability(player, SRequestAbility::read(reader)?)
                     .await;
             }
             SMobEquipment::PACKET_ID => {
