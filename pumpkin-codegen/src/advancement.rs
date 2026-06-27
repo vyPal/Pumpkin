@@ -548,12 +548,15 @@ impl TreeNodePosition {
         ) {
             inner_left = next_inner_left;
             inner_right = next_inner_right;
-            outer_left = Self::previous_or_thread(nodes, outer_left).expect("Tree invariant broken");
+            outer_left =
+                Self::previous_or_thread(nodes, outer_left).expect("Tree invariant broken");
             outer_right = Self::next_or_thread(nodes, outer_right).expect("Tree invariant broken");
 
             nodes[outer_right].ancestor = idx;
 
-            let shift = (nodes[inner_left].y + shift_inner_left) - (nodes[inner_right].y + shift_inner_right) + 1.0;
+            let shift = (nodes[inner_left].y + shift_inner_left)
+                - (nodes[inner_right].y + shift_inner_right)
+                + 1.0;
             if shift > 0.0 {
                 let ancestor_idx = Self::get_ancestor(nodes, inner_left, idx, default_ancestor);
                 Self::move_subtree(nodes, ancestor_idx, idx, shift);
@@ -659,7 +662,7 @@ pub struct AdvancementStruct {
     pub sends_telemetry: bool,
     pub requirements: Vec<Vec<String>>,
     #[serde(deserialize_with = "deserialize_first_key")]
-    pub criteria : Vec<String>,
+    pub criteria: Vec<String>,
 }
 
 fn deserialize_first_key<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
@@ -846,10 +849,7 @@ pub(crate) fn build() -> TokenStream {
     let advancement_tree = quote! {
         pub static ADVANCEMENT_TREE : LazyLock<AdvancementTree> = #tree;
     };
-    let advancements_holder = tree
-        .nodes_vector
-        .into_iter()
-        .map(|node| node.value);
+    let advancements_holder = tree.nodes_vector.into_iter().map(|node| node.value);
     for AdvancementHolder(identifier, advancement) in advancements_holder {
         let raw_name = identifier.path();
         let format_name = format_ident!("{}", raw_name.to_shouty_snake_case());

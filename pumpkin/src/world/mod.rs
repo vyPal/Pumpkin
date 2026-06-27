@@ -4226,6 +4226,7 @@ impl World {
     }
 
     // Return new state
+    #[allow(clippy::too_many_lines)]
     pub async fn break_block(
         self: &Arc<Self>,
         position: &BlockPos,
@@ -4295,7 +4296,7 @@ impl World {
                     false,
                 );
                 let chunk_pos = position.chunk_position();
-                match cause {
+                match &cause {
                     Some(player) => {
                         self.broadcast_to_chunk_except(
                             chunk_pos,
@@ -4307,6 +4308,20 @@ impl World {
                 }
             }
             if !flags.contains(BlockFlags::SKIP_DROPS) {
+                let tool = if let Some(player) = &cause {
+                    let hand_stack = player
+                        .inventory
+                        .get_stack_in_hand(pumpkin_util::Hand::Right)
+                        .await;
+                    let stack_guard = hand_stack.lock().await;
+                    (stack_guard.item_count > 0).then(|| stack_guard.clone())
+                } else {
+                    None
+                };
+
+                let is_raining = self.is_raining().await;
+                let is_thundering = self.is_thundering().await;
+
                 let params = LootContextParameters {
                     block_state: Some(BlockState::from_id(broken_state_id)),
                     luck,
@@ -4316,6 +4331,9 @@ impl World {
                         position.0.z as f64,
                     )),
                     world_time: self.level_info.load().day_time as u64,
+                    tool,
+                    is_raining: Some(is_raining),
+                    is_thundering: Some(is_thundering),
                     ..Default::default()
                 };
                 block::drop_loot(self, broken_block, position, true, params).await;
