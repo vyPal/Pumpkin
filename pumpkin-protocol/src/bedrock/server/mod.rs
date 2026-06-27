@@ -20,6 +20,7 @@ pub mod request_chunk_radius;
 pub mod request_network_settings;
 pub mod resource_pack_response;
 pub mod set_local_player_as_initialized;
+pub mod set_player_inventory_options;
 pub mod text;
 
 pub use actor_event::*;
@@ -44,4 +45,5 @@ pub use request_chunk_radius::*;
 pub use request_network_settings::*;
 pub use resource_pack_response::*;
 pub use set_local_player_as_initialized::*;
+pub use set_player_inventory_options::*;
 pub use text::*;
