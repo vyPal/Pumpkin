@@ -1,4 +1,4 @@
-use std::{collections::HashMap, hash::Hash, iter::repeat_n};
+use std::{collections::HashMap, hash::Hash};
 
 use pumpkin_data::{
     BlockState, BlockStateId,
@@ -380,17 +380,21 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
         }
     }
 
-    pub fn iter(&self) -> Box<dyn Iterator<Item = &V> + '_> {
+    pub fn iter(&self) -> Box<dyn Iterator<Item = V> + '_> {
         match self {
-            Self::Homogeneous(registry_id) => Box::new(repeat_n(registry_id, Self::VOLUME)),
+            Self::Homogeneous(registry_id) => {
+                Box::new(std::iter::repeat_n(*registry_id, Self::VOLUME))
+            }
             Self::Heterogeneous(data) => match &data.storage {
-                PaletteStorage::Dense(cube) => Box::new(cube.as_flattened().as_flattened().iter()),
+                PaletteStorage::Dense(cube) => {
+                    Box::new(cube.as_flattened().as_flattened().iter().copied())
+                }
                 PaletteStorage::Indexed(indices) => Box::new(
                     indices
                         .as_flattened()
                         .as_flattened()
                         .iter()
-                        .map(|&idx| &data.palette[idx as usize]),
+                        .map(|&idx| data.palette[idx as usize]),
                 ),
             },
         }
@@ -400,6 +404,34 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
         match self {
             Self::Homogeneous(value) => *value == V::default(),
             Self::Heterogeneous(_) => false,
+        }
+    }
+}
+
+impl<'a, V: Hash + Eq + Copy + Default, const DIM: usize> IntoIterator
+    for &'a PalettedContainer<V, DIM>
+{
+    type Item = V;
+    type IntoIter = Box<dyn Iterator<Item = Self::Item> + 'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        match self {
+            PalettedContainer::Homogeneous(registry_id) => Box::new(std::iter::repeat_n(
+                *registry_id,
+                PalettedContainer::<V, DIM>::VOLUME,
+            )),
+            PalettedContainer::Heterogeneous(data) => match &data.storage {
+                PaletteStorage::Dense(cube) => {
+                    Box::new(cube.as_flattened().as_flattened().iter().copied())
+                }
+                PaletteStorage::Indexed(indices) => Box::new(
+                    indices
+                        .as_flattened()
+                        .as_flattened()
+                        .iter()
+                        .map(|&idx| data.palette[idx as usize]),
+                ),
+            },
         }
     }
 }
