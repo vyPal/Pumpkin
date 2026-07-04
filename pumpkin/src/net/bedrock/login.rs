@@ -215,13 +215,13 @@ impl BedrockClient {
             };
 
             let handshake_jwt =
-                pumpkin_util::jwt::generate_handshake_jwt(&*server_private_key, &salt)
+                pumpkin_util::jwt::generate_handshake_jwt(&server_private_key, &salt)
                     .map_err(LoginError::ChainValidationFailed)?;
             let handshake_packet = CHandshake::new(handshake_jwt);
             self.send_game_packet(&handshake_packet).await;
 
             let shared_secret =
-                pumpkin_util::jwt::compute_shared_secret(&*server_private_key, &client_public_key);
+                pumpkin_util::jwt::compute_shared_secret(&server_private_key, &client_public_key);
             let mut hasher = Sha256::new();
             hasher.update(salt);
             hasher.update(shared_secret);
