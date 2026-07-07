@@ -126,7 +126,7 @@ use pumpkin_util::{
     math::{boundingbox::BoundingBox, position::BlockPos, vector3::Vector3},
 };
 use pumpkin_util::{
-    math::{position::chunk_section_from_pos, vector2::Vector2},
+    math::{get_section_cord, position::chunk_section_from_pos, vector2::Vector2},
     random::{RandomImpl, get_seed, xoroshiro128::Xoroshiro},
 };
 use pumpkin_world::inventory::Clearable;
@@ -926,11 +926,27 @@ impl World {
         let entities_to_tick = self.entities.load();
         let entity_count = entities_to_tick.len();
         let server_for_entities = server.clone();
+        let active_chunks = self.active_chunks.load();
 
         let entity_future = async move {
             let t = tokio::time::Instant::now();
             let mut tasks = tokio::task::JoinSet::new();
             for entity in entities_to_tick.iter() {
+                // Only tick entities that sit in an active (ticking) chunk — the
+                // same set block-entity ticking and mob spawning already use, and
+                // like vanilla, which ticks entities only within the simulation
+                // distance. Use the live position: fast movers such as minecarts
+                // and projectiles write `pos` directly and leave the cached
+                // chunk_pos stale.
+                let entity_pos = entity.get_entity().pos.load();
+                let entity_chunk = Vector2::new(
+                    get_section_cord(entity_pos.x.floor() as i32),
+                    get_section_cord(entity_pos.z.floor() as i32),
+                );
+                if !active_chunks.contains(&entity_chunk) {
+                    continue;
+                }
+
                 let e_clone = entity.clone();
                 let s_clone = server_for_entities.clone();
                 let p_cache = players_cache.clone();
