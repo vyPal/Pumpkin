@@ -7,6 +7,7 @@ use pumpkin_util::{
 use tokio::sync::RwLock;
 
 mod advancement;
+mod attribute;
 mod ban;
 mod banip;
 mod banlist;
@@ -175,6 +176,7 @@ pub async fn default_dispatcher(
     trigger::register(&mut dispatcher, registry);
     scoreboard::register(&mut dispatcher, registry);
     clone::register(&mut dispatcher, registry);
+    attribute::register(&mut dispatcher, registry);
     dispatcher
 }
 
