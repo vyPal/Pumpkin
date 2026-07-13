@@ -441,7 +441,6 @@ impl CommandExecutor for ModifierGetExecutor {
     }
 }
 
-#[expect(clippy::too_many_lines)]
 pub fn register(dispatcher: &mut CommandDispatcher, registry: &mut PermissionRegistry) {
     registry.register_permission_or_panic(Permission::new(
         PERMISSION,
