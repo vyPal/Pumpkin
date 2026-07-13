@@ -179,11 +179,16 @@ pub trait EntityBase: Send + Sync + NBTStorage + std::any::Any {
             let is_baby = entity.age.load(Ordering::Relaxed) < 0;
 
             if is_baby {
-                entity.send_meta_data(&[Metadata::new(
-                    TrackedData::BABY_ID,
-                    MetaDataType::BOOLEAN,
-                    true,
-                )]);
+                let mut bedrock_meta = EntityMetadata::new();
+                bedrock_meta.set_flag(entity_data_key::FLAGS, entity_data_flag::BABY as u8, true);
+                entity.send_meta_data(
+                    &[Metadata::new(
+                        TrackedData::BABY_ID,
+                        MetaDataType::BOOLEAN,
+                        true,
+                    )],
+                    Some(&bedrock_meta),
+                );
             }
         })
     }
@@ -1015,20 +1020,59 @@ impl Entity {
     /// Sets a custom name for the entity, typically used with nametags
     pub fn set_custom_name(&self, name: TextComponent) {
         self.custom_name.store(Arc::new(Some(name.clone())));
-        self.send_meta_data(&[Metadata::new(
-            TrackedData::CUSTOM_NAME,
-            MetaDataType::OPTIONAL_TEXT_COMPONENT,
-            Some(name),
-        )]);
+        let mut bedrock_meta = EntityMetadata::new();
+        bedrock_meta.set(
+            entity_data_key::NAME,
+            MetadataValue::String(name.clone().get_text()),
+        );
+        let visible = self.custom_name_visible.load(Ordering::Relaxed);
+        bedrock_meta.set_flag(
+            entity_data_key::FLAGS,
+            entity_data_flag::SHOW_NAME as u8,
+            visible,
+        );
+        bedrock_meta.set_flag(
+            entity_data_key::FLAGS,
+            entity_data_flag::ALWAYS_SHOW_NAME as u8,
+            visible,
+        );
+        self.send_meta_data(
+            &[Metadata::new(
+                TrackedData::CUSTOM_NAME,
+                MetaDataType::OPTIONAL_TEXT_COMPONENT,
+                Some(name),
+            )],
+            Some(&bedrock_meta),
+        );
     }
 
     pub fn set_custom_name_visible(&self, visible: bool) {
         self.custom_name_visible.store(visible, Ordering::Relaxed);
-        self.send_meta_data(&[Metadata::new(
-            TrackedData::CUSTOM_NAME_VISIBLE,
-            MetaDataType::BOOLEAN,
+        let mut bedrock_meta = EntityMetadata::new();
+        if let Some(name) = &**self.custom_name.load() {
+            bedrock_meta.set(
+                entity_data_key::NAME,
+                MetadataValue::String(name.clone().get_text()),
+            );
+        }
+        bedrock_meta.set_flag(
+            entity_data_key::FLAGS,
+            entity_data_flag::SHOW_NAME as u8,
             visible,
-        )]);
+        );
+        bedrock_meta.set_flag(
+            entity_data_key::FLAGS,
+            entity_data_flag::ALWAYS_SHOW_NAME as u8,
+            visible,
+        );
+        self.send_meta_data(
+            &[Metadata::new(
+                TrackedData::CUSTOM_NAME_VISIBLE,
+                MetaDataType::BOOLEAN,
+                visible,
+            )],
+            Some(&bedrock_meta),
+        );
     }
 
     pub fn send_velocity(&self) {
@@ -2383,11 +2427,19 @@ impl Entity {
         // Only update and send metadata if the value changed
         if new_frozen_ticks != old_frozen_ticks {
             self.frozen_ticks.store(new_frozen_ticks, Ordering::Relaxed);
-            self.send_meta_data(&[Metadata::new(
-                TrackedData::TICKS_FROZEN,
-                MetaDataType::INTEGER,
-                VarInt(new_frozen_ticks),
-            )]);
+            let mut bedrock_meta = EntityMetadata::new();
+            bedrock_meta.set(
+                entity_data_key::FREEZING_EFFECT_STRENGTH,
+                MetadataValue::Float(new_frozen_ticks as f32),
+            );
+            self.send_meta_data(
+                &[Metadata::new(
+                    TrackedData::TICKS_FROZEN,
+                    MetaDataType::INTEGER,
+                    VarInt(new_frozen_ticks),
+                )],
+                Some(&bedrock_meta),
+            );
         }
 
         // Vanilla parity: full-freeze damage is tick-phase based.
@@ -2639,11 +2691,14 @@ impl Entity {
             self.flags.fetch_and(!mask, Ordering::Relaxed) & !mask
         };
 
-        self.send_meta_data(&[Metadata::new(
-            TrackedData::SHARED_FLAGS_ID,
-            MetaDataType::BYTE,
-            new_je_flags,
-        )]);
+        self.send_meta_data(
+            &[Metadata::new(
+                TrackedData::SHARED_FLAGS_ID,
+                MetaDataType::BYTE,
+                new_je_flags,
+            )],
+            None,
+        );
 
         if let Some(bedrock_flag) = flag.to_bedrock() {
             let (key, index) = if bedrock_flag >= 64 {
@@ -2710,25 +2765,52 @@ impl Entity {
             .play_sound(sound, SoundCategory::Neutral, &self.pos.load());
     }
 
-    pub fn send_meta_data<T: Serialize>(&self, meta: &[Metadata<T>]) {
+    pub fn send_meta_data<T: Serialize>(
+        &self,
+        meta: &[Metadata<T>],
+        bedrock_meta: Option<&EntityMetadata>,
+    ) {
         let world = self.world.load();
         let chunk_pos = self.chunk_pos.load();
-        for player in world.players.load().iter() {
-            if let ClientPlatform::Java(client) = player.client.as_ref() {
-                // Apply Chebyshev distance check
-                let center = player.get_entity().chunk_pos.load();
-                let view_distance = crate::world::chunker::get_view_distance(player).get() as i32;
 
-                if is_within_view_distance(chunk_pos, center, view_distance) {
-                    let mut buf = Vec::new();
-                    for m in meta {
-                        m.write(&mut buf, &client.version.load()).unwrap();
+        for player in world.players.load().iter() {
+            match player.client.as_ref() {
+                ClientPlatform::Java(client) => {
+                    // Apply Chebyshev distance check
+                    let center = player.get_entity().chunk_pos.load();
+                    let view_distance =
+                        crate::world::chunker::get_view_distance(player).get() as i32;
+
+                    if is_within_view_distance(chunk_pos, center, view_distance) {
+                        let mut buf = Vec::new();
+                        for m in meta {
+                            m.write(&mut buf, &client.version.load()).unwrap();
+                        }
+                        buf.put_u8(255);
+                        player.client.try_enqueue_packet(&CSetEntityMetadata::new(
+                            self.entity_id.into(),
+                            buf.into(),
+                        ));
                     }
-                    buf.put_u8(255);
-                    player.client.try_enqueue_packet(&CSetEntityMetadata::new(
-                        self.entity_id.into(),
-                        buf.into(),
-                    ));
+                }
+                ClientPlatform::Bedrock(client) => {
+                    if let Some(bedrock_meta) = bedrock_meta {
+                        let center = player.get_entity().chunk_pos.load();
+                        let view_distance =
+                            crate::world::chunker::get_view_distance(player).get() as i32;
+
+                        if is_within_view_distance(chunk_pos, center, view_distance) {
+                            client.try_enqueue_packet(&CSetActorData {
+                                actor_runtime_id: VarULong(self.entity_id as u64),
+                                metadata: EntityMetadata(bedrock_meta.0.clone()),
+                                synced_properties: PropertySyncData {
+                                    int_properties: std::collections::HashMap::new(),
+                                    float_properties: std::collections::HashMap::new(),
+                                },
+                                tick: VarULong(0),
+                            });
+                        }
+                    }
                 }
             }
         }
@@ -2744,11 +2826,16 @@ impl Entity {
             self.bounding_box.store(aabb);
             self.entity_dimension.store(dimension);
             let pose = pose as i32;
-            self.send_meta_data(&[Metadata::new(
-                TrackedData::POSE,
-                MetaDataType::ENTITY_POSE,
-                VarInt(pose),
-            )]);
+            let mut bedrock_meta = EntityMetadata::new();
+            bedrock_meta.set(entity_data_key::POSE_INDEX, MetadataValue::Int(pose));
+            self.send_meta_data(
+                &[Metadata::new(
+                    TrackedData::POSE,
+                    MetaDataType::ENTITY_POSE,
+                    VarInt(pose),
+                )],
+                Some(&bedrock_meta),
+            );
         }
     }
 

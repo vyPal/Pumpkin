@@ -12,7 +12,9 @@
 and customizable experience. It prioritizes performance and player enjoyment while adhering to the core mechanics of the game.
 <div align="center">
 
-![chunk loading](/assets/pumpkin_chunk_loading.webp)
+<video src="/assets/pumpkin_chunk_loading.webm" autoplay loop muted playsinline>
+  Your browser does not support the video tag.
+</video>
 
 </div>
 
