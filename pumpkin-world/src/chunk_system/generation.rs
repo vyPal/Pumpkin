@@ -123,7 +123,7 @@ mod tests {
         let _ = generate_single_chunk(
             &dimension,
             biome_mixer_seed,
-            &*world_gen,
+            &world_gen,
             block_registry.as_ref(),
             0,
             0,
@@ -142,7 +142,7 @@ mod tests {
         let chunk = generate_single_chunk(
             &dimension,
             biome_mixer_seed,
-            &*world_gen,
+            &world_gen,
             block_registry.as_ref(),
             31,
             -12,

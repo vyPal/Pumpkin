@@ -126,7 +126,7 @@ mod test {
                 &multi_noise_config,
             );
 
-            chunk.populate_biomes(&generator, &mut multi_noise_sampler);
+            chunk.populate_biomes(generator, &mut multi_noise_sampler);
 
             for (biome_x, biome_y, biome_z, biome_id) in data.data {
                 let calculated_biome = chunk.get_biome(biome_x, biome_y, biome_z);
