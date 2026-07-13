@@ -44,6 +44,7 @@ mod saveall;
 mod saveoff;
 mod saveon;
 mod say;
+mod scoreboard;
 mod seed;
 mod setblock;
 mod setidletimeout;
@@ -61,6 +62,7 @@ mod time;
 mod title;
 mod tps;
 mod transfer;
+mod trigger;
 mod weather;
 mod whitelist;
 mod worldborder;
@@ -169,6 +171,8 @@ pub async fn default_dispatcher(
     tag::register(&mut dispatcher, registry);
     tick::register(&mut dispatcher, registry);
     advancement::register(&mut dispatcher, registry);
+    trigger::register(&mut dispatcher, registry);
+    scoreboard::register(&mut dispatcher, registry);
     dispatcher
 }
 

@@ -226,6 +226,7 @@ pub mod game_profile;
 pub mod hex_color;
 pub mod identifier;
 pub mod nbt;
+pub mod objective;
 pub mod range;
 pub mod resource_key;
 pub mod slot;
