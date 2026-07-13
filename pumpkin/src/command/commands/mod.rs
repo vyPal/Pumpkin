@@ -12,6 +12,7 @@ mod banip;
 mod banlist;
 mod bossbar;
 mod clear;
+mod clone;
 mod damage;
 mod data;
 pub mod defaultgamemode;
@@ -173,6 +174,7 @@ pub async fn default_dispatcher(
     advancement::register(&mut dispatcher, registry);
     trigger::register(&mut dispatcher, registry);
     scoreboard::register(&mut dispatcher, registry);
+    clone::register(&mut dispatcher, registry);
     dispatcher
 }
 

@@ -217,6 +217,7 @@ impl FromStringReader for Identifier {
 }
 
 pub mod argument_type;
+pub mod block;
 pub mod coordinates;
 pub mod core;
 pub mod entity;
