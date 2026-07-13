@@ -53,6 +53,7 @@ mod spreadplayers;
 mod stop;
 mod stopsound;
 mod summon;
+mod tag;
 mod teleport;
 mod tellraw;
 mod tick;
@@ -165,6 +166,7 @@ pub async fn default_dispatcher(
     setidletimeout::register(&mut dispatcher, registry);
     spreadplayers::register(&mut dispatcher, registry);
     stop::register(&mut dispatcher, registry);
+    tag::register(&mut dispatcher, registry);
     tick::register(&mut dispatcher, registry);
     advancement::register(&mut dispatcher, registry);
     dispatcher
