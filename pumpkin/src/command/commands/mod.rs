@@ -27,6 +27,7 @@ mod gamemode;
 mod gamerule;
 mod give;
 mod help;
+mod item;
 mod kick;
 mod kill;
 mod list;
@@ -94,6 +95,7 @@ pub async fn default_dispatcher(
     dispatcher.register(teleport::init_command_tree(), "minecraft:command.teleport");
     dispatcher.register(time::init_command_tree(), "minecraft:command.time");
     dispatcher.register(give::init_command_tree(), "minecraft:command.give");
+    dispatcher.register(item::init_command_tree(), "minecraft:command.item");
     dispatcher.register(enchant::init_command_tree(), "minecraft:command.enchant");
     dispatcher.register(clear::init_command_tree(), "minecraft:command.clear");
     dispatcher.register(setblock::init_command_tree(), "minecraft:command.setblock");
@@ -260,6 +262,13 @@ fn register_level_2_permissions(registry: &mut PermissionRegistry) {
         .register_permission(Permission::new(
             "minecraft:command.give",
             "Gives an item to a player",
+            PermissionDefault::Op(PermissionLvl::Two),
+        ))
+        .expect("Permission already registered");
+    registry
+        .register_permission(Permission::new(
+            "minecraft:command.item",
+            "Replace items in inventories",
             PermissionDefault::Op(PermissionLvl::Two),
         ))
         .expect("Permission already registered");
