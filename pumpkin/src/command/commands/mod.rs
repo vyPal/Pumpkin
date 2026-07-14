@@ -53,6 +53,7 @@ mod setblock;
 mod setidletimeout;
 mod setworldspawn;
 mod spawnpoint;
+mod spectate;
 mod spreadplayers;
 mod stop;
 mod stopsound;
@@ -136,6 +137,7 @@ pub async fn default_dispatcher(
         spawnpoint::init_command_tree(),
         "minecraft:command.spawnpoint",
     );
+    dispatcher.register(spectate::init_command_tree(), "minecraft:command.spectate");
     dispatcher.register(data::init_command_tree(), "minecraft:command.data");
     // Three
     dispatcher.register(deop::init_command_tree(), "minecraft:command.deop");
@@ -416,6 +418,13 @@ fn register_level_2_permissions(registry: &mut PermissionRegistry) {
         .register_permission(Permission::new(
             "minecraft:command.spawnpoint",
             "Sets the spawn point for a player",
+            PermissionDefault::Op(PermissionLvl::Two),
+        ))
+        .expect("Permission already registered");
+    registry
+        .register_permission(Permission::new(
+            "minecraft:command.spectate",
+            "Allows a player to spectate another entity",
             PermissionDefault::Op(PermissionLvl::Two),
         ))
         .expect("Permission already registered");
