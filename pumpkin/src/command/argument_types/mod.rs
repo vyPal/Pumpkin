@@ -221,6 +221,7 @@ pub mod attribute;
 pub mod block;
 pub mod coordinates;
 pub mod core;
+pub mod dialog;
 pub mod entity;
 pub mod entity_anchor;
 pub mod entity_selector;

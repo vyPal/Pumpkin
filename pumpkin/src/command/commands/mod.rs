@@ -18,6 +18,7 @@ mod damage;
 mod data;
 pub mod defaultgamemode;
 mod deop;
+mod dialog;
 mod difficulty;
 mod effect;
 mod enchant;
@@ -165,6 +166,7 @@ pub async fn default_dispatcher(
 
     banlist::register(&mut dispatcher, registry);
     difficulty::register(&mut dispatcher, registry);
+    dialog::register(&mut dispatcher, registry);
     help::register(&mut dispatcher, registry);
     kill::register(&mut dispatcher, registry);
     op::register(&mut dispatcher, registry);
