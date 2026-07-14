@@ -60,6 +60,7 @@ mod stopsound;
 mod summon;
 mod tag;
 mod team;
+mod teammsg;
 mod teleport;
 mod tellraw;
 mod tick;
@@ -182,6 +183,7 @@ pub async fn default_dispatcher(
     trigger::register(&mut dispatcher, registry);
     scoreboard::register(&mut dispatcher, registry);
     team::register(&mut dispatcher, registry);
+    teammsg::register(&mut dispatcher, registry);
     clone::register(&mut dispatcher, registry);
     attribute::register(&mut dispatcher, registry);
     dispatcher
