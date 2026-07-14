@@ -45,6 +45,7 @@ mod plugin;
 mod plugins;
 mod pumpkin;
 mod random;
+mod ride;
 mod rotate;
 mod saveall;
 mod saveoff;
@@ -171,6 +172,7 @@ pub async fn default_dispatcher(
     dialog::register(&mut dispatcher, registry);
     execute::register(&mut dispatcher, registry);
     forceload::register(&mut dispatcher, registry);
+    ride::register(&mut dispatcher, registry);
     help::register(&mut dispatcher, registry);
     kill::register(&mut dispatcher, registry);
     op::register(&mut dispatcher, registry);
