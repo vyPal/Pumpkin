@@ -59,6 +59,7 @@ mod stop;
 mod stopsound;
 mod summon;
 mod tag;
+mod team;
 mod teleport;
 mod tellraw;
 mod tick;
@@ -71,6 +72,7 @@ mod weather;
 mod whitelist;
 mod worldborder;
 
+#[allow(clippy::too_many_lines)]
 #[must_use]
 pub async fn default_dispatcher(
     registry: &RwLock<PermissionRegistry>,
@@ -179,6 +181,7 @@ pub async fn default_dispatcher(
     advancement::register(&mut dispatcher, registry);
     trigger::register(&mut dispatcher, registry);
     scoreboard::register(&mut dispatcher, registry);
+    team::register(&mut dispatcher, registry);
     clone::register(&mut dispatcher, registry);
     attribute::register(&mut dispatcher, registry);
     dispatcher
