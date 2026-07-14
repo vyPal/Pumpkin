@@ -25,6 +25,7 @@ mod enchant;
 mod execute;
 mod experience;
 mod fill;
+mod fillbiome;
 mod forceload;
 mod gamemode;
 mod gamerule;
@@ -173,6 +174,7 @@ pub async fn default_dispatcher(
     difficulty::register(&mut dispatcher, registry);
     dialog::register(&mut dispatcher, registry);
     execute::register(&mut dispatcher, registry);
+    fillbiome::register(&mut dispatcher, registry);
     forceload::register(&mut dispatcher, registry);
     ride::register(&mut dispatcher, registry);
     recipe::register(&mut dispatcher, registry);
