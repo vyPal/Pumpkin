@@ -382,6 +382,8 @@ pub enum EntitySelectorPredicate {
     BoundingBox(BoundingBox),
     /// A predicate to check whether an entity is within a specified range from some position.
     Distance(DoubleBounds, Vector3<f64>),
+    /// A predicate to check the entity type. This check can also be inverted.
+    EntityType(&'static EntityType, bool),
 
     /// Used to combine sub-predicates.
     AllOf(Vec<Self>),
@@ -436,6 +438,10 @@ impl EntitySelectorPredicate {
                 .intersects(bounding_box),
             Self::Distance(bounds, pos) => {
                 bounds.matches_square(entity.get_entity().pos.load().squared_distance_to_vec(pos))
+            }
+            Self::EntityType(expected_type, invert) => {
+                let actual_type = entity.get_entity().entity_type;
+                (actual_type.id == expected_type.id) ^ invert
             }
             Self::AllOf(predicates) => predicates.iter().all(|predicate| predicate.test(entity)),
         }

@@ -90,8 +90,9 @@ impl FromStr for EntityFilter {
 
         match key {
             "type" => {
+                let name = value.strip_prefix("minecraft:").unwrap_or(value);
                 let entity_type =
-                    EntityType::from_name(value).ok_or(format!("Invalid entity type {value}"))?;
+                    EntityType::from_name(name).ok_or(format!("Invalid entity type {value}"))?;
                 Ok(Self::Type(if negate {
                     ValueCondition::NotEquals(entity_type)
                 } else {
@@ -495,5 +496,14 @@ mod test {
         };
         assert_eq!(translate_key, translation::java::ARGUMENT_PLAYER_ENTITIES);
         assert_eq!(error.context.expect("Error should have context").cursor, 4);
+    }
+
+    #[test]
+    fn parse_type_and_inverted_type() {
+        let s = "@e[type=!player,type=minecraft:zombie]"
+            .parse::<TargetSelector>()
+            .expect("should parse");
+        assert!(s.includes_entities());
+        assert_eq!(s.conditions.len(), 2);
     }
 }

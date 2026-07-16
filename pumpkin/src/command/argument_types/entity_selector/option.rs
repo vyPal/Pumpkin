@@ -7,6 +7,7 @@ use crate::command::errors::command_syntax_error::CommandSyntaxError;
 use crate::command::errors::error_types::CommandErrorType;
 use crate::command::string_reader::StringReader;
 use crate::command::suggestion::suggestions::SuggestionsBuilder;
+use pumpkin_data::entity::EntityType;
 use pumpkin_data::translation;
 use pumpkin_util::GameMode;
 use pumpkin_util::math::bounds::{DoubleBounds, FloatDegreeBounds, IntBounds};
@@ -40,6 +41,10 @@ pub const SORT_UNKNOWN_ERROR_TYPE: CommandErrorType<1> = CommandErrorType::new(
 pub const GAMEMODE_INVALID_ERROR_TYPE: CommandErrorType<1> = CommandErrorType::new(
     translation::java::ARGUMENT_ENTITY_OPTIONS_MODE_INVALID,
     translation::java::ARGUMENT_ENTITY_OPTIONS_MODE_INVALID,
+);
+pub const TYPE_INVALID_ERROR_TYPE: CommandErrorType<1> = CommandErrorType::new(
+    translation::java::ARGUMENT_ENTITY_OPTIONS_TYPE_INVALID,
+    translation::java::ARGUMENT_ENTITY_OPTIONS_TYPE_INVALID,
 );
 
 /// Options to customize an [`EntitySelectorParser`].
@@ -187,6 +192,7 @@ impl EntitySelectorOption {
     /// Any required fields will be parsed by this method using [`StringReader`]
     /// methods, and any required predicates will be added.
     /// Any found errors will be returned.
+    #[allow(clippy::too_many_lines)]
     pub fn modify_parser(
         self,
         parser: &mut EntitySelectorParser,
@@ -276,6 +282,33 @@ impl EntitySelectorOption {
                     parser.reader.set_cursor(start);
                     Err(GAMEMODE_INVALID_ERROR_TYPE
                         .create(parser.reader, TextComponent::text(string)))
+                }
+            }
+            Self::Type => {
+                let start = parser.reader.cursor();
+                let invert = parser.consume_inverted_start();
+                if parser.has_flag(Flags::ENTITY_TYPE_INVERTED) && !invert {
+                    parser.reader.set_cursor(start);
+                    return Err(self.inapplicable_error(parser.reader));
+                }
+                let mut string = parser.reader.read_unquoted_string();
+                if let Some(stripped) = string.strip_prefix("minecraft:") {
+                    string = stripped.to_string();
+                }
+                if let Some(entity_type) = EntityType::from_name(&string) {
+                    if entity_type.id == EntityType::PLAYER.id && !invert {
+                        parser.limit_to_players();
+                    }
+                    parser.add_predicate(EntitySelectorPredicate::EntityType(entity_type, invert));
+                    if invert {
+                        parser.set_flag(Flags::ENTITY_TYPE_INVERTED, true);
+                    } else {
+                        parser.entity_type = Some(entity_type);
+                    }
+                    Ok(())
+                } else {
+                    parser.reader.set_cursor(start);
+                    Err(TYPE_INVALID_ERROR_TYPE.create(parser.reader, TextComponent::text(string)))
                 }
             }
             _ => {
