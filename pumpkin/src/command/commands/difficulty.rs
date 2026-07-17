@@ -65,8 +65,8 @@ impl CommandExecutor for DifficultySetExecutor {
                 .source
                 .send_feedback(
                     TextComponent::translate_cross(
-                        "commands.difficulty.success",
-                        "commands.difficulty.success",
+                        pumpkin_data::translation::java::COMMANDS_DIFFICULTY_SUCCESS,
+                        pumpkin_data::translation::bedrock::COMMANDS_DIFFICULTY_SUCCESS,
                         [TextComponent::translate_cross(
                             difficulty.translation_key(),
                             difficulty.translation_key(),

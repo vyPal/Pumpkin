@@ -1052,6 +1052,10 @@ impl Player {
             return;
         }
 
+        if damage >= 100.0 {
+            self.trigger_advancement(crate::entity::player::advancement::trigger::AdvancementTrigger::DealtOverkillDamage).await;
+        }
+
         if let Some(enchantments) = item_stack
             .lock()
             .await
@@ -2027,6 +2031,7 @@ impl Player {
         self.update_player_pose().await;
         self.breath_manager.tick(self).await;
         self.hunger_manager.tick(self).await;
+        self.check_inventory_advancements().await;
         self.advancements.lock().await.flush_dirty(self, true);
 
         // experience handling
@@ -2514,8 +2519,17 @@ impl Player {
                 self.unload_watched_chunks(&current_world).await;
 
                 self.chunk_manager.lock().await.change_world(&current_world.level, new_world.clone());
-                // Update the entity's world reference for correct dimension-based operations
                 self.living_entity.entity.set_world(new_world.clone());
+
+                if new_world.dimension == pumpkin_data::dimension::Dimension::THE_NETHER {
+                    self.trigger_advancement(crate::entity::player::advancement::trigger::AdvancementTrigger::EnterDimension {
+                        dimension: "the_nether".to_string(),
+                    }).await;
+                } else if new_world.dimension == pumpkin_data::dimension::Dimension::THE_END {
+                    self.trigger_advancement(crate::entity::player::advancement::trigger::AdvancementTrigger::EnterDimension {
+                        dimension: "the_end".to_string(),
+                    }).await;
+                }
 
                 let last_pos = self.living_entity.entity.last_pos.load();
                 let death_dimension = ResourceLocation::from(self.world().dimension.minecraft_name);
@@ -2842,6 +2856,10 @@ impl Player {
     }
 
     async fn handle_killed(&self, death_msg: TextComponent) {
+        self.trigger_advancement(
+            crate::entity::player::advancement::trigger::AdvancementTrigger::PlayerKilled,
+        )
+        .await;
         self.set_client_loaded(false);
         let block_pos = self.position().to_block_pos();
 
@@ -4168,6 +4186,51 @@ impl Player {
         CommandSender::Player(self.clone())
             .into_source(server)
             .await
+    }
+
+    pub async fn has_advancement(
+        &self,
+        advancement: &'static pumpkin_data::advancement::Advancement,
+    ) -> bool {
+        let advancements = self.advancements.lock().await;
+        advancements
+            .progress
+            .map
+            .get(advancement)
+            .is_some_and(crate::entity::player::advancement::AdvancementProgress::is_done)
+    }
+
+    pub async fn has_item_in_inventory(&self, item: &pumpkin_data::item::Item) -> bool {
+        for slot in &self.inventory.main_inventory {
+            let stack = slot.lock().await;
+            if !stack.is_empty() && stack.item.id == item.id {
+                return true;
+            }
+        }
+        let equipment = self.inventory.entity_equipment.lock().await;
+        for slot_stack in equipment.equipment.values() {
+            let stack = slot_stack.lock().await;
+            if !stack.is_empty() && stack.item.id == item.id {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub async fn trigger_advancement_criterion(
+        &self,
+        advancement: &'static pumpkin_data::advancement::Advancement,
+        criterion: &str,
+    ) {
+        let mut advancements = self.advancements.lock().await;
+        advancements.award(advancement, criterion);
+    }
+
+    pub async fn check_inventory_advancements(&self) {
+        self.trigger_advancement(
+            crate::entity::player::advancement::trigger::AdvancementTrigger::InventoryChanged,
+        )
+        .await;
     }
 }
 

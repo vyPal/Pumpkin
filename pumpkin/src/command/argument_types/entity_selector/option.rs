@@ -311,9 +311,122 @@ impl EntitySelectorOption {
                     Err(TYPE_INVALID_ERROR_TYPE.create(parser.reader, TextComponent::text(string)))
                 }
             }
-            _ => {
-                tracing::warn!("Unimplemented entity selector option: {:?}", self);
-                Err(UNKNOWN_OPTION_ERROR_TYPE.create_without_context(self.name_component()))
+            Self::Name => {
+                let start = parser.reader.cursor();
+                let invert = parser.consume_inverted_start();
+                if parser.has_flag(if invert {
+                    Flags::NAME_NOT_EQUALS_SET
+                } else {
+                    Flags::NAME_EQUALS_SET
+                }) {
+                    parser.reader.set_cursor(start);
+                    return Err(self.inapplicable_error(parser.reader));
+                }
+                let string = parser.reader.read_unquoted_string();
+                parser.add_predicate(EntitySelectorPredicate::Name(string, invert));
+                parser.set_flag(
+                    if invert {
+                        Flags::NAME_NOT_EQUALS_SET
+                    } else {
+                        Flags::NAME_EQUALS_SET
+                    },
+                    true,
+                );
+                Ok(())
+            }
+            Self::Tag => {
+                let invert = parser.consume_inverted_start();
+                let string = parser.reader.read_unquoted_string();
+                parser.add_predicate(EntitySelectorPredicate::Tag(string, invert));
+                Ok(())
+            }
+            Self::Team => {
+                let start = parser.reader.cursor();
+                let invert = parser.consume_inverted_start();
+                if parser.has_flag(if invert {
+                    Flags::TEAM_NOT_EQUALS_SET
+                } else {
+                    Flags::TEAM_EQUALS_SET
+                }) {
+                    parser.reader.set_cursor(start);
+                    return Err(self.inapplicable_error(parser.reader));
+                }
+                let string = parser.reader.read_unquoted_string();
+                parser.add_predicate(EntitySelectorPredicate::Team(string, invert));
+                parser.set_flag(
+                    if invert {
+                        Flags::TEAM_NOT_EQUALS_SET
+                    } else {
+                        Flags::TEAM_EQUALS_SET
+                    },
+                    true,
+                );
+                Ok(())
+            }
+            Self::Scores => {
+                parser.reader.expect('{')?;
+                parser.reader.skip_whitespace();
+                let mut scores = std::collections::HashMap::new();
+                while parser.reader.can_read_char() && parser.reader.peek() != Some('}') {
+                    parser.reader.skip_whitespace();
+                    let objective = parser.reader.read_unquoted_string();
+                    parser.reader.skip_whitespace();
+                    parser.reader.expect('=')?;
+                    parser.reader.skip_whitespace();
+                    let bounds = IntBounds::from_reader(parser.reader)?;
+                    scores.insert(objective, bounds);
+                    parser.reader.skip_whitespace();
+                    if parser.reader.can_read_char() && parser.reader.peek() == Some(',') {
+                        parser.reader.skip(); // Consume ','
+                    }
+                }
+                parser.reader.expect('}')?;
+                parser.add_predicate(EntitySelectorPredicate::Scores(scores));
+                parser.set_flag(Flags::SCORES_SET, true);
+                Ok(())
+            }
+            Self::Advancements => {
+                parser.reader.expect('{')?;
+                parser.reader.skip_whitespace();
+                let mut advancements = std::collections::HashMap::new();
+                while parser.reader.can_read_char() && parser.reader.peek() != Some('}') {
+                    parser.reader.skip_whitespace();
+                    let advancement_id = parser.reader.read_unquoted_string();
+                    parser.reader.skip_whitespace();
+                    parser.reader.expect('=')?;
+                    parser.reader.skip_whitespace();
+                    let val = parser.reader.read_bool()?;
+                    advancements.insert(advancement_id, val);
+                    parser.reader.skip_whitespace();
+                    if parser.reader.can_read_char() && parser.reader.peek() == Some(',') {
+                        parser.reader.skip(); // Consume ','
+                    }
+                }
+                parser.reader.expect('}')?;
+                parser.add_predicate(EntitySelectorPredicate::Advancements(advancements));
+                parser.set_flag(Flags::ADVANCEMENTS_SET, true);
+                Ok(())
+            }
+            Self::Nbt => {
+                let start = parser.reader.cursor();
+                let invert = parser.consume_inverted_start();
+                let tag = crate::command::snbt::SnbtParser::parse_for_commands(parser.reader)?;
+                if let pumpkin_nbt::tag::NbtTag::Compound(compound) = tag {
+                    parser.add_predicate(EntitySelectorPredicate::Nbt(compound, invert));
+                    Ok(())
+                } else {
+                    parser.reader.set_cursor(start);
+                    Err(
+                        crate::command::errors::error_types::DISPATCHER_UNKNOWN_ARGUMENT
+                            .create(parser.reader),
+                    )
+                }
+            }
+            Self::Predicate => {
+                let invert = parser.consume_inverted_start();
+                let string = parser.reader.read_unquoted_string();
+                parser.add_predicate(EntitySelectorPredicate::Predicate(string, invert));
+                Ok(())
             }
         }
     }

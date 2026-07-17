@@ -39,6 +39,7 @@ static PUMPKIN_UK_UA_JSON: &str = include_str!("../../assets/translations/uk_ua.
 static PUMPKIN_VI_VN_JSON: &str = include_str!("../../assets/translations/vi_vn.json");
 static PUMPKIN_PT_BR_JSON: &str = include_str!("../../assets/translations/pt_br.json");
 static PUMPKIN_PL_PL_JSON: &str = include_str!("../../assets/translations/pl_pl.json");
+static BEDROCK_EN_US_LANG: &str = include_str!("../../assets/en_us_bedrock.lang");
 
 /// A character range representing a substitution placeholder within a translation string.
 ///
@@ -397,6 +398,21 @@ pub static TRANSLATIONS: LazyLock<Mutex<[HashMap<String, String>; Locale::COUNT]
         for (key, value) in pumpkin_pl_pl {
             array[Locale::PlPl as usize].insert(format!("pumpkin:{key}"), value);
         }
+
+        for line in BEDROCK_EN_US_LANG.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') || line.starts_with('/') {
+                continue;
+            }
+            if let Some((key, value)) = line.split_once('=') {
+                let key = key.trim().to_lowercase();
+                let value = value.trim().to_string();
+                array[Locale::EnUs as usize].insert(key.clone(), value.clone());
+                array[Locale::EnUs as usize].insert(format!("minecraft:{key}"), value.clone());
+                array[Locale::EnUs as usize].insert(format!("pumpkin:{key}"), value);
+            }
+        }
+
         Mutex::new(array)
     });
 

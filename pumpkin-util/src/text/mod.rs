@@ -110,9 +110,12 @@ impl TextComponentBase {
             TextContent::Text { text } => text.into_owned(),
             TextContent::Translate {
                 translate,
-                bedrock_translate: _,
+                bedrock_translate,
                 with,
-            } => translation_to_pretty(format!("minecraft:{translate}"), Locale::EnUs, with),
+            } => {
+                let key = bedrock_translate.as_ref().unwrap_or(&translate);
+                translation_to_pretty(format!("minecraft:{key}"), Locale::EnUs, with)
+            }
             TextContent::EntityNames {
                 selector,
                 separator: _,
@@ -220,15 +223,11 @@ impl TextComponentBase {
             TextContent::Text { text: t } => text.push_str(t),
             TextContent::Translate {
                 translate,
-                bedrock_translate: _,
+                bedrock_translate,
                 with,
             } => {
-                // TODO
-                text.push_str(&get_translation_text(
-                    translate.to_string(),
-                    locale,
-                    with.clone(),
-                ));
+                let key = bedrock_translate.as_ref().unwrap_or(translate);
+                text.push_str(&get_translation_text(key.to_string(), locale, with.clone()));
             }
             TextContent::EntityNames { selector, .. } => text.push_str(selector),
             TextContent::Keybind { keybind } => text.push_str(keybind),
@@ -261,9 +260,12 @@ impl TextComponentBase {
             TextContent::Text { text } => text.into_owned(),
             TextContent::Translate {
                 translate,
-                bedrock_translate: _,
+                bedrock_translate,
                 with,
-            } => get_translation_text(format!("minecraft:{translate}"), locale, with),
+            } => {
+                let key = bedrock_translate.as_ref().unwrap_or(&translate);
+                get_translation_text(format!("minecraft:{key}"), locale, with)
+            }
             TextContent::EntityNames {
                 selector,
                 separator: _,
