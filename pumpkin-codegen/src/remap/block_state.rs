@@ -7,10 +7,30 @@ use crate::version::JavaMinecraftVersion;
 /// Generates the `TokenStream` for per-version block-state remap tables and the
 /// `remap_block_state_for_version` function.
 pub fn build() -> TokenStream {
+    let node_1_7_2 = MappingNode {
+        version: JavaMinecraftVersion::V_1_7_2,
+        value: "../assets/viabackwards/data/mappings-1.7.6to1.7.2.nbt",
+        child: None,
+    };
+    let node_1_7_6 = MappingNode {
+        version: JavaMinecraftVersion::V_1_7_6,
+        value: "../assets/viarewind/data/mappings-1.8to1.7.10.nbt",
+        child: Some(&node_1_7_2),
+    };
+    let node_1_8 = MappingNode {
+        version: JavaMinecraftVersion::V_1_8,
+        value: "../assets/viarewind/data/mappings-1.9.4to1.8.nbt",
+        child: Some(&node_1_7_6),
+    };
+    let node_1_9 = MappingNode {
+        version: JavaMinecraftVersion::V_1_9,
+        value: "../assets/viabackwards/data/mappings-1.10to1.9.4.nbt",
+        child: Some(&node_1_8),
+    };
     let node_1_10 = MappingNode {
         version: JavaMinecraftVersion::V_1_10,
         value: "../assets/viabackwards/data/mappings-1.11to1.10.nbt",
-        child: None,
+        child: Some(&node_1_9),
     };
     let node_1_11 = MappingNode {
         version: JavaMinecraftVersion::V_1_11,
