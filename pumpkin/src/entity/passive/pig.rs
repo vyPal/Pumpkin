@@ -107,7 +107,7 @@ impl Mob for PigEntity {
                 );
                 return true;
             }
-            false
+            self.mob_entity.mob_interact(player, item_stack).await
         })
     }
 }
