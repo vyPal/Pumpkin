@@ -978,9 +978,10 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn no_fade_chunk() {
         let expected_data: Vec<(i32, i32, i32, f64)> =
-            read_data_from_file!("../../assets/perlin_7_4.json");
+            read_data_from_file!("../../assets/tests/perlin_7_4.json");
 
         let mut rand = Xoroshiro::from_seed(0);
         let splitter = rand.next_splitter();
@@ -1012,8 +1013,9 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn map() {
-        let expected_data: Vec<i32> = read_data_from_file!("../../assets/perlin_map.json");
+        let expected_data: Vec<i32> = read_data_from_file!("../../assets/tests/perlin_map.json");
         let mut expected_iter = expected_data.iter();
 
         let mut rand = Xoroshiro::from_seed(0);

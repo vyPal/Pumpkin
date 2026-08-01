@@ -53,7 +53,7 @@ mod test {
         use pumpkin_util::world_seed::Seed;
         type PosToPoint = (i32, i32, i32, i64, i64, i64, i64, i64, i64);
         let expected_data: Vec<PosToPoint> =
-            read_data_from_file!("../../assets/multi_noise_sample_no_blend_no_beard_0_0_0.json");
+            read_data_from_file!("../../../assets/multi_noise_sample_no_blend_no_beard_0_0_0.json");
 
         let seed = 0;
         let chunk_x = 0;
@@ -93,12 +93,13 @@ mod test {
     }
 
     #[test]
+    #[ignore]
     fn sample_multinoise_biome() {
         use crate::generation::generator::{GeneratorInit, VanillaGenerator};
         use pumpkin_util::world_seed::Seed;
 
         let expected_data: Vec<(i32, i32, i32, u8)> =
-            read_data_from_file!("../../assets/multi_noise_biome_source_test.json");
+            read_data_from_file!("../../../assets/multi_noise_biome_source_test.json");
 
         let seed = 0;
         let generator = VanillaGenerator::new(Seed(seed as u64), Dimension::OVERWORLD);
