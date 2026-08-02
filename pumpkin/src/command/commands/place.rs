@@ -155,7 +155,7 @@ impl CommandExecutor for PlaceTemplateExecutor {
                 None,
             );
 
-            placer.finalize().await;
+            placer.finalize();
             context
                 .world()
                 .queue_block_updates(&placer.changed_positions)
@@ -246,7 +246,7 @@ impl CommandExecutor for PlaceJigsawExecutor {
                 (piece_count, placer)
             };
 
-            placer.finalize().await;
+            placer.finalize();
             context
                 .world()
                 .queue_block_updates(&placer.changed_positions)
@@ -506,7 +506,7 @@ impl CommandExecutor for PlaceStructureExecutor {
                 }
             };
 
-            placer.finalize().await;
+            placer.finalize();
             context
                 .world()
                 .queue_block_updates(&placer.changed_positions)
@@ -623,7 +623,7 @@ impl CommandExecutor for PlaceFeatureExecutor {
                 placer.block_entity_nbts.push(nbt);
             }
 
-            placer.finalize().await;
+            placer.finalize();
             context
                 .world()
                 .queue_block_updates(&placer.changed_positions)
