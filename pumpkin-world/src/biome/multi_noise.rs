@@ -93,7 +93,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn sample_multinoise_biome() {
         use crate::generation::generator::{GeneratorInit, VanillaGenerator};
         use pumpkin_util::world_seed::Seed;

@@ -225,7 +225,7 @@ impl CommandExecutor for PlaceJigsawExecutor {
                     &MaxDistance::new(128),
                     &DimensionPadding::ZERO,
                     LiquidSettings::ApplyWaterlog,
-                    &PoolAliasLookup,
+                    &PoolAliasLookup::default(),
                 )
                 .ok_or_else(|| {
                     JIGSAW_FAILED.create_without_context(TextComponent::text(pool.clone()))
@@ -334,7 +334,7 @@ impl CommandExecutor for PlaceStructureExecutor {
                         &MaxDistance::new(structure.max_distance_from_center.unwrap_or(128)),
                         &DimensionPadding::ZERO,
                         LiquidSettings::ApplyWaterlog,
-                        &PoolAliasLookup,
+                        &PoolAliasLookup::default(),
                     )
                     .ok_or_else(|| {
                         JIGSAW_FAILED

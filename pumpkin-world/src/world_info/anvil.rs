@@ -230,23 +230,15 @@ pub struct LevelDat {
 #[cfg(test)]
 mod test {
 
-    use flate2::read::GzDecoder;
     use pumpkin_data::game_rules::GameRuleRegistry;
     use pumpkin_nbt::{deserializer::from_bytes, serializer::to_bytes};
     use pumpkin_util::{Difficulty, world_seed::Seed};
-    use std::{
-        fs,
-        io::{Cursor, Read},
-        sync::LazyLock,
-    };
+    use std::{io::Cursor, sync::LazyLock};
     use tempfile::TempDir;
 
-    use crate::{
-        global_path,
-        world_info::{DataPacks, LevelData, WorldGenSettings, WorldInfoError, WorldVersion},
-    };
+    use crate::world_info::{DataPacks, LevelData, WorldGenSettings, WorldVersion};
 
-    use super::{AnvilLevelInfo, LEVEL_DAT_FILE_NAME, LevelDat, WorldInfoReader, WorldInfoWriter};
+    use super::{AnvilLevelInfo, LevelDat, WorldInfoReader, WorldInfoWriter};
 
     #[test]
     fn preserve_level_dat_seed() {
