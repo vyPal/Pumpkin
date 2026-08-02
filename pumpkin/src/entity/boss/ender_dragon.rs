@@ -583,7 +583,7 @@ impl EnderDragonEntity {
         }
     }
 
-    fn tick_crystal_healing(&self) {
+    async fn tick_crystal_healing(&self) {
         let world = self.mob_entity.living_entity.entity.world.load();
         let pos = self.mob_entity.living_entity.entity.pos.load();
 
@@ -604,7 +604,7 @@ impl EnderDragonEntity {
         if let Some(_crystal) = nearest_crystal {
             let living = &self.mob_entity.living_entity;
             if living.health.load() < living.get_max_health() {
-                living.heal(1.0);
+                living.heal(1.0).await;
             }
         }
     }
@@ -728,7 +728,7 @@ impl EnderDragonEntity {
         };
 
         self.tick_growl().await;
-        self.tick_crystal_healing();
+        self.tick_crystal_healing().await;
 
         {
             let world = self.mob_entity.living_entity.entity.world.load();

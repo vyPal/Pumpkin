@@ -68,6 +68,24 @@ use std::sync::RwLock;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
+use crate::plugin::api::events::entity::entity_damage::EntityDamageEvent;
+use crate::plugin::api::events::entity::entity_regain_health::EntityRegainHealthEvent;
+
+/// The reason an entity's health increased, used by [`EntityRegainHealthEvent`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HealReason {
+    /// Saturation-based natural regeneration.
+    Natural,
+    /// Healing from eating food.
+    Eating,
+    /// Healing from a potion or status effect.
+    Potion,
+    /// A plugin explicitly initiated the heal.
+    Plugin,
+    /// Any other source.
+    Other,
+}
+
 /// Represents a living entity within the game world.
 ///
 /// This struct encapsulates the core properties and behaviors of living entities, including players, mobs, and other creatures.
@@ -285,9 +303,39 @@ impl LivingEntity {
         false
     }
 
-    pub fn heal(&self, additional_health: f32) {
+    pub async fn heal(&self, additional_health: f32) {
+        self.heal_with_reason(additional_health, HealReason::Other)
+            .await;
+    }
+
+    /// Heals this entity by `additional_health`, firing a cancellable
+    /// `EntityRegainHealthEvent` with the given `reason` first. Returns `false` if a
+    /// plugin cancelled the heal (in which case no health is restored).
+    pub async fn heal_with_reason(&self, additional_health: f32, reason: HealReason) -> bool {
         assert!(additional_health > 0.0);
-        self.set_health(self.health.load() + additional_health);
+        let world = self.entity.world.load();
+        if let (Some(victim), Some(server)) = (
+            world.get_entity_by_id(self.entity.entity_id),
+            world.server.upgrade(),
+        ) {
+            let event = server
+                .plugin_manager
+                .fire(EntityRegainHealthEvent {
+                    victim,
+                    amount: additional_health,
+                    reason,
+                    cancelled: false,
+                })
+                .await;
+            if event.cancelled {
+                return false;
+            }
+            self.set_health(self.health.load() + event.amount);
+            true
+        } else {
+            self.set_health(self.health.load() + additional_health);
+            true
+        }
     }
 
     pub fn set_health(&self, health: f32) {
@@ -472,7 +520,7 @@ impl LivingEntity {
         // Apply instant effects immediately before storing
         if effect.effect_type == &StatusEffect::INSTANT_HEALTH {
             let heal_amount = 4.0 * (1 << effect.amplifier) as f32;
-            self.heal(heal_amount);
+            self.heal_with_reason(heal_amount, HealReason::Potion).await;
         } else if effect.effect_type == &StatusEffect::INSTANT_DAMAGE {
             let damage_amount = 6.0 * (1 << effect.amplifier) as f32;
             if let Some(dyn_self) = self
@@ -1409,10 +1457,6 @@ impl LivingEntity {
 
             self.drop_equipment(looting_level).await;
 
-            // Broadcast death message if it's a player and the gamerule is enabled
-            self.broadcast_death_message(&*dyn_self, damage_type, source, cause)
-                .await;
-
             self.reset_effects_and_attributes().await;
         }
     }
@@ -1460,26 +1504,6 @@ impl LivingEntity {
                 item.set_damage((max_damage - outer).max(0));
             }
             world.drop_stack(&block_pos, item).await;
-        }
-    }
-
-    async fn broadcast_death_message(
-        &self,
-        dyn_self: &dyn EntityBase,
-        damage_type: DamageType,
-        source: Option<&dyn EntityBase>,
-        cause: Option<&dyn EntityBase>,
-    ) {
-        let world = self.entity.world.load();
-        let show_death_messages = { world.level_info.load().game_rules.show_death_messages };
-        if self.entity.entity_type == &EntityType::PLAYER && show_death_messages {
-            //TODO: KillCredit
-            let death_message = Self::get_death_message(dyn_self, damage_type, source, cause).await;
-            if let Some(server) = world.server.upgrade() {
-                for player in server.get_all_players() {
-                    player.send_system_message(&death_message).await;
-                }
-            }
         }
     }
 
@@ -1659,7 +1683,7 @@ impl LivingEntity {
             let current_health = self.health.load();
             let max_health = self.get_max_health();
             if current_health < max_health && current_health > 0.0 {
-                self.heal(1.0);
+                self.heal_with_reason(1.0, HealReason::Potion).await;
             }
         } else if effect_type == &StatusEffect::POISON {
             let current_health = self.health.load();
@@ -2095,6 +2119,33 @@ impl EntityBase for LivingEntity {
             }
 
             let world = self.entity.world.load();
+
+            // Fire a cancellable EntityDamageEvent before any mitigation is applied, so
+            // plugins can observe/attribute the hit (e.g. for PvP grace periods) and
+            // optionally cancel it or adjust the raw incoming amount.
+            if let (Some(victim), Some(server)) = (
+                world.get_entity_by_id(self.entity.entity_id),
+                world.server.upgrade(),
+            ) {
+                let event = server
+                    .plugin_manager
+                    .fire(EntityDamageEvent {
+                        victim,
+                        amount,
+                        damage_type,
+                        source: source
+                            .and_then(|s| world.get_entity_by_id(s.get_entity().entity_id)),
+                        cause: cause.and_then(|c| world.get_entity_by_id(c.get_entity().entity_id)),
+                        position,
+                        cancelled: false,
+                    })
+                    .await;
+                if event.cancelled {
+                    return false;
+                }
+                amount = event.amount;
+            }
+
             let is_fire_damage = damage_type == DamageType::IN_FIRE
                 || damage_type == DamageType::ON_FIRE
                 || damage_type == DamageType::LAVA

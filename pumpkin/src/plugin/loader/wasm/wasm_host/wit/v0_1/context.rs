@@ -192,6 +192,35 @@ async fn register_world_event(
     }
 }
 
+async fn register_entity_event(
+    resource: &ContextResource,
+    handler: &Arc<WasmPluginEventHandler>,
+    priority: crate::plugin::EventPriority,
+    blocking: bool,
+    event_type: EventType,
+) {
+    use crate::plugin::entity::{
+        entity_damage::EntityDamageEvent, entity_regain_health::EntityRegainHealthEvent,
+        player_death::PlayerDeathEvent,
+    };
+
+    match event_type {
+        EventType::EntityDamageEvent => {
+            register_typed_event::<EntityDamageEvent>(resource, handler, priority, blocking).await;
+        }
+        EventType::PlayerDeathEvent => {
+            register_typed_event::<PlayerDeathEvent>(resource, handler, priority, blocking).await;
+        }
+        EventType::EntityRegainHealthEvent => {
+            register_typed_event::<EntityRegainHealthEvent>(resource, handler, priority, blocking)
+                .await;
+        }
+        _ => {
+            tracing::error!("non-entity event should not be routed to register_entity_event");
+        }
+    }
+}
+
 async fn register_block_event(
     resource: &ContextResource,
     handler: &Arc<WasmPluginEventHandler>,
@@ -354,6 +383,11 @@ impl pumpkin::plugin::context::HostContext for PluginHostState {
             | EventType::BlockGrowEvent
             | EventType::BlockPlaceEvent) => {
                 register_block_event(resource, &handler, priority, blocking, event_type).await;
+            }
+            event_type @ (EventType::EntityDamageEvent
+            | EventType::PlayerDeathEvent
+            | EventType::EntityRegainHealthEvent) => {
+                register_entity_event(resource, &handler, priority, blocking, event_type).await;
             }
             event_type => {
                 register_player_event(resource, &handler, priority, blocking, event_type).await;

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use pumpkin_data::{Block, entity::EntityType};
+use pumpkin_data::{Block, damage::DamageType, entity::EntityType};
 use pumpkin_inventory::screen_handler::ClickType;
 use pumpkin_protocol::java::server::play::ActionType;
 use pumpkin_util::{
@@ -10,12 +10,15 @@ use pumpkin_util::{
 use wasmtime::component::Resource;
 
 use crate::{
-    entity::player::Player,
+    entity::{EntityBase, living::HealReason, player::Player},
     plugin::{
         BoxFuture, EventHandler, Payload,
         loader::wasm::wasm_host::{
             PluginInstance, WasmPlugin,
-            state::{PlayerResource, PluginHostState, TextComponentResource, WorldResource},
+            state::{
+                EntityResource, ItemStackResource, PlayerResource, PluginHostState,
+                TextComponentResource, WorldResource,
+            },
             wit::{self, v0_1::pumpkin},
         },
     },
@@ -24,6 +27,7 @@ use crate::{
 };
 
 pub mod block;
+pub mod entity;
 pub mod player;
 pub mod server;
 pub mod world;
@@ -170,6 +174,63 @@ pub(super) const fn from_wasm_click_type(click_type: pumpkin::plugin::gui::Click
         pumpkin::plugin::gui::ClickType::NumberKey => ClickType::NumberKey(0), // Default to 0
         pumpkin::plugin::gui::ClickType::Unknown => ClickType::Unknown,
     }
+}
+
+pub(super) fn to_wasm_damage_type(damage_type: DamageType) -> String {
+    format!("minecraft:{}", damage_type.message_id)
+}
+
+pub(super) fn from_wasm_damage_type(damage_type: &str) -> DamageType {
+    DamageType::from_name(damage_type.strip_prefix("minecraft:").unwrap_or(damage_type))
+        .unwrap_or(DamageType::GENERIC)
+}
+
+pub(super) const fn to_wasm_heal_reason(reason: HealReason) -> pumpkin::plugin::event::HealReason {
+    match reason {
+        HealReason::Natural => pumpkin::plugin::event::HealReason::Natural,
+        HealReason::Eating => pumpkin::plugin::event::HealReason::Eating,
+        HealReason::Potion => pumpkin::plugin::event::HealReason::Potion,
+        HealReason::Plugin => pumpkin::plugin::event::HealReason::Plugin,
+        HealReason::Other => pumpkin::plugin::event::HealReason::Other,
+    }
+}
+
+pub(super) const fn from_wasm_heal_reason(reason: pumpkin::plugin::event::HealReason) -> HealReason {
+    match reason {
+        pumpkin::plugin::event::HealReason::Natural => HealReason::Natural,
+        pumpkin::plugin::event::HealReason::Eating => HealReason::Eating,
+        pumpkin::plugin::event::HealReason::Potion => HealReason::Potion,
+        pumpkin::plugin::event::HealReason::Plugin => HealReason::Plugin,
+        pumpkin::plugin::event::HealReason::Other => HealReason::Other,
+    }
+}
+
+pub(super) fn consume_entity(
+    state: &mut PluginHostState,
+    entity: &Resource<pumpkin::plugin::world::Entity>,
+) -> Arc<dyn EntityBase> {
+    state
+        .resource_table
+        .delete::<EntityResource>(Resource::new_own(entity.rep()))
+        .expect("invalid entity resource handle")
+        .provider
+}
+
+pub(super) fn consume_item_stack(
+    state: &mut PluginHostState,
+    item_stack: &Resource<pumpkin::plugin::item_stack::ItemStack>,
+) -> pumpkin_data::item_stack::ItemStack {
+    let resource = state
+        .resource_table
+        .delete::<ItemStackResource>(Resource::new_own(item_stack.rep()))
+        .expect("invalid item-stack resource handle");
+    // Freshly created, uncontended resource for the duration of a single event
+    // round-trip — `try_lock` cannot fail here.
+    resource
+        .provider
+        .try_lock()
+        .expect("item-stack resource unexpectedly locked")
+        .clone()
 }
 
 pub(super) fn consume_player(

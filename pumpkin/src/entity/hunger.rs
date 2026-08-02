@@ -105,7 +105,9 @@ impl HungerManager {
             player.send_health().await;
         }
         if heal_amount > 0.0 {
-            player.heal(heal_amount).await;
+            player
+                .heal_with_reason(heal_amount, crate::entity::living::HealReason::Natural)
+                .await;
         }
         if damage_amount > 0.0 {
             player

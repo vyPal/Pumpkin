@@ -98,6 +98,7 @@ use crate::data::SaveJSONConfiguration;
 use crate::entity::{EntityBaseFuture, NbtFuture, TeleportFuture};
 use crate::net::{ClientPlatform, GameProfile};
 use crate::net::{DisconnectReason, PlayerConfig};
+use crate::plugin::entity::player_death::PlayerDeathEvent;
 use crate::plugin::player::exp_change::PlayerExpChangeEvent;
 use crate::plugin::player::inventory_interact::InventoryClickEvent;
 use crate::plugin::player::player_change_world::PlayerChangeWorldEvent;
@@ -2694,7 +2695,20 @@ impl Player {
     }
 
     pub async fn heal(&self, additional_health: f32) {
-        self.living_entity.heal(additional_health);
+        self.living_entity.heal(additional_health).await;
+        self.send_health().await;
+    }
+
+    /// Heals this player by `additional_health`, firing a cancellable
+    /// `EntityRegainHealthEvent` with the given `reason` first.
+    pub async fn heal_with_reason(
+        &self,
+        additional_health: f32,
+        reason: crate::entity::living::HealReason,
+    ) {
+        self.living_entity
+            .heal_with_reason(additional_health, reason)
+            .await;
         self.send_health().await;
     }
 
@@ -2870,7 +2884,7 @@ impl Player {
         }
     }
 
-    async fn handle_killed(&self, death_msg: TextComponent) {
+    async fn handle_killed(&self, cause: Option<&dyn EntityBase>, death_msg: TextComponent) {
         self.trigger_advancement(
             crate::entity::player::advancement::trigger::AdvancementTrigger::PlayerKilled,
         )
@@ -2880,24 +2894,60 @@ impl Player {
 
         let keep_inventory = { self.world().level_info.load().game_rules.keep_inventory };
 
+        let mut drops = Vec::new();
         if !keep_inventory {
             for item in &self.inventory().main_inventory {
                 let mut lock = item.lock().await;
-                self.world()
-                    .drop_stack(
-                        &block_pos,
-                        mem::replace(&mut *lock, ItemStack::EMPTY.clone()),
-                    )
-                    .await;
+                let stack = mem::replace(&mut *lock, ItemStack::EMPTY.clone());
+                if !stack.is_empty() {
+                    drops.push(stack);
+                }
             }
         }
 
         // Reset air supply & drowning ticks on death
         self.breath_manager.reset(self);
 
-        self.client
-            .send_packet_now(&CCombatDeath::new(self.entity_id().into(), &death_msg))
-            .await;
+        let world = self.world();
+        let killer = cause.and_then(|c| world.get_entity_by_id(c.get_entity().entity_id));
+
+        if let (Some(player_arc), Some(server)) = (
+            world.get_player_by_id(self.entity_id()),
+            world.server.upgrade(),
+        ) {
+            let event = server
+                .plugin_manager
+                .fire(PlayerDeathEvent {
+                    player: player_arc,
+                    killer,
+                    death_message: death_msg,
+                    drops,
+                })
+                .await;
+
+            let show_death_messages = world.level_info.load().game_rules.show_death_messages;
+            if show_death_messages {
+                for player in server.get_all_players() {
+                    player.send_system_message(&event.death_message).await;
+                }
+            }
+            for stack in event.drops {
+                world.drop_stack(&block_pos, stack).await;
+            }
+            self.client
+                .send_packet_now(&CCombatDeath::new(
+                    self.entity_id().into(),
+                    &event.death_message,
+                ))
+                .await;
+        } else {
+            for stack in drops {
+                world.drop_stack(&block_pos, stack).await;
+            }
+            self.client
+                .send_packet_now(&CCombatDeath::new(self.entity_id().into(), &death_msg))
+                .await;
+        }
     }
 
     pub async fn set_gamemode(self: &Arc<Self>, gamemode: GameMode) -> bool {
@@ -4542,7 +4592,7 @@ impl EntityBase for Player {
                 if health <= 0.0 {
                     let death_message =
                         LivingEntity::get_death_message(caller, damage_type, source, cause).await;
-                    self.handle_killed(death_message).await;
+                    self.handle_killed(cause, death_message).await;
                 }
             }
             result

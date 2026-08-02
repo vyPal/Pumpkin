@@ -15,11 +15,13 @@ pub use crate::wit::pumpkin::plugin::event::{
 use crate::{Context, Result, Server, wit::pumpkin::plugin::event::EventType};
 
 pub mod block;
+pub mod entity;
 pub mod packet;
 pub mod player;
 pub mod server;
 
 pub use block::*;
+pub use entity::*;
 pub use packet::*;
 pub use player::*;
 pub use server::*;
