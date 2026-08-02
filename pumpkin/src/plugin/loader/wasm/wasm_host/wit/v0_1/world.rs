@@ -37,6 +37,7 @@ use pumpkin_world::chunk::{ChunkData, ChunkHeightmaps, ChunkLight, ChunkSections
 use rustc_hash::FxHashMap;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicU64;
 
 pub(crate) const fn to_wasm_block_direction(dir: InternalBlockDirection) -> WitBlockDirection {
     match dir {
@@ -876,6 +877,7 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
             status: ChunkStatus::Full,
             blending_data: None,
             dirty: AtomicBool::new(true),
+            inhabited_time: AtomicU64::new(0),
         });
 
         // Calculate heightmaps
