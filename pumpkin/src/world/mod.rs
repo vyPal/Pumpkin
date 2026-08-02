@@ -1167,6 +1167,8 @@ impl World {
             )
         };
 
+        self.worldborder.lock().await.tick();
+
         let mut weather = self.weather.lock().await;
         weather.tick_weather(self);
 
