@@ -679,23 +679,39 @@ impl DensityFunctionRepr {
     fn optimize(&mut self) {
         match self {
             Self::BlendDensity { input } => input.optimize(),
-            Self::FindTopSurface { density, upper_bound, .. } => {
+            Self::FindTopSurface {
+                density,
+                upper_bound,
+                ..
+            } => {
                 density.optimize();
                 upper_bound.optimize();
             }
-            Self::ShiftedNoise { shift_x, shift_y, shift_z, .. } => {
+            Self::ShiftedNoise {
+                shift_x,
+                shift_y,
+                shift_z,
+                ..
+            } => {
                 shift_x.optimize();
                 shift_y.optimize();
                 shift_z.optimize();
             }
-            Self::IntervalSelect { input, functions, .. } => {
+            Self::IntervalSelect {
+                input, functions, ..
+            } => {
                 input.optimize();
                 for f in functions.iter_mut() {
                     f.optimize();
                 }
             }
             Self::Wrapper { input, .. } => input.optimize(),
-            Self::RangeChoice { input, when_in_range, when_out_range, .. } => {
+            Self::RangeChoice {
+                input,
+                when_in_range,
+                when_out_range,
+                ..
+            } => {
                 input.optimize();
                 when_in_range.optimize();
                 when_out_range.optimize();
@@ -707,7 +723,9 @@ impl DensityFunctionRepr {
                         LinearOperation::Add => value.0 + data.argument.0,
                         LinearOperation::Mul => value.0 * data.argument.0,
                     };
-                    *self = Self::Constant { value: HashableF64(val) };
+                    *self = Self::Constant {
+                        value: HashableF64(val),
+                    };
                     return;
                 }
                 match data.operation {
@@ -720,22 +738,32 @@ impl DensityFunctionRepr {
                         if data.argument.0 == 1.0 {
                             *self = *input.clone();
                         } else if data.argument.0 == 0.0 {
-                            *self = Self::Constant { value: HashableF64(0.0) };
+                            *self = Self::Constant {
+                                value: HashableF64(0.0),
+                            };
                         }
                     }
                 }
             }
-            Self::Binary { argument1, argument2, data } => {
+            Self::Binary {
+                argument1,
+                argument2,
+                data,
+            } => {
                 argument1.optimize();
                 argument2.optimize();
-                if let (Self::Constant { value: v1 }, Self::Constant { value: v2 }) = (&**argument1, &**argument2) {
+                if let (Self::Constant { value: v1 }, Self::Constant { value: v2 }) =
+                    (&**argument1, &**argument2)
+                {
                     let res = match data.operation {
                         BinaryOperation::Add => v1.0 + v2.0,
                         BinaryOperation::Mul => v1.0 * v2.0,
                         BinaryOperation::Min => v1.0.min(v2.0),
                         BinaryOperation::Max => v1.0.max(v2.0),
                     };
-                    *self = Self::Constant { value: HashableF64(res) };
+                    *self = Self::Constant {
+                        value: HashableF64(res),
+                    };
                     return;
                 }
                 match data.operation {
@@ -759,7 +787,9 @@ impl DensityFunctionRepr {
                                 *self = *argument2.clone();
                                 return;
                             } else if value.0 == 0.0 {
-                                *self = Self::Constant { value: HashableF64(0.0) };
+                                *self = Self::Constant {
+                                    value: HashableF64(0.0),
+                                };
                                 return;
                             }
                         }
@@ -768,7 +798,9 @@ impl DensityFunctionRepr {
                                 *self = *argument1.clone();
                                 return;
                             } else if value.0 == 0.0 {
-                                *self = Self::Constant { value: HashableF64(0.0) };
+                                *self = Self::Constant {
+                                    value: HashableF64(0.0),
+                                };
                                 return;
                             }
                         }
@@ -783,21 +815,43 @@ impl DensityFunctionRepr {
                         UnaryOperation::Abs => value.0.abs(),
                         UnaryOperation::Square => value.0 * value.0,
                         UnaryOperation::Cube => value.0 * value.0 * value.0,
-                        UnaryOperation::HalfNegative => if value.0 > 0.0 { value.0 } else { value.0 * 0.5 },
-                        UnaryOperation::QuarterNegative => if value.0 > 0.0 { value.0 } else { value.0 * 0.25 },
+                        UnaryOperation::HalfNegative => {
+                            if value.0 > 0.0 {
+                                value.0
+                            } else {
+                                value.0 * 0.5
+                            }
+                        }
+                        UnaryOperation::QuarterNegative => {
+                            if value.0 > 0.0 {
+                                value.0
+                            } else {
+                                value.0 * 0.25
+                            }
+                        }
                         UnaryOperation::Squeeze => {
                             let c = value.0.clamp(-1.0, 1.0);
                             c / 2.0 - c * c * c / 24.0
                         }
-                        UnaryOperation::Invert => if value.0 == 0.0 { f64::INFINITY } else { 1.0 / value.0 },
+                        UnaryOperation::Invert => {
+                            if value.0 == 0.0 {
+                                f64::INFINITY
+                            } else {
+                                1.0 / value.0
+                            }
+                        }
                     };
-                    *self = Self::Constant { value: HashableF64(val) };
+                    *self = Self::Constant {
+                        value: HashableF64(val),
+                    };
                 }
             }
             Self::Clamp { input, data } => {
                 input.optimize();
                 if let Self::Constant { value } = &**input {
-                    *self = Self::Constant { value: HashableF64(value.0.clamp(data.min_value.0, data.max_value.0)) };
+                    *self = Self::Constant {
+                        value: HashableF64(value.0.clamp(data.min_value.0, data.max_value.0)),
+                    };
                 }
             }
             _ => {}
@@ -844,7 +898,8 @@ impl DensityFunctionRepr {
             }
             Self::Linear { input, data } => {
                 let child_idx = input.get_index_for_component_readonly(hash_to_index_map);
-                let child_fn = syn::Ident::new(&format!("{}_{}", fn_prefix, child_idx), Span::call_site());
+                let child_fn =
+                    syn::Ident::new(&format!("{}_{}", fn_prefix, child_idx), Span::call_site());
                 let arg = data.argument.0;
                 let body = match data.operation {
                     LinearOperation::Add => quote! { #child_fn(pos, ctx) + #arg },
@@ -859,15 +914,24 @@ impl DensityFunctionRepr {
             }
             Self::Unary { input, data } => {
                 let child_idx = input.get_index_for_component_readonly(hash_to_index_map);
-                let child_fn = syn::Ident::new(&format!("{}_{}", fn_prefix, child_idx), Span::call_site());
+                let child_fn =
+                    syn::Ident::new(&format!("{}_{}", fn_prefix, child_idx), Span::call_site());
                 let body = match data.operation {
                     UnaryOperation::Abs => quote! { #child_fn(pos, ctx).abs() },
                     UnaryOperation::Square => quote! { let v = #child_fn(pos, ctx); v * v },
                     UnaryOperation::Cube => quote! { let v = #child_fn(pos, ctx); v * v * v },
-                    UnaryOperation::HalfNegative => quote! { let v = #child_fn(pos, ctx); if v > 0.0 { v } else { v * 0.5 } },
-                    UnaryOperation::QuarterNegative => quote! { let v = #child_fn(pos, ctx); if v > 0.0 { v } else { v * 0.25 } },
-                    UnaryOperation::Squeeze => quote! { let c = #child_fn(pos, ctx).clamp(-1.0, 1.0); c / 2.0 - c * c * c / 24.0 },
-                    UnaryOperation::Invert => quote! { let v = #child_fn(pos, ctx); if v == 0.0 { f64::INFINITY } else { 1.0 / v } },
+                    UnaryOperation::HalfNegative => {
+                        quote! { let v = #child_fn(pos, ctx); if v > 0.0 { v } else { v * 0.5 } }
+                    }
+                    UnaryOperation::QuarterNegative => {
+                        quote! { let v = #child_fn(pos, ctx); if v > 0.0 { v } else { v * 0.25 } }
+                    }
+                    UnaryOperation::Squeeze => {
+                        quote! { let c = #child_fn(pos, ctx).clamp(-1.0, 1.0); c / 2.0 - c * c * c / 24.0 }
+                    }
+                    UnaryOperation::Invert => {
+                        quote! { let v = #child_fn(pos, ctx); if v == 0.0 { f64::INFINITY } else { 1.0 / v } }
+                    }
                 };
                 quote! {
                     #[inline(always)]
@@ -878,7 +942,8 @@ impl DensityFunctionRepr {
             }
             Self::Clamp { input, data } => {
                 let child_idx = input.get_index_for_component_readonly(hash_to_index_map);
-                let child_fn = syn::Ident::new(&format!("{}_{}", fn_prefix, child_idx), Span::call_site());
+                let child_fn =
+                    syn::Ident::new(&format!("{}_{}", fn_prefix, child_idx), Span::call_site());
                 let min_v = data.min_value.0;
                 let max_v = data.max_value.0;
                 quote! {
@@ -888,16 +953,26 @@ impl DensityFunctionRepr {
                     }
                 }
             }
-            Self::Binary { argument1, argument2, data } => {
+            Self::Binary {
+                argument1,
+                argument2,
+                data,
+            } => {
                 let child1_idx = argument1.get_index_for_component_readonly(hash_to_index_map);
                 let child2_idx = argument2.get_index_for_component_readonly(hash_to_index_map);
-                let child1_fn = syn::Ident::new(&format!("{}_{}", fn_prefix, child1_idx), Span::call_site());
-                let child2_fn = syn::Ident::new(&format!("{}_{}", fn_prefix, child2_idx), Span::call_site());
+                let child1_fn =
+                    syn::Ident::new(&format!("{}_{}", fn_prefix, child1_idx), Span::call_site());
+                let child2_fn =
+                    syn::Ident::new(&format!("{}_{}", fn_prefix, child2_idx), Span::call_site());
                 let body = match data.operation {
                     BinaryOperation::Add => quote! { #child1_fn(pos, ctx) + #child2_fn(pos, ctx) },
                     BinaryOperation::Mul => quote! { #child1_fn(pos, ctx) * #child2_fn(pos, ctx) },
-                    BinaryOperation::Min => quote! { #child1_fn(pos, ctx).min(#child2_fn(pos, ctx)) },
-                    BinaryOperation::Max => quote! { #child1_fn(pos, ctx).max(#child2_fn(pos, ctx)) },
+                    BinaryOperation::Min => {
+                        quote! { #child1_fn(pos, ctx).min(#child2_fn(pos, ctx)) }
+                    }
+                    BinaryOperation::Max => {
+                        quote! { #child1_fn(pos, ctx).max(#child2_fn(pos, ctx)) }
+                    }
                 };
                 quote! {
                     #[inline(always)]
@@ -906,13 +981,24 @@ impl DensityFunctionRepr {
                     }
                 }
             }
-            Self::RangeChoice { input, when_in_range, when_out_range, data } => {
+            Self::RangeChoice {
+                input,
+                when_in_range,
+                when_out_range,
+                data,
+            } => {
                 let input_idx = input.get_index_for_component_readonly(hash_to_index_map);
                 let when_in_idx = when_in_range.get_index_for_component_readonly(hash_to_index_map);
-                let when_out_idx = when_out_range.get_index_for_component_readonly(hash_to_index_map);
-                let input_fn = syn::Ident::new(&format!("{}_{}", fn_prefix, input_idx), Span::call_site());
-                let when_in_fn = syn::Ident::new(&format!("{}_{}", fn_prefix, when_in_idx), Span::call_site());
-                let when_out_fn = syn::Ident::new(&format!("{}_{}", fn_prefix, when_out_idx), Span::call_site());
+                let when_out_idx =
+                    when_out_range.get_index_for_component_readonly(hash_to_index_map);
+                let input_fn =
+                    syn::Ident::new(&format!("{}_{}", fn_prefix, input_idx), Span::call_site());
+                let when_in_fn =
+                    syn::Ident::new(&format!("{}_{}", fn_prefix, when_in_idx), Span::call_site());
+                let when_out_fn = syn::Ident::new(
+                    &format!("{}_{}", fn_prefix, when_out_idx),
+                    Span::call_site(),
+                );
                 let min_inc = data.min_inclusive.0;
                 let max_exc = data.max_exclusive.0;
                 quote! {
@@ -956,13 +1042,21 @@ impl DensityFunctionRepr {
                     }
                 }
             }
-            Self::ShiftedNoise { shift_x, shift_y, shift_z, data } => {
+            Self::ShiftedNoise {
+                shift_x,
+                shift_y,
+                shift_z,
+                data,
+            } => {
                 let sx_idx = shift_x.get_index_for_component_readonly(hash_to_index_map);
                 let sy_idx = shift_y.get_index_for_component_readonly(hash_to_index_map);
                 let sz_idx = shift_z.get_index_for_component_readonly(hash_to_index_map);
-                let sx_fn = syn::Ident::new(&format!("{}_{}", fn_prefix, sx_idx), Span::call_site());
-                let sy_fn = syn::Ident::new(&format!("{}_{}", fn_prefix, sy_idx), Span::call_site());
-                let sz_fn = syn::Ident::new(&format!("{}_{}", fn_prefix, sz_idx), Span::call_site());
+                let sx_fn =
+                    syn::Ident::new(&format!("{}_{}", fn_prefix, sx_idx), Span::call_site());
+                let sy_fn =
+                    syn::Ident::new(&format!("{}_{}", fn_prefix, sy_idx), Span::call_site());
+                let sz_fn =
+                    syn::Ident::new(&format!("{}_{}", fn_prefix, sz_idx), Span::call_site());
                 let noise_id = quote::format_ident!("{}", data.noise_id.to_shouty_snake_case());
                 let xz_scale = data.xz_scale.0;
                 let y_scale = data.y_scale.0;
@@ -994,7 +1088,8 @@ impl DensityFunctionRepr {
             }
             Self::BlendDensity { input } => {
                 let child_idx = input.get_index_for_component_readonly(hash_to_index_map);
-                let child_fn = syn::Ident::new(&format!("{}_{}", fn_prefix, child_idx), Span::call_site());
+                let child_fn =
+                    syn::Ident::new(&format!("{}_{}", fn_prefix, child_idx), Span::call_site());
                 quote! {
                     #[inline(always)]
                     pub fn #fn_name<C: NoiseEvaluationContext>(pos: &pumpkin_util::math::vector3::Vector3<i32>, ctx: &mut C) -> f64 {
@@ -1021,7 +1116,8 @@ impl DensityFunctionRepr {
             }
             Self::Wrapper { input, wrapper } => {
                 let child_idx = input.get_index_for_component_readonly(hash_to_index_map);
-                let child_fn = syn::Ident::new(&format!("{}_{}", fn_prefix, child_idx), Span::call_site());
+                let child_fn =
+                    syn::Ident::new(&format!("{}_{}", fn_prefix, child_idx), Span::call_site());
                 let wrapper_repr = wrapper.into_token_stream();
                 let comp_idx = index;
                 quote! {
@@ -1031,9 +1127,14 @@ impl DensityFunctionRepr {
                     }
                 }
             }
-            Self::IntervalSelect { input, thresholds, functions } => {
+            Self::IntervalSelect {
+                input,
+                thresholds,
+                functions,
+            } => {
                 let input_idx = input.get_index_for_component_readonly(hash_to_index_map);
-                let input_fn = syn::Ident::new(&format!("{}_{}", fn_prefix, input_idx), Span::call_site());
+                let input_fn =
+                    syn::Ident::new(&format!("{}_{}", fn_prefix, input_idx), Span::call_site());
                 let func_fns = functions
                     .iter()
                     .map(|f| {
@@ -1044,7 +1145,11 @@ impl DensityFunctionRepr {
                 let threshold_values = thresholds.iter().map(|t| t.0).collect::<Vec<_>>();
                 let th_indices = (0..threshold_values.len()).collect::<Vec<_>>();
                 let last_func_fn = func_fns.last().unwrap();
-                let initial_func_fns = if func_fns.len() > 1 { &func_fns[..func_fns.len() - 1] } else { &[] };
+                let initial_func_fns = if func_fns.len() > 1 {
+                    &func_fns[..func_fns.len() - 1]
+                } else {
+                    &[]
+                };
                 quote! {
                     #[inline(always)]
                     pub fn #fn_name<C: NoiseEvaluationContext>(pos: &pumpkin_util::math::vector3::Vector3<i32>, ctx: &mut C) -> f64 {
@@ -1075,10 +1180,15 @@ impl DensityFunctionRepr {
             Self::Spline { spline, .. } => {
                 let loc_idx = match spline {
                     SplineRepr::Fixed { .. } => None,
-                    SplineRepr::Standard { location_function, .. } => Some(location_function.get_index_for_component_readonly(hash_to_index_map)),
+                    SplineRepr::Standard {
+                        location_function, ..
+                    } => {
+                        Some(location_function.get_index_for_component_readonly(hash_to_index_map))
+                    }
                 };
                 if let Some(loc_idx) = loc_idx {
-                    let loc_fn = syn::Ident::new(&format!("{}_{}", fn_prefix, loc_idx), Span::call_site());
+                    let loc_fn =
+                        syn::Ident::new(&format!("{}_{}", fn_prefix, loc_idx), Span::call_site());
                     quote! {
                         #[inline(always)]
                         pub fn #fn_name<C: NoiseEvaluationContext>(pos: &pumpkin_util::math::vector3::Vector3<i32>, ctx: &mut C) -> f64 {
@@ -1087,7 +1197,10 @@ impl DensityFunctionRepr {
                         }
                     }
                 } else {
-                    let val = match spline { SplineRepr::Fixed { value } => value.0 as f64, _ => 0.0 };
+                    let val = match spline {
+                        SplineRepr::Fixed { value } => value.0 as f64,
+                        _ => 0.0,
+                    };
                     quote! {
                         #[inline(always)]
                         pub fn #fn_name<C: NoiseEvaluationContext>(pos: &pumpkin_util::math::vector3::Vector3<i32>, ctx: &mut C) -> f64 {
@@ -1097,7 +1210,11 @@ impl DensityFunctionRepr {
                     }
                 }
             }
-            Self::FindTopSurface { density, upper_bound, data } => {
+            Self::FindTopSurface {
+                density,
+                upper_bound,
+                data,
+            } => {
                 let d_idx = density.get_index_for_component_readonly(hash_to_index_map);
                 let u_idx = upper_bound.get_index_for_component_readonly(hash_to_index_map);
                 let d_fn = syn::Ident::new(&format!("{}_{}", fn_prefix, d_idx), Span::call_site());
@@ -1163,7 +1280,8 @@ impl DensityFunctionRepr {
                 upper_bound,
                 data,
             } => {
-                let density_index = density.get_index_for_component(stack, nodes, hash_to_index_map);
+                let density_index =
+                    density.get_index_for_component(stack, nodes, hash_to_index_map);
                 let upper_bound_index =
                     upper_bound.get_index_for_component(stack, nodes, hash_to_index_map);
                 let lower_bound = data.lower_bound;
@@ -1246,9 +1364,12 @@ impl DensityFunctionRepr {
                 shift_z,
                 data,
             } => {
-                let shift_x_index = shift_x.get_index_for_component(stack, nodes, hash_to_index_map);
-                let shift_y_index = shift_y.get_index_for_component(stack, nodes, hash_to_index_map);
-                let shift_z_index = shift_z.get_index_for_component(stack, nodes, hash_to_index_map);
+                let shift_x_index =
+                    shift_x.get_index_for_component(stack, nodes, hash_to_index_map);
+                let shift_y_index =
+                    shift_y.get_index_for_component(stack, nodes, hash_to_index_map);
+                let shift_z_index =
+                    shift_z.get_index_for_component(stack, nodes, hash_to_index_map);
 
                 let xz_scale = &data.xz_scale;
                 let y_scale = &data.y_scale;
@@ -1274,7 +1395,8 @@ impl DensityFunctionRepr {
                 data,
             } => {
                 let input_index = input.get_index_for_component(stack, nodes, hash_to_index_map);
-                let when_in_index = when_in_range.get_index_for_component(stack, nodes, hash_to_index_map);
+                let when_in_index =
+                    when_in_range.get_index_for_component(stack, nodes, hash_to_index_map);
                 let when_out_index =
                     when_out_range.get_index_for_component(stack, nodes, hash_to_index_map);
 
@@ -1298,8 +1420,10 @@ impl DensityFunctionRepr {
                 argument2,
                 data,
             } => {
-                let argument1_index = argument1.get_index_for_component(stack, nodes, hash_to_index_map);
-                let argument2_index = argument2.get_index_for_component(stack, nodes, hash_to_index_map);
+                let argument1_index =
+                    argument1.get_index_for_component(stack, nodes, hash_to_index_map);
+                let argument2_index =
+                    argument2.get_index_for_component(stack, nodes, hash_to_index_map);
 
                 let action = data.operation.get_token_stream();
                 quote! {
@@ -1526,69 +1650,104 @@ impl NoiseRouterRepr {
         let mut noise_lookup_map = BTreeMap::new();
 
         // The aquifer sampler is called most often
-        let final_density = self
-            .final_density
-            .get_index_for_component(&mut noise_component_stack, &mut noise_nodes, &mut noise_lookup_map);
-        let barrier_noise = self
-            .barrier_noise
-            .get_index_for_component(&mut noise_component_stack, &mut noise_nodes, &mut noise_lookup_map);
-        let fluid_level_floodedness_noise = self
-            .fluid_level_floodedness_noise
-            .get_index_for_component(&mut noise_component_stack, &mut noise_nodes, &mut noise_lookup_map);
-        let fluid_level_spread_noise = self
-            .fluid_level_spread_noise
-            .get_index_for_component(&mut noise_component_stack, &mut noise_nodes, &mut noise_lookup_map);
-        let lava_noise = self
-            .lava_noise
-            .get_index_for_component(&mut noise_component_stack, &mut noise_nodes, &mut noise_lookup_map);
+        let final_density = self.final_density.get_index_for_component(
+            &mut noise_component_stack,
+            &mut noise_nodes,
+            &mut noise_lookup_map,
+        );
+        let barrier_noise = self.barrier_noise.get_index_for_component(
+            &mut noise_component_stack,
+            &mut noise_nodes,
+            &mut noise_lookup_map,
+        );
+        let fluid_level_floodedness_noise =
+            self.fluid_level_floodedness_noise.get_index_for_component(
+                &mut noise_component_stack,
+                &mut noise_nodes,
+                &mut noise_lookup_map,
+            );
+        let fluid_level_spread_noise = self.fluid_level_spread_noise.get_index_for_component(
+            &mut noise_component_stack,
+            &mut noise_nodes,
+            &mut noise_lookup_map,
+        );
+        let lava_noise = self.lava_noise.get_index_for_component(
+            &mut noise_component_stack,
+            &mut noise_nodes,
+            &mut noise_lookup_map,
+        );
 
         // Ore sampler is called fewer times than aquifer sampler
-        let vein_toggle = self
-            .vein_toggle
-            .get_index_for_component(&mut noise_component_stack, &mut noise_nodes, &mut noise_lookup_map);
-        let vein_ridged = self
-            .vein_ridged
-            .get_index_for_component(&mut noise_component_stack, &mut noise_nodes, &mut noise_lookup_map);
-        let vein_gap = self
-            .vein_gap
-            .get_index_for_component(&mut noise_component_stack, &mut noise_nodes, &mut noise_lookup_map);
+        let vein_toggle = self.vein_toggle.get_index_for_component(
+            &mut noise_component_stack,
+            &mut noise_nodes,
+            &mut noise_lookup_map,
+        );
+        let vein_ridged = self.vein_ridged.get_index_for_component(
+            &mut noise_component_stack,
+            &mut noise_nodes,
+            &mut noise_lookup_map,
+        );
+        let vein_gap = self.vein_gap.get_index_for_component(
+            &mut noise_component_stack,
+            &mut noise_nodes,
+            &mut noise_lookup_map,
+        );
 
         // These should all be cached so it doesn't matter where their components are
-        let noise_erosion = self
-            .erosion
-            .get_index_for_component(&mut noise_component_stack, &mut noise_nodes, &mut noise_lookup_map);
-        let noise_depth = self
-            .depth
-            .get_index_for_component(&mut noise_component_stack, &mut noise_nodes, &mut noise_lookup_map);
+        let noise_erosion = self.erosion.get_index_for_component(
+            &mut noise_component_stack,
+            &mut noise_nodes,
+            &mut noise_lookup_map,
+        );
+        let noise_depth = self.depth.get_index_for_component(
+            &mut noise_component_stack,
+            &mut noise_nodes,
+            &mut noise_lookup_map,
+        );
 
         let mut surface_component_stack = Vec::new();
         let mut surface_nodes = Vec::new();
         let mut surface_lookup_map = BTreeMap::new();
-        let _ = self
-            .preliminary_surface_level
-            .get_index_for_component(&mut surface_component_stack, &mut surface_nodes, &mut surface_lookup_map);
+        let _ = self.preliminary_surface_level.get_index_for_component(
+            &mut surface_component_stack,
+            &mut surface_nodes,
+            &mut surface_lookup_map,
+        );
 
         let mut multinoise_component_stack = Vec::new();
         let mut multinoise_nodes = Vec::new();
         let mut multinoise_lookup_map = BTreeMap::new();
-        let ridges = self
-            .ridges
-            .get_index_for_component(&mut multinoise_component_stack, &mut multinoise_nodes, &mut multinoise_lookup_map);
-        let temperature = self
-            .temperature
-            .get_index_for_component(&mut multinoise_component_stack, &mut multinoise_nodes, &mut multinoise_lookup_map);
-        let vegetation = self
-            .vegetation
-            .get_index_for_component(&mut multinoise_component_stack, &mut multinoise_nodes, &mut multinoise_lookup_map);
-        let continents = self
-            .continents
-            .get_index_for_component(&mut multinoise_component_stack, &mut multinoise_nodes, &mut multinoise_lookup_map);
-        let multi_erosion = self
-            .erosion
-            .get_index_for_component(&mut multinoise_component_stack, &mut multinoise_nodes, &mut multinoise_lookup_map);
-        let multi_depth = self
-            .depth
-            .get_index_for_component(&mut multinoise_component_stack, &mut multinoise_nodes, &mut multinoise_lookup_map);
+        let ridges = self.ridges.get_index_for_component(
+            &mut multinoise_component_stack,
+            &mut multinoise_nodes,
+            &mut multinoise_lookup_map,
+        );
+        let temperature = self.temperature.get_index_for_component(
+            &mut multinoise_component_stack,
+            &mut multinoise_nodes,
+            &mut multinoise_lookup_map,
+        );
+        let vegetation = self.vegetation.get_index_for_component(
+            &mut multinoise_component_stack,
+            &mut multinoise_nodes,
+            &mut multinoise_lookup_map,
+        );
+        let continents = self.continents.get_index_for_component(
+            &mut multinoise_component_stack,
+            &mut multinoise_nodes,
+            &mut multinoise_lookup_map,
+        );
+        let multi_erosion = self.erosion.get_index_for_component(
+            &mut multinoise_component_stack,
+            &mut multinoise_nodes,
+            &mut multinoise_lookup_map,
+        );
+        let multi_depth = self.depth.get_index_for_component(
+            &mut multinoise_component_stack,
+            &mut multinoise_nodes,
+            &mut multinoise_lookup_map,
+        );
 
         let base_routers_ts = quote! {
             BaseNoiseRouters {
@@ -1623,13 +1782,15 @@ impl NoiseRouterRepr {
         let mod_ident = quote::format_ident!("{}_noise_evaluator", router_name);
         let prefix = format!("{}_node", router_name);
 
-        let fn_tokens = noise_nodes.iter().enumerate().map(|(idx, node)| {
-            node.emit_compiled_eval_fn(idx, &prefix, &noise_lookup_map)
-        });
+        let fn_tokens = noise_nodes
+            .iter()
+            .enumerate()
+            .map(|(idx, node)| node.emit_compiled_eval_fn(idx, &prefix, &noise_lookup_map));
 
         let final_density_fn = quote::format_ident!("{}_{}", prefix, final_density);
         let barrier_noise_fn = quote::format_ident!("{}_{}", prefix, barrier_noise);
-        let fluid_floodedness_fn = quote::format_ident!("{}_{}", prefix, fluid_level_floodedness_noise);
+        let fluid_floodedness_fn =
+            quote::format_ident!("{}_{}", prefix, fluid_level_floodedness_noise);
         let fluid_spread_fn = quote::format_ident!("{}_{}", prefix, fluid_level_spread_noise);
         let lava_noise_fn = quote::format_ident!("{}_{}", prefix, lava_noise);
         let vein_toggle_fn = quote::format_ident!("{}_{}", prefix, vein_toggle);
@@ -1724,7 +1885,8 @@ pub fn build() -> TokenStream {
     let _ = reprs.end;
     let _ = reprs.end_islands;
 
-    let (overworld_router, overworld_compiled) = reprs.overworld.into_token_stream_compiled("overworld");
+    let (overworld_router, overworld_compiled) =
+        reprs.overworld.into_token_stream_compiled("overworld");
     let (nether_router, nether_compiled) = reprs.nether.into_token_stream_compiled("nether");
     let (end_router, end_compiled) = reprs.end.into_token_stream_compiled("end");
 
