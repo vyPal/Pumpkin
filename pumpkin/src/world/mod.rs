@@ -4729,6 +4729,18 @@ impl World {
         self.spawn_entity(item_entity).await;
     }
 
+    pub async fn strike_lightning(self: &Arc<Self>, pos: Vector3<f64>, _effect_only: bool) {
+        use pumpkin_data::entity::EntityType;
+        use uuid::Uuid;
+        let lightning = crate::entity::r#type::from_type(
+            &EntityType::LIGHTNING_BOLT,
+            pos,
+            self,
+            Uuid::new_v4(),
+        );
+        self.spawn_entity(lightning).await;
+    }
+
     /* ItemScatterer.java */
     pub async fn scatter_inventory(
         self: &Arc<Self>,
