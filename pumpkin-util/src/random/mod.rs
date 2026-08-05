@@ -219,6 +219,7 @@ impl RandomImpl for RandomGenerator {
         match self {
             Self::Xoroshiro(x) => Self::Xoroshiro(x.split()),
             Self::Legacy(l) => Self::Legacy(l.split()),
+            Self::WorldgenXoroshiro(w) => Self::WorldgenXoroshiro(w.split()),
         }
     }
 
@@ -227,6 +228,7 @@ impl RandomImpl for RandomGenerator {
         match self {
             Self::Xoroshiro(x) => RandomDeriver::Xoroshiro(x.next_splitter()),
             Self::Legacy(l) => l.next_splitter(),
+            Self::WorldgenXoroshiro(w) => w.next_splitter(),
         }
     }
 
@@ -235,6 +237,7 @@ impl RandomImpl for RandomGenerator {
         match self {
             Self::Xoroshiro(x) => x.next_i32(),
             Self::Legacy(l) => l.next_i32(),
+            Self::WorldgenXoroshiro(w) => w.next_i32(),
         }
     }
 
@@ -243,6 +246,7 @@ impl RandomImpl for RandomGenerator {
         match self {
             Self::Xoroshiro(x) => x.next_bounded_i32(bound),
             Self::Legacy(l) => l.next_bounded_i32(bound),
+            Self::WorldgenXoroshiro(w) => w.next_bounded_i32(bound),
         }
     }
 
@@ -251,6 +255,7 @@ impl RandomImpl for RandomGenerator {
         match self {
             Self::Xoroshiro(x) => x.next_i64(),
             Self::Legacy(l) => l.next_i64(),
+            Self::WorldgenXoroshiro(w) => w.next_i64(),
         }
     }
 
@@ -259,6 +264,7 @@ impl RandomImpl for RandomGenerator {
         match self {
             Self::Xoroshiro(x) => x.next_bool(),
             Self::Legacy(l) => l.next_bool(),
+            Self::WorldgenXoroshiro(w) => w.next_bool(),
         }
     }
 
@@ -267,6 +273,7 @@ impl RandomImpl for RandomGenerator {
         match self {
             Self::Xoroshiro(x) => x.next_f32(),
             Self::Legacy(l) => l.next_f32(),
+            Self::WorldgenXoroshiro(w) => w.next_f32(),
         }
     }
 
@@ -275,6 +282,7 @@ impl RandomImpl for RandomGenerator {
         match self {
             Self::Xoroshiro(x) => x.next_f64(),
             Self::Legacy(l) => l.next_f64(),
+            Self::WorldgenXoroshiro(w) => w.next_f64(),
         }
     }
 
@@ -283,6 +291,7 @@ impl RandomImpl for RandomGenerator {
         match self {
             Self::Xoroshiro(x) => x.next_gaussian(),
             Self::Legacy(l) => l.next_gaussian(),
+            Self::WorldgenXoroshiro(w) => w.next_gaussian(),
         }
     }
 
@@ -291,6 +300,7 @@ impl RandomImpl for RandomGenerator {
         match self {
             Self::Xoroshiro(x) => x.skip(count),
             Self::Legacy(l) => l.skip(count),
+            Self::WorldgenXoroshiro(w) => w.skip(count),
         }
     }
 }
