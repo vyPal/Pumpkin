@@ -11,14 +11,23 @@ use crate::{
         noise::router::multi_noise_sampler::MultiNoiseSampler,
         structure::structures::{
             StructureGenerator, StructureGeneratorContext, StructurePosition,
-            buried_treasure::BuriedTreasureGenerator, create_chunk_random,
-            desert_pyramid::DesertPyramidGenerator, end_city::EndCityGenerator,
-            igloo::IglooGenerator, jigsaw::JigsawGenerator, jungle_temple::JungleTempleGenerator,
-            mansion::MansionGenerator, mineshaft::MineshaftGenerator,
-            nether_fortress::NetherFortressGenerator, nether_fossil::NetherFossilGenerator,
-            ocean_monument::OceanMonumentGenerator, ocean_ruin::OceanRuinGenerator,
-            ruined_portal::RuinedPortalGenerator, shipwreck::ShipwreckGenerator,
-            stronghold::StrongholdGenerator, swamp_hut::SwampHutGenerator,
+            buried_treasure::BuriedTreasureGenerator,
+            create_chunk_random,
+            desert_pyramid::DesertPyramidGenerator,
+            end_city::EndCityGenerator,
+            igloo::IglooGenerator,
+            jigsaw::JigsawGenerator,
+            jungle_temple::JungleTempleGenerator,
+            mansion::MansionGenerator,
+            mineshaft::{MineshaftGenerator, MineshaftType},
+            nether_fortress::NetherFortressGenerator,
+            nether_fossil::NetherFossilGenerator,
+            ocean_monument::OceanMonumentGenerator,
+            ocean_ruin::OceanRuinGenerator,
+            ruined_portal::RuinedPortalGenerator,
+            shipwreck::ShipwreckGenerator,
+            stronghold::StrongholdGenerator,
+            swamp_hut::SwampHutGenerator,
         },
     },
 };
@@ -118,7 +127,11 @@ pub fn generate_structure_position(
         StructureKeys::Monument => OceanMonumentGenerator.get_structure_position(context),
         StructureKeys::Mineshaft | StructureKeys::MineshaftMesa => {
             let generator = MineshaftGenerator {
-                is_mesa: *key == StructureKeys::MineshaftMesa,
+                mineshaft_type: if *key == StructureKeys::MineshaftMesa {
+                    MineshaftType::Mesa
+                } else {
+                    MineshaftType::Normal
+                },
             };
             generator.get_structure_position(context)
         }

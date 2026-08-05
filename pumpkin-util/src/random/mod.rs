@@ -4,7 +4,7 @@ use std::{
 };
 
 use legacy_rand::{LegacyRand, LegacySplitter};
-use xoroshiro128::{Xoroshiro, XoroshiroSplitter};
+use xoroshiro128::{WorldgenXoroshiro, Xoroshiro, XoroshiroSplitter};
 
 mod gaussian;
 pub mod legacy_rand;
@@ -35,6 +35,8 @@ pub enum RandomGenerator {
     Xoroshiro(Xoroshiro),
     /// Legacy random number generator (compatible with older Minecraft versions).
     Legacy(LegacyRand),
+    /// Xoroshiro source accessed through Vanilla's `WorldgenRandom` bit API.
+    WorldgenXoroshiro(WorldgenXoroshiro),
 }
 
 /// Unified random number deriver enum for creating child RNGs.
