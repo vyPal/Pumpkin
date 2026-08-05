@@ -440,7 +440,6 @@ impl EntityBase for ArrowEntity {
         })
     }
 
-    #[expect(clippy::too_many_lines)]
     fn on_hit(&self, hit: ProjectileHit) -> EntityBaseFuture<'_, ()> {
         Box::pin(async move {
             let entity = self.get_entity();
@@ -505,14 +504,7 @@ impl EntityBase for ArrowEntity {
                     }
 
                     let damage_succeeded = target
-                        .damage_with_context(
-                            &*target,
-                            damage as f32,
-                            DamageType::ARROW,
-                            Some(hit_pos),
-                            None,
-                            Some(self),
-                        )
+                        .damage(&*target, damage as f32, DamageType::ARROW)
                         .await;
 
                     if let Some(living) = target.get_living_entity() {

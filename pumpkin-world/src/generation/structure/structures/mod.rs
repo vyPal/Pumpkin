@@ -579,9 +579,7 @@ impl StructurePiecesCollector {
         let chunk_z = start_block_z(chunk.z);
         let chunk_box = BlockBox::new(
             chunk_x,
-            // Vanilla's writable structure area deliberately excludes the
-            // dimension's bottommost block layer.
-            chunk.bottom_y() as i32 + 1,
+            chunk.bottom_y() as i32,
             chunk_z,
             chunk_x + 15,
             chunk.bottom_y() as i32 + chunk.height() as i32 - 1,
