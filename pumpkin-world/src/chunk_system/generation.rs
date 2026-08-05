@@ -8,6 +8,27 @@ use pumpkin_config::lighting::LightingEngineConfig;
 use super::{Cache, Chunk, StagedChunkEnum};
 
 pub fn generate_single_chunk(
+    dimension: &Dimension,
+    biome_mixer_seed: i64,
+    generator: &WorldGenerator,
+    block_registry: &dyn WorldPortalExt,
+    chunk_x: i32,
+    chunk_z: i32,
+    target_stage: StagedChunkEnum,
+) -> Chunk {
+    generate_single_chunk_with_radius(
+        dimension,
+        biome_mixer_seed,
+        generator,
+        block_registry,
+        chunk_x,
+        chunk_z,
+        target_stage,
+        target_stage.get_direct_radius(),
+    )
+}
+
+pub fn generate_single_chunk_with_radius(
     _dimension: &Dimension,
     _biome_mixer_seed: i64,
     generator: &WorldGenerator,
@@ -15,9 +36,8 @@ pub fn generate_single_chunk(
     chunk_x: i32,
     chunk_z: i32,
     target_stage: StagedChunkEnum,
+    radius: i32,
 ) -> Chunk {
-    let radius = target_stage.get_direct_radius();
-
     let mut cache = Cache::new(chunk_x - radius, chunk_z - radius, radius * 2 + 1);
 
     for dx in -radius..=radius {
@@ -49,12 +69,26 @@ pub fn generate_single_chunk(
             break;
         }
 
-        cache.advance(
+        if matches!(
             stage,
-            generator,
-            block_registry,
-            &LightingEngineConfig::Default,
-        );
+            StagedChunkEnum::Biomes
+                | StagedChunkEnum::StructureStart
+                | StagedChunkEnum::StructureReferences
+        ) {
+            cache.advance_all(
+                stage,
+                generator,
+                block_registry,
+                &LightingEngineConfig::Default,
+            );
+        } else {
+            cache.advance(
+                stage,
+                generator,
+                block_registry,
+                &LightingEngineConfig::Default,
+            );
+        }
     }
 
     let mid = ((cache.size * cache.size) >> 1) as usize;
@@ -66,7 +100,9 @@ mod tests {
     use crate::biome::hash_seed;
     use crate::chunk::ChunkHeightmapType;
     use crate::chunk_system::Chunk;
-    use crate::chunk_system::{StagedChunkEnum, generate_single_chunk};
+    use crate::chunk_system::{
+        StagedChunkEnum, generate_single_chunk, generation::generate_single_chunk_with_radius,
+    };
     use crate::generation::get_world_gen;
     use crate::world::WorldPortalExt;
     use pumpkin_data::BlockStateId;
@@ -214,7 +250,7 @@ mod tests {
         let biome_mixer_seed = hash_seed(world_gen.seed());
 
         // Vanilla 26.2 locates seed 0's nearest outpost at block 576, 1648.
-        let chunk = generate_single_chunk(
+        let chunk = generate_single_chunk_with_radius(
             &dimension,
             biome_mixer_seed,
             &world_gen,
@@ -222,6 +258,7 @@ mod tests {
             35,
             103,
             StagedChunkEnum::Spawn,
+            16,
         );
         let super::Chunk::Proto(chunk) = chunk else {
             panic!("spawn stage should return a proto chunk");
@@ -265,7 +302,7 @@ mod tests {
         let block_registry = Arc::new(BlockRegistry);
         let world_gen = get_world_gen(seed, dimension.clone(), false, Vec::new(), String::new());
         let biome_mixer_seed = hash_seed(world_gen.seed());
-        let chunk = generate_single_chunk(
+        let chunk = generate_single_chunk_with_radius(
             &dimension,
             biome_mixer_seed,
             &world_gen,
@@ -273,6 +310,7 @@ mod tests {
             -306,
             -275,
             StagedChunkEnum::Features,
+            16,
         );
         let Chunk::Proto(chunk) = chunk else {
             panic!("features stage should return a proto chunk");
