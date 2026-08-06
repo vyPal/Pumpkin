@@ -55,6 +55,7 @@ pub struct PendingConnection {
 }
 
 impl PendingConnection {
+    #[must_use]
     pub fn new(tcp_stream: TcpStream, address: SocketAddr, id: u64) -> Self {
         let (read, write) = tcp_stream.into_split();
         Self {
