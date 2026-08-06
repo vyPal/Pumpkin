@@ -421,11 +421,11 @@ fn generation_step_to_token(step: &str) -> TokenStream {
 /// Reads `structures.json` and `structure_set.json` and emits the complete structures `TokenStream`.
 pub fn build() -> TokenStream {
     let structures_json: BTreeMap<String, StructureStruct> =
-        serde_json::from_str(&fs::read_to_string("../assets/structures.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/structures.json").unwrap())
             .expect("Failed to parse structures.json");
 
     let structure_sets_json: BTreeMap<String, StructureSetStruct> =
-        serde_json::from_str(&fs::read_to_string("../assets/structure_set.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/structure_set.json").unwrap())
             .expect("Failed to parse structure_set.json");
 
     let mut structure_const_defs = TokenStream::new();

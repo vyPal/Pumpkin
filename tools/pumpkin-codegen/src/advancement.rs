@@ -817,7 +817,7 @@ fn identifier_to_tokens(identifier: &Identifier) -> TokenStream {
 /// the final Rust source code.
 pub(crate) fn build() -> TokenStream {
     let advancements_path =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../assets/advancements.json");
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/advancements.json");
     let advancements_json = fs::read_to_string(&advancements_path)
         .unwrap_or_else(|err| panic!("Failed to read {}: {err}", advancements_path.display()));
     let advancements: BTreeMap<String, AdvancementStruct> =

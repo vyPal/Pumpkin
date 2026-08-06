@@ -4,7 +4,7 @@ use wit_encoder::{Enum, Interface, Package, PackageName, TypeDef, TypeDefKind};
 
 pub fn build() -> String {
     let sounds: Vec<String> =
-        serde_json::from_str(&fs::read_to_string("../assets/sounds.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/sounds.json").unwrap())
             .expect("Failed to parse sounds.json");
 
     let mut package = Package::new(PackageName::new(

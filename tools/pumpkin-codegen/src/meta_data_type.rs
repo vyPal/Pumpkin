@@ -26,7 +26,7 @@ pub fn build() -> TokenStream {
     let mut handlers_map: BTreeMap<String, BTreeMap<JavaMinecraftVersion, i32>> = BTreeMap::new();
 
     for &(ver, file) in &assets {
-        let path = format!("../assets/meta_data_type/{file}");
+        let path = format!("../../assets/meta_data_type/{file}");
         let parsed: BTreeMap<String, i32> =
             serde_json::from_str(&fs::read_to_string(&path).unwrap())
                 .unwrap_or_else(|_| panic!("Failed to parse {file}"));

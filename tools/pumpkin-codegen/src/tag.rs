@@ -93,27 +93,27 @@ pub(crate) fn build() -> TokenStream {
 
     // --- Load Global Assets ---
     let blocks_assets: BlockAssets =
-        serde_json::from_str(&fs::read_to_string("../assets/blocks.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/blocks.json").unwrap())
             .expect("Failed to parse blocks.json");
     let items: BTreeMap<String, Item> =
-        serde_json::from_str(&fs::read_to_string("../assets/items.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/items.json").unwrap())
             .expect("Failed to parse items.json");
     let biomes: BTreeMap<String, Biome> =
-        serde_json::from_str(&fs::read_to_string("../assets/biome.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/biome.json").unwrap())
             .expect("Failed to parse biome.json");
     let fluids: Vec<Fluid> =
-        serde_json::from_str(&fs::read_to_string("../assets/fluids.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/fluids.json").unwrap())
             .expect("Failed to parse fluids.json");
     let enchantments: BTreeMap<String, Enchantment> =
-        serde_json::from_str(&fs::read_to_string("../assets/enchantments.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/enchantments.json").unwrap())
             .expect("Failed to parse enchantments.json");
     let entities: BTreeMap<String, EntityType> =
-        serde_json::from_str(&fs::read_to_string("../assets/entities.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/entities.json").unwrap())
             .expect("Failed to parse entities.json");
 
     // build a map of dimension name -> numeric id
     let dimension_json: BTreeMap<String, serde_json::Value> =
-        serde_json::from_str(&fs::read_to_string("../assets/dimension.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/dimension.json").unwrap())
             .expect("Failed to parse dimension.json");
     let mut dimension_id_map: BTreeMap<String, u16> = BTreeMap::new();
     for (i, name) in dimension_json.keys().enumerate() {
@@ -123,7 +123,7 @@ pub(crate) fn build() -> TokenStream {
     // also build timeline id map from registry file so timeline tags carry numbers
     let mut timeline_id_map: BTreeMap<String, u16> = BTreeMap::new();
     if let Ok(registries) = serde_json::from_str::<serde_json::Value>(
-        &fs::read_to_string("../assets/registry/1_21_11_synced_registries.json").unwrap(),
+        &fs::read_to_string("../../assets/registry/1_21_11_synced_registries.json").unwrap(),
     ) && let Some(timelines) = registries.get("timeline")
         && let Some(obj) = timelines.as_object()
     {
@@ -150,7 +150,7 @@ pub(crate) fn build() -> TokenStream {
     let mut match_get_map = Vec::new();
 
     for (ver, file) in assets {
-        let file_path = format!("../assets/tags/{file}");
+        let file_path = format!("../../assets/tags/{file}");
 
         let tags: BTreeMap<String, BTreeMap<String, Vec<String>>> =
             serde_json::from_str(&fs::read_to_string(&file_path).unwrap()).unwrap();

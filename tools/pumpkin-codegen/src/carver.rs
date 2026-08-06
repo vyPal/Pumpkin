@@ -6,7 +6,7 @@ use std::fs;
 
 pub fn build() -> TokenStream {
     let carvers: BTreeMap<String, Value> =
-        serde_json::from_str(&fs::read_to_string("../assets/carver.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/carver.json").unwrap())
             .expect("Failed to parse carver.json");
 
     let mut carver_instances = Vec::new();

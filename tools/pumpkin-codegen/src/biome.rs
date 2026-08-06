@@ -214,13 +214,13 @@ struct MultiNoiseBiomeSuppliers {
 /// the multi-noise biome source trees, and the `BiomeTree` search implementation.
 pub fn build() -> TokenStream {
     let biomes: BTreeMap<String, Biome> =
-        serde_json::from_str(&fs::read_to_string("../assets/biome.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/biome.json").unwrap())
             .expect("Failed to parse biome.json");
     let biome_trees: MultiNoiseBiomeSuppliers =
-        serde_json::from_str(&fs::read_to_string("../assets/multi_noise_biome_tree.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/multi_noise_biome_tree.json").unwrap())
             .expect("Failed to parse multi_noise_biome_tree.json");
     let bedrock_biomes: BTreeMap<String, GeyserBiomeMapping> =
-        serde_json::from_str(&fs::read_to_string("../assets/bedrock/biomes.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/bedrock/biomes.json").unwrap())
             .expect("Failed to parse biomes.json");
 
     let mut variants = TokenStream::new();

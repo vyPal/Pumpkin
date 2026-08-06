@@ -29,7 +29,7 @@ pub fn build() -> String {
     let server_states = &["config", "handshake", "login", "play", "status"];
     for state in server_states {
         process_packets(
-            &format!("../pumpkin-protocol/src/java/server/{}", state),
+            &format!("../../crates/pumpkin-protocol/src/java/server/{}", state),
             state,
             &mut interface,
             &mut serverbound_variant,
@@ -40,7 +40,7 @@ pub fn build() -> String {
     let client_states = &["config", "login", "play", "status"];
     for state in client_states {
         process_packets(
-            &format!("../pumpkin-protocol/src/java/client/{}", state),
+            &format!("../../crates/pumpkin-protocol/src/java/client/{}", state),
             state,
             &mut interface,
             &mut clientbound_variant,

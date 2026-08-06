@@ -5,7 +5,7 @@ use syn::LitInt;
 /// Generates the `TokenStream` for the `get_potted_item` function mapping item IDs to potted block IDs.
 pub fn build() -> TokenStream {
     let flower_pot_transformation: BTreeMap<u16, u16> = serde_json::from_str(
-        &fs::read_to_string("../assets/flower_pot_transformations.json").unwrap(),
+        &fs::read_to_string("../../assets/flower_pot_transformations.json").unwrap(),
     )
     .expect("Failed to parse flower_pot_transformations.json");
     let match_arms: Vec<TokenStream> = flower_pot_transformation

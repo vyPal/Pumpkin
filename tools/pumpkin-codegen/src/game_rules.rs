@@ -9,7 +9,7 @@ use serde_json::Value;
 /// accessor methods with proper default values for each rule.
 pub fn build() -> TokenStream {
     let game_rules: BTreeMap<String, Value> =
-        serde_json::from_str(&fs::read_to_string("../assets/game_rules.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/game_rules.json").unwrap())
             .expect("Failed to parse game_rules.json");
 
     let mut enum_variants = TokenStream::new();

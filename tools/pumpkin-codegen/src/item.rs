@@ -1136,22 +1136,22 @@ pub struct BedrockItem {
 /// Reads `items.json` and generates the complete item registry `TokenStream`.
 pub fn build() -> TokenStream {
     let blocks_assets: BlockAssets =
-        serde_json::from_str(&fs::read_to_string("../assets/blocks.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/blocks.json").unwrap())
             .expect("Failed to parse blocks.json");
 
     let items: BTreeMap<String, Item> =
-        serde_json::from_str(&fs::read_to_string("../assets/items.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/items.json").unwrap())
             .expect("Failed to parse items.json");
 
     let eggs: HashSet<u16> = serde_json::from_str::<BTreeMap<u16, String>>(
-        &fs::read_to_string("../assets/spawn_egg.json").unwrap(),
+        &fs::read_to_string("../../assets/spawn_egg.json").unwrap(),
     )
     .expect("Failed to parse spawn_egg.json")
     .into_keys()
     .collect::<HashSet<_>>();
 
     let be_item_components: BTreeMap<String, Option<NbtCompound>> = {
-        let data = fs::read("../assets/bedrock/item_components.nbt").unwrap();
+        let data = fs::read("../../assets/bedrock/item_components.nbt").unwrap();
         let mut cursor = Cursor::new(data);
         let nbt = pumpkin_nbt::nbt_compress::read_gzip_compound_tag(&mut cursor)
             .expect("Failed to parse bedrock/item_components.nbt");
@@ -1168,12 +1168,12 @@ pub fn build() -> TokenStream {
     };
 
     let be_runtime_item_states: Vec<BedrockRuntimeItemState> = serde_json::from_str(
-        &fs::read_to_string("../assets/bedrock/runtime_item_states.json").unwrap(),
+        &fs::read_to_string("../../assets/bedrock/runtime_item_states.json").unwrap(),
     )
     .expect("Failed to parse bedrock/runtime_item_states.json");
 
     let be_item_data_overrides: BTreeMap<String, u32> = serde_json::from_str(
-        &fs::read_to_string("../assets/bedrock/item_data_overrides.json").unwrap(),
+        &fs::read_to_string("../../assets/bedrock/item_data_overrides.json").unwrap(),
     )
     .expect("Failed to parse bedrock/item_data_overrides.json");
 

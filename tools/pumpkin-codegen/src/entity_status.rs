@@ -8,7 +8,7 @@ use syn::LitInt;
 /// Generates the `TokenStream` for the `EntityStatus` enum with `u8` discriminants.
 pub fn build() -> TokenStream {
     let events: BTreeMap<String, u8> =
-        serde_json::from_str(&fs::read_to_string("../assets/entity_statuses.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/entity_statuses.json").unwrap())
             .expect("Failed to parse entity_statuses.json");
     let variants: Vec<TokenStream> = events
         .into_iter()

@@ -62,7 +62,7 @@ pub enum DeathMessageType {
 /// Generates the `TokenStream` for the `DamageType` struct, its associated enums, and constants.
 pub fn build() -> TokenStream {
     let damage_types: BTreeMap<String, DamageTypeEntry> =
-        serde_json::from_str(&fs::read_to_string("../assets/damage_type.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/damage_type.json").unwrap())
             .expect("Failed to parse damage_type.json");
 
     let mut constants = Vec::new();

@@ -5,7 +5,7 @@ use wit_encoder::{Enum, Interface, Package, PackageName, TypeDef, TypeDefKind};
 
 pub fn build() -> String {
     let json: BTreeMap<String, serde_json::Value> =
-        serde_json::from_str(&fs::read_to_string("../assets/biome.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/biome.json").unwrap())
             .expect("Failed to parse biome.json");
 
     let mut package = Package::new(PackageName::new(

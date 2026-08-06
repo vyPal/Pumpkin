@@ -83,7 +83,7 @@ impl Recipes {
 /// Generates the `TokenStream` for `POTION_RECIPES` and `ITEM_RECIPES` constant arrays.
 pub fn build() -> TokenStream {
     let json: PotionBrewing =
-        serde_json::from_str(&fs::read_to_string("../assets/potion_brewing.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/potion_brewing.json").unwrap())
             .expect("Failed to parse potion_brewing.json");
 
     let item_recipes_tokens: Vec<TokenStream> = json

@@ -211,7 +211,7 @@ impl ToTokens for NamedEntityType<'_> {
 /// and the `from_raw`/`from_name` lookup methods.
 pub fn build() -> TokenStream {
     let json: BTreeMap<String, EntityType> =
-        serde_json::from_str(&fs::read_to_string("../assets/entities.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/entities.json").unwrap())
             .expect("Failed to parse entities.json");
 
     let mut consts = TokenStream::new();

@@ -5,7 +5,7 @@ use syn::LitInt;
 /// Generates the `TokenStream` for the `get_recipe_remainder_id` function.
 pub fn build() -> TokenStream {
     let remainder: BTreeMap<u16, u16> =
-        serde_json::from_str(&fs::read_to_string("../assets/recipe_remainder.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/recipe_remainder.json").unwrap())
             .expect("Failed to parse recipe_remainder.json");
     let match_arms: Vec<TokenStream> = remainder
         .into_iter()

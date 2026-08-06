@@ -76,7 +76,7 @@ impl MobEffectCategory {
 /// and the `from_name`/`from_minecraft_name` lookup methods.
 pub fn build() -> TokenStream {
     let effects: BTreeMap<String, Effect> =
-        serde_json::from_str(&fs::read_to_string("../assets/effect.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/effect.json").unwrap())
             .expect("Failed to parse effect.json");
 
     let mut variants = TokenStream::new();

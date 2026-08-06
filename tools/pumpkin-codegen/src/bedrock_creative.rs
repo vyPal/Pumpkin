@@ -24,7 +24,7 @@ struct BedrockRuntimeItemState {
 
 pub fn build() -> TokenStream {
     let be_runtime_item_states: Vec<BedrockRuntimeItemState> = serde_json::from_str(
-        &fs::read_to_string("../assets/bedrock/runtime_item_states.json").unwrap(),
+        &fs::read_to_string("../../assets/bedrock/runtime_item_states.json").unwrap(),
     )
     .expect("Failed to parse bedrock/runtime_item_states.json");
 
@@ -33,7 +33,7 @@ pub fn build() -> TokenStream {
         .map(|item| (item.name, item.id))
         .collect();
 
-    let nbt_path = "../assets/bedrock/creative_items.nbt";
+    let nbt_path = "../../assets/bedrock/creative_items.nbt";
     if !std::path::Path::new(nbt_path).exists() {
         let generated_path = "../../crates/pumpkin-data/src/generated/bedrock_creative.rs";
         if let Ok(content) = fs::read_to_string(generated_path) {

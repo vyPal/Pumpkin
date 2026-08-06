@@ -67,11 +67,14 @@ mod wit;
 mod world_event;
 
 /// Output directory where all generated Rust source files are written.
-pub const OUT_DIR: &str = "../pumpkin-data/src/generated";
+pub const OUT_DIR: &str = "../../crates/pumpkin-data/src/generated";
 
 /// Entry point for the code generator. Runs all registered builder functions in parallel
 /// and writes their output to [`OUT_DIR`].
 pub fn main() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    std::env::set_current_dir(manifest_dir).expect("Failed to set current dir to manifest dir");
+
     type BuilderFn = fn() -> TokenStream;
 
     fs::create_dir_all(OUT_DIR).expect("Failed to create output directory");

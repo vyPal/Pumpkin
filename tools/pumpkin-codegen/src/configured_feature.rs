@@ -11,7 +11,7 @@ use crate::placed_feature::{
 
 /// Reads `configured_features.json` and emits the complete `ConfiguredFeature` enum `TokenStream`.
 pub fn build_enum() -> TokenStream {
-    let json_content = fs::read_to_string("../assets/configured_features.json")
+    let json_content = fs::read_to_string("../../assets/configured_features.json")
         .expect("Failed to read configured_features.json");
     let json: Value =
         serde_json::from_str(&json_content).expect("Failed to parse configured_features.json");
@@ -63,7 +63,7 @@ pub fn build_enum() -> TokenStream {
 
 /// Reads `configured_features.json` and emits a `build_configured_features()` function `TokenStream`.
 pub fn build() -> TokenStream {
-    let json_content = fs::read_to_string("../assets/configured_features.json")
+    let json_content = fs::read_to_string("../../assets/configured_features.json")
         .expect("Failed to read configured_features.json");
     let json: Value =
         serde_json::from_str(&json_content).expect("Failed to parse configured_features.json");

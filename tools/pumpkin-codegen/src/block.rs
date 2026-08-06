@@ -839,11 +839,11 @@ pub struct BlockAssets {
 
 /// Reads all block assets and generates the complete block registry `TokenStream`.
 pub fn build() -> TokenStream {
-    let be_blocks_data = fs::read("../assets/bedrock/block_states.nbt").unwrap();
+    let be_blocks_data = fs::read("../../assets/bedrock/block_states.nbt").unwrap();
     let mut be_blocks_cursor = Cursor::new(be_blocks_data);
     let be_blocks = get_be_data_from_nbt(&mut be_blocks_cursor);
 
-    let geyser_blocks_data = fs::read("../assets/bedrock/blocks.nbt").unwrap();
+    let geyser_blocks_data = fs::read("../../assets/bedrock/blocks.nbt").unwrap();
     let geyser_nbt_compound =
         pumpkin_nbt::nbt_compress::read_gzip_compound_tag(Cursor::new(geyser_blocks_data)).unwrap();
     let bedrock_mappings_list = geyser_nbt_compound
@@ -851,11 +851,11 @@ pub fn build() -> TokenStream {
         .expect("Missing bedrock_mappings list in Geyser blocks.nbt");
 
     let blocks_assets: BlockAssets =
-        serde_json::from_str(&fs::read_to_string("../assets/blocks.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/blocks.json").unwrap())
             .expect("Failed to parse blocks.json");
 
     let generated_properties: Vec<GeneratedProperty> =
-        serde_json::from_str(&fs::read_to_string("../assets/properties.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/properties.json").unwrap())
             .expect("Failed to parse properties.json");
 
     let generated_prop_map: BTreeMap<i32, &GeneratedProperty> = generated_properties

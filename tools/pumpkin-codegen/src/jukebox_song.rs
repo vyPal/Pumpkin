@@ -18,12 +18,12 @@ struct JukeboxSongData {
 /// Generates the `TokenStream` for the `JukeboxSong` enum and its length, comparator, and name methods.
 pub fn build() -> TokenStream {
     let songs: BTreeMap<String, u32> = serde_json::from_str(
-        &fs::read_to_string("../assets/jukebox_song.json").expect("Missing jukebox_song.json"),
+        &fs::read_to_string("../../assets/jukebox_song.json").expect("Missing jukebox_song.json"),
     )
     .expect("Failed to parse jukebox_song.json");
 
     let registries: BTreeMap<String, Value> = serde_json::from_str(
-        &fs::read_to_string("../assets/registry/1_21_11_synced_registries.json")
+        &fs::read_to_string("../../assets/registry/1_21_11_synced_registries.json")
             .expect("Missing synced_registries.json"),
     )
     .expect("Failed to parse synced_registries.json");

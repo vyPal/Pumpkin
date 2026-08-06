@@ -29,7 +29,7 @@ pub struct RawChatType {
 /// Generates the `TokenStream` for message type `u8` constants, including a synthetic `RAW` variant.
 pub fn build() -> TokenStream {
     let json: BTreeMap<String, RawChatType> =
-        serde_json::from_str(&fs::read_to_string("../assets/message_type.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/message_type.json").unwrap())
             .expect("Failed to parse message_type.json");
     let mut variants = TokenStream::new();
 

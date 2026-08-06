@@ -27,7 +27,7 @@ pub fn build_java_mapping() -> String {
 
     for state in client_states {
         process_packets(
-            &format!("../pumpkin-protocol/src/java/client/{}", state),
+            &format!("../../crates/pumpkin-protocol/src/java/client/{}", state),
             state,
             &mut output,
             "java_packet",
@@ -48,7 +48,7 @@ pub fn build_java_mapping() -> String {
 
     for state in server_states {
         process_packets(
-            &format!("../pumpkin-protocol/src/java/server/{}", state),
+            &format!("../../crates/pumpkin-protocol/src/java/server/{}", state),
             state,
             &mut output,
             "java_packet",
@@ -69,7 +69,7 @@ pub fn build_java_mapping() -> String {
 
     for state in client_states {
         process_packets(
-            &format!("../pumpkin-protocol/src/java/client/{}", state),
+            &format!("../../crates/pumpkin-protocol/src/java/client/{}", state),
             state,
             &mut output,
             "java_packet",
@@ -86,7 +86,7 @@ pub fn build_java_mapping() -> String {
     );
     for state in client_states {
         process_packets(
-            &format!("../pumpkin-protocol/src/java/client/{}", state),
+            &format!("../../crates/pumpkin-protocol/src/java/client/{}", state),
             state,
             &mut output,
             "java_packet",
@@ -112,7 +112,7 @@ pub fn build_bedrock_mapping() -> String {
     output.push_str("    match packet {\n");
 
     process_packets(
-        "../pumpkin-protocol/src/bedrock/client",
+        "../../crates/pumpkin-protocol/src/bedrock/client",
         "",
         &mut output,
         "packet",
@@ -131,7 +131,7 @@ pub fn build_bedrock_mapping() -> String {
     output.push_str("    match id {\n");
 
     process_packets(
-        "../pumpkin-protocol/src/bedrock/server",
+        "../../crates/pumpkin-protocol/src/bedrock/server",
         "",
         &mut output,
         "packet",
@@ -150,7 +150,7 @@ pub fn build_bedrock_mapping() -> String {
     output.push_str("}\n\n");
 
     process_packets(
-        "../pumpkin-protocol/src/bedrock/client",
+        "../../crates/pumpkin-protocol/src/bedrock/client",
         "",
         &mut output,
         "packet",
@@ -165,7 +165,7 @@ pub fn build_bedrock_mapping() -> String {
         "pub fn clientbound_bedrock_any_to_wit(any: &dyn Any) -> Option<BClientboundPacket> {\n",
     );
     process_packets(
-        "../pumpkin-protocol/src/bedrock/client",
+        "../../crates/pumpkin-protocol/src/bedrock/client",
         "",
         &mut output,
         "packet",

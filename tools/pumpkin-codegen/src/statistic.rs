@@ -18,7 +18,7 @@ struct StatisticData {
 
 pub fn build() -> TokenStream {
     let stats_json =
-        std::fs::read_to_string("../assets/stats.json").expect("Failed to read stats.json");
+        std::fs::read_to_string("../../assets/stats.json").expect("Failed to read stats.json");
     let stats_data: IndexMap<String, StatisticData> =
         serde_json::from_str(&stats_json).expect("Failed to parse stats.json");
 

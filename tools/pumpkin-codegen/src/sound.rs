@@ -9,7 +9,7 @@ use crate::array_to_tokenstream;
 /// Generates the `TokenStream` for the `Sound` enum and its binary-search `from_name`/`to_name` methods.
 pub fn build() -> TokenStream {
     let sound: Vec<String> =
-        serde_json::from_str(&fs::read_to_string("../assets/sounds.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/sounds.json").unwrap())
             .expect("Failed to parse sounds.json");
 
     let variants = array_to_tokenstream(&sound);

@@ -7,7 +7,7 @@ use quote::{format_ident, quote};
 /// Generates the `TokenStream` for the `ChunkStatus` enum with serde rename attributes.
 pub fn build() -> TokenStream {
     let chunk_status: Vec<String> =
-        serde_json::from_str(&fs::read_to_string("../assets/chunk_status.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/chunk_status.json").unwrap())
             .expect("Failed to parse chunk_status.json");
     let variants: Vec<TokenStream> = chunk_status
         .into_iter()

@@ -24,7 +24,7 @@ pub(crate) fn build() -> TokenStream {
 
     let mut versions = BTreeMap::new();
     for (ver, file) in assets {
-        let path = format!("../assets/tracked_data/{file}");
+        let path = format!("../../assets/tracked_data/{file}");
 
         let content = fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("Failed to read JSON file: {path} {e}"));
@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn checked_in_tracker_table_matches_codegen() {
-        let checked_in = std::fs::read_to_string("../pumpkin-data/src/generated/tracked_data.rs")
+        let checked_in = std::fs::read_to_string("../../crates/pumpkin-data/src/generated/tracked_data.rs")
             .expect("checked-in tracked data");
         let parsed = syn::parse_file(&checked_in).expect("valid generated Rust");
 

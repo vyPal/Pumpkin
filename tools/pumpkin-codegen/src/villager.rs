@@ -50,7 +50,7 @@ struct TradeItemJson {
 
 pub fn build() -> TokenStream {
     let data: VillagerDataJson =
-        serde_json::from_str(&fs::read_to_string("../assets/villager_data.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/villager_data.json").unwrap())
             .expect("Failed to parse villager_data.json");
 
     let mut profession_variants = Vec::new();

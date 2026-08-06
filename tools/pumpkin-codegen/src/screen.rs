@@ -8,7 +8,7 @@ use crate::array_to_tokenstream;
 /// Generates the `TokenStream` for the `WindowType` enum.
 pub fn build() -> TokenStream {
     let screens: Vec<String> =
-        serde_json::from_str(&fs::read_to_string("../assets/screens.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/screens.json").unwrap())
             .expect("Failed to parse screens.json");
     let variants = array_to_tokenstream(&screens);
 

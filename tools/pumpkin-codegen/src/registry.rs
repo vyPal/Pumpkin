@@ -138,7 +138,7 @@ pub(crate) fn build() -> TokenStream {
     let mut latest_registry = None;
 
     for (ver, file) in assets {
-        let path = format!("../assets/registry/{file}");
+        let path = format!("../../assets/registry/{file}");
 
         let registries = process_version(&path);
 

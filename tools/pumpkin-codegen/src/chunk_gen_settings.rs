@@ -467,7 +467,7 @@ impl ToTokens for MaterialRuleStruct {
 /// Reads `chunk_gen_settings.json` and emits the complete chunk generation settings `TokenStream`.
 pub fn build() -> TokenStream {
     let json: BTreeMap<String, GenerationSettingsStruct> =
-        serde_json::from_str(&fs::read_to_string("../assets/chunk_gen_settings.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/chunk_gen_settings.json").unwrap())
             .expect("Failed to parse settings.json");
 
     let mut const_defs = TokenStream::new();

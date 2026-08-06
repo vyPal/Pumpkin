@@ -4,7 +4,7 @@ use std::{collections::BTreeMap, fs};
 /// Generates the `TokenStream` for the `FUELS` constant array, `get_item_burn_ticks`, and `is_fuel`.
 pub fn build() -> TokenStream {
     let fuels: BTreeMap<u16, u16> =
-        serde_json::from_str(&fs::read_to_string("../assets/fuels.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/fuels.json").unwrap())
             .expect("Failed to parse fuels.json");
 
     let fuel_list_tokens = fuels

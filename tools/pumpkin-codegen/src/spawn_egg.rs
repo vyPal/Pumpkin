@@ -7,7 +7,7 @@ use quote::{format_ident, quote};
 /// Generates the `TokenStream` for `entity_from_egg` and `spawn_egg_ids` helper functions.
 pub fn build() -> TokenStream {
     let eggs: BTreeMap<u16, String> =
-        serde_json::from_str(&fs::read_to_string("../assets/spawn_egg.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/spawn_egg.json").unwrap())
             .expect("Failed to parse spawn_egg.json");
     let mut names = TokenStream::new();
     let mut ids = TokenStream::new();

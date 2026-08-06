@@ -6,7 +6,7 @@ use quote::{format_ident, quote};
 
 pub fn build() -> TokenStream {
     let json: BTreeMap<String, DoublePerlinNoiseParametersCodec> =
-        serde_json::from_str(&fs::read_to_string("../assets/noise_parameters.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/noise_parameters.json").unwrap())
             .expect("Failed to parse noise_parameters.json");
 
     let mut variants = TokenStream::new();

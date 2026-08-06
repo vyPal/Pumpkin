@@ -18,7 +18,7 @@ struct Attributes {
 /// Generates the `TokenStream` for the `Attributes` struct and its associated constants.
 pub fn build() -> TokenStream {
     let attributes: BTreeMap<String, Attributes> =
-        serde_json::from_str(&fs::read_to_string("../assets/attributes.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/attributes.json").unwrap())
             .expect("Failed to parse attributes.json");
 
     let mut sorted_attributes: Vec<(String, Attributes)> = attributes.into_iter().collect();

@@ -89,7 +89,7 @@ impl AttributeModifierSlot {
 /// and `from_name`/`from_id` lookup methods.
 pub fn build() -> TokenStream {
     let enchantments: BTreeMap<String, Enchantment> =
-        serde_json::from_str(&fs::read_to_string("../assets/enchantments.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/enchantments.json").unwrap())
             .expect("Failed to parse enchantments.json");
 
     let mut variants = TokenStream::new();

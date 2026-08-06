@@ -23,13 +23,13 @@ pub fn build() -> String {
 
     // Process serverbound packets
     process_packets(
-        "../pumpkin-protocol/src/bedrock/server",
+        "../../crates/pumpkin-protocol/src/bedrock/server",
         &mut interface,
         &mut serverbound_variant,
     );
     // Process clientbound packets
     process_packets(
-        "../pumpkin-protocol/src/bedrock/client",
+        "../../crates/pumpkin-protocol/src/bedrock/client",
         &mut interface,
         &mut clientbound_variant,
     );

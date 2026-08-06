@@ -4,7 +4,7 @@ use std::{collections::BTreeMap, fs};
 /// Generates the `TokenStream` for some slot range constants and a function to get one from the name of a range.
 pub fn build() -> TokenStream {
     let slot_ranges: BTreeMap<String, Box<[usize]>> =
-        serde_json::from_str(&fs::read_to_string("../assets/slot_ranges.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/slot_ranges.json").unwrap())
             .expect("Failed to parse slot_ranges.json");
 
     let slot_range_match_tokens = slot_ranges

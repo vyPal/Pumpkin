@@ -466,7 +466,7 @@ impl ToTokens for RecipeCategoryTypes {
 /// Reads `recipes.json` and emits the complete recipe constants and helpers `TokenStream`.
 pub fn build() -> TokenStream {
     let recipes_assets: BTreeMap<String, RecipeTypes> =
-        serde_json::from_str(&fs::read_to_string("../assets/recipes.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/recipes.json").unwrap())
             .expect("Failed to parse recipes.json");
 
     let mut crafting_recipes = Vec::new();

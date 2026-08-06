@@ -388,7 +388,7 @@ const fn default_flow_distance() -> u32 {
 /// per-fluid property enums, and all lookup functions.
 pub fn build() -> TokenStream {
     let fluids: Vec<Fluid> =
-        match serde_json::from_str(&fs::read_to_string("../assets/fluids.json").unwrap()) {
+        match serde_json::from_str(&fs::read_to_string("../../assets/fluids.json").unwrap()) {
             Ok(fluids) => fluids,
             Err(e) => panic!("Failed to parse fluids.json: {e}"),
         };

@@ -63,7 +63,7 @@ impl Effect {
 /// Generates the `TokenStream` for the `Potion` struct, `Effect` struct, and `from_name` lookup.
 pub fn build() -> TokenStream {
     let potions: BTreeMap<String, Potion> =
-        serde_json::from_str(&fs::read_to_string("../assets/potion.json").unwrap())
+        serde_json::from_str(&fs::read_to_string("../../assets/potion.json").unwrap())
             .expect("Failed to parse potion.json");
 
     let mut variants = TokenStream::new();

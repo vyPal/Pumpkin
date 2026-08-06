@@ -6,7 +6,7 @@ use std::fs;
 
 /// Reads `placed_feature.json` and emits the complete `PlacedFeature` enum `TokenStream`.
 pub fn build_enum() -> TokenStream {
-    let json_content = fs::read_to_string("../assets/placed_feature.json")
+    let json_content = fs::read_to_string("../../assets/placed_feature.json")
         .expect("Failed to read placed_feature.json");
     let json: Value =
         serde_json::from_str(&json_content).expect("Failed to parse placed_feature.json");
@@ -68,7 +68,7 @@ pub fn build_enum() -> TokenStream {
 
 /// Reads `placed_feature.json` and emits the complete `build_placed_features()` function `TokenStream`.
 pub fn build() -> TokenStream {
-    let json_content = fs::read_to_string("../assets/placed_feature.json")
+    let json_content = fs::read_to_string("../../assets/placed_feature.json")
         .expect("Failed to read placed_feature.json");
     let json: Value =
         serde_json::from_str(&json_content).expect("Failed to parse placed_feature.json");

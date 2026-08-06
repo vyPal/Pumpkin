@@ -7,7 +7,7 @@ use syn::LitInt;
 /// Generates the `TokenStream` for the `get_composter_increase_chance_from_item_id` function.
 pub fn build() -> TokenStream {
     let composter_increase_chance: BTreeMap<u16, f32> = serde_json::from_str(
-        &fs::read_to_string("../assets/composter_increase_chance.json").unwrap(),
+        &fs::read_to_string("../../assets/composter_increase_chance.json").unwrap(),
     )
     .expect("Failed to parse composter_increase_chance.json");
     let match_arms: Vec<TokenStream> = composter_increase_chance
