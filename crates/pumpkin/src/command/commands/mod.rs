@@ -24,6 +24,7 @@ mod effect;
 mod enchant;
 mod execute;
 mod experience;
+mod fetchprofile;
 mod fill;
 mod fillbiome;
 mod forceload;
@@ -204,6 +205,7 @@ pub async fn default_dispatcher(
     teammsg::register(&mut dispatcher, registry);
     clone::register(&mut dispatcher, registry);
     attribute::register(&mut dispatcher, registry);
+    fetchprofile::register(&mut dispatcher, registry);
     dispatcher
 }
 
