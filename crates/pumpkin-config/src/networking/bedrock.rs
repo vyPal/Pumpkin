@@ -60,10 +60,6 @@ impl Default for BedrockAuthenticationConfig {
 pub struct BedrockConfig {
     /// Whether Bedrock Edition Clients are Accepted.
     pub enabled: bool,
-    /// Whether Bedrock Edition Clients are Accepted.
-    pub address: SocketAddr,
-    /// Whether packet encryption is enabled for Bedrock Edition.
-    pub encryption: bool,
     /// Whether online mode is enabled.
     pub online_mode: bool,
     /// The maximum number of players allowed on the server. Specifying `0` disables the limit.
@@ -86,8 +82,6 @@ impl Default for BedrockConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            address: "0.0.0.0:19132".parse().unwrap(),
-            encryption: true,
             online_mode: true,
             max_players: 1000,
             view_distance: NonZeroU8::new(16).unwrap(),
