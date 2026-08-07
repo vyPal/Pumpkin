@@ -77,6 +77,7 @@ mod title;
 mod tps;
 mod transfer;
 mod trigger;
+mod waypoint;
 mod weather;
 mod whitelist;
 mod worldborder;
@@ -150,6 +151,7 @@ pub async fn default_dispatcher(
     );
     dispatcher.register(spectate::init_command_tree(), "minecraft:command.spectate");
     dispatcher.register(data::init_command_tree(), "minecraft:command.data");
+    dispatcher.register(waypoint::init_command_tree(), "minecraft:command.waypoint");
     // Three
     dispatcher.register(deop::init_command_tree(), "minecraft:command.deop");
     dispatcher.register(kick::init_command_tree(), "minecraft:command.kick");
@@ -278,6 +280,13 @@ fn register_level_2_permissions(registry: &mut PermissionRegistry) {
         .register_permission(Permission::new(
             "minecraft:command.time",
             "Changes or queries the world's game time",
+            PermissionDefault::Op(PermissionLvl::Two),
+        ))
+        .expect("Permission already registered");
+    registry
+        .register_permission(Permission::new(
+            "minecraft:command.waypoint",
+            "List or modify waypoints",
             PermissionDefault::Op(PermissionLvl::Two),
         ))
         .expect("Permission already registered");
