@@ -32,15 +32,12 @@ impl BegGoal {
     }
 
     async fn is_player_holding_attractive(&self, player: &Player) -> bool {
-        let main_hand = player.inventory.held_item();
-        let main_stack = main_hand.lock().await;
+        let main_stack = player.inventory().held_item().await;
         if main_stack.item_count > 0 && self.is_attractive(main_stack.item) {
             return true;
         }
-        drop(main_stack);
 
-        let off_hand = player.inventory.off_hand_item().await;
-        let off_stack = off_hand.lock().await;
+        let off_stack = player.inventory().off_hand_item().await;
         off_stack.item_count > 0 && self.is_attractive(off_stack.item)
     }
 

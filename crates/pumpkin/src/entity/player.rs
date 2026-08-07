@@ -4,7 +4,6 @@ pub mod statistics;
 use core::f32;
 use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use std::f64::consts::TAU;
-use std::mem;
 use std::num::NonZeroU8;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicI8, AtomicI32, AtomicU8, AtomicU32, Ordering};
@@ -973,7 +972,7 @@ impl Player {
         let config = &server.advanced_config.pvp;
 
         let inventory = self.inventory();
-        let item_stack = inventory.held_item();
+        let item_stack = inventory.held_item().await;
 
         let base_damage = self
             .living_entity
@@ -987,7 +986,7 @@ impl Player {
         let mut knockback_level = 0u32;
 
         {
-            let stack = item_stack.lock().await;
+            let stack = &item_stack;
             if stack.is_empty() {
                 // Vanilla fist: base_attack_damage = -1.0, base_attack_speed = -2.4
                 add_damage = -1.0;
@@ -1118,11 +1117,7 @@ impl Player {
             self.trigger_advancement(crate::entity::player::advancement::trigger::AdvancementTrigger::DealtOverkillDamage).await;
         }
 
-        if let Some(enchantments) = item_stack
-            .lock()
-            .await
-            .get_data_component::<EnchantmentsImpl>()
-        {
+        if let Some(enchantments) = item_stack.get_data_component::<EnchantmentsImpl>() {
             for (enchantment, level) in enchantments.enchantment.iter() {
                 if **enchantment == Enchantment::FIRE_ASPECT {
                     victim_entity.set_on_fire_for_ticks(*level as u32 * 80);
@@ -1166,10 +1161,7 @@ impl Player {
                     combat::spawn_sweep_particle(attacker_entity, &world, &pos);
 
                     let mut sweep_damage = 1.0;
-                    if let Some(enchantments) = item_stack
-                        .lock()
-                        .await
-                        .get_data_component::<EnchantmentsImpl>()
+                    if let Some(enchantments) = item_stack.get_data_component::<EnchantmentsImpl>()
                     {
                         for (enchantment, level) in enchantments.enchantment.iter() {
                             if **enchantment == Enchantment::SWEEPING_EDGE {
@@ -1218,11 +1210,8 @@ impl Player {
         // 2. Refactor compute cost as a closure: damage_held_item(self, |stack| -> i32 { ... })
         // 3. In practice, single-player scenarios are safe (this is not multiplayer). Document
         //    as a known limitation if refactoring is deemed too invasive.
-        self.damage_held_item({
-            let stack = item_stack.lock().await;
-            Self::combat_weapon_durability_cost(&stack)
-        })
-        .await;
+        self.damage_held_item(Self::combat_weapon_durability_cost(&item_stack))
+            .await;
 
         // Vanilla `Player#attack` ends the successful-hit branch with
         // `causeFoodExhaustion(0.1F)`. Only landed hits exhaust; the miss/no-damage
@@ -1282,14 +1271,10 @@ impl Player {
             EquipmentSlot::Body(_) | EquipmentSlot::Saddle(_) => return false,
         };
 
-        let stack_arc = self.inventory.get_stack(slot_index).await;
-
-        let updated = {
-            let mut stack = stack_arc.lock().await;
-            let result = stack.damage_item(amount);
-            (result != pumpkin_data::item_stack::DamageResult::Untouched)
-                .then_some((result, stack.clone()))
-        };
+        let mut stack = self.inventory().get_stack(slot_index).await;
+        let result = stack.damage_item(amount);
+        let updated = (result != pumpkin_data::item_stack::DamageResult::Untouched)
+            .then_some((result, stack.clone()));
 
         if let Some((result, updated_stack)) = updated {
             if let Some(server) = self.world().server.upgrade()
@@ -1359,13 +1344,12 @@ impl Player {
             return;
         }
 
-        let damage = {
-            let stack = self.inventory.held_item();
-            let stack = stack.lock().await;
-            stack
-                .get_data_component::<ToolImpl>()
-                .map_or(0, |tool| tool.damage_per_block as i32)
-        };
+        let damage = self
+            .inventory()
+            .held_item()
+            .await
+            .get_data_component::<ToolImpl>()
+            .map_or(0, |tool| tool.damage_per_block as i32);
 
         if damage > 0 {
             self.damage_held_item(damage).await;
@@ -3153,14 +3137,12 @@ impl Player {
         let keep_inventory = { self.world().level_info.load().game_rules.keep_inventory };
 
         if !keep_inventory {
-            for item in &self.inventory().main_inventory {
-                let mut lock = item.lock().await;
-                self.world()
-                    .drop_stack(
-                        &block_pos,
-                        mem::replace(&mut *lock, ItemStack::EMPTY.clone()),
-                    )
-                    .await;
+            let mut main_inv = self.inventory().main_inventory.write().await;
+            for item in main_inv.iter_mut() {
+                if !item.is_empty() {
+                    let stack = std::mem::replace(item, ItemStack::EMPTY.clone());
+                    self.world().drop_stack(&block_pos, stack).await;
+                }
             }
         }
 
@@ -3309,15 +3291,14 @@ impl Player {
     pub async fn can_harvest(&self, state: &BlockState, block: &'static Block) -> bool {
         !state.tool_required()
             || self
-                .inventory
+                .inventory()
                 .held_item()
-                .lock()
                 .await
                 .is_correct_for_drops(block)
     }
 
     pub async fn get_mining_speed(&self, block: &'static Block) -> f32 {
-        let mut speed = self.inventory.held_item().lock().await.get_speed(block);
+        let mut speed = self.inventory().held_item().await.get_speed(block);
         // Haste
         if self.living_entity.has_effect(&StatusEffect::HASTE).await
             || self
@@ -3430,45 +3411,40 @@ impl Player {
     }
 
     pub async fn drop_held_item(&self, drop_stack: bool) {
-        // Do not hold both item stack and screen handler locks at the same time.
-        let (dropped_stack, updated_stack, selected_slot) = {
-            let binding = self.inventory.held_item();
-            let mut item_stack = binding.lock().await;
+        let mut item_stack = self.inventory().held_item().await;
 
-            if item_stack.is_empty() {
+        if item_stack.is_empty() {
+            return;
+        }
+
+        let drop_amount = if drop_stack { item_stack.item_count } else { 1 };
+        let dropped_stack = item_stack.copy_with_count(drop_amount);
+
+        if let Some(server) = self.world().server.upgrade()
+            && let Some(player_arc) = self.world().get_player_by_uuid(self.gameprofile.id)
+        {
+            let mut event =
+                crate::plugin::api::events::player::player_drop_item::PlayerDropItemEvent::new(
+                    player_arc,
+                    dropped_stack.item.registry_key.to_string(),
+                    dropped_stack.item_count as u8,
+                );
+            server.plugin_manager.fire(&server, &mut event).await;
+            if event.cancelled {
                 return;
             }
+        }
 
-            let drop_amount = if drop_stack { item_stack.item_count } else { 1 };
-            let dropped_stack = item_stack.copy_with_count(drop_amount);
-
-            if let Some(server) = self.world().server.upgrade()
-                && let Some(player_arc) = self.world().get_player_by_uuid(self.gameprofile.id)
-            {
-                let mut event =
-                    crate::plugin::api::events::player::player_drop_item::PlayerDropItemEvent::new(
-                        player_arc,
-                        dropped_stack.item.registry_key.to_string(),
-                        dropped_stack.item_count as u8,
-                    );
-                server.plugin_manager.fire(&server, &mut event).await;
-                if event.cancelled {
-                    return;
-                }
-            }
-
-            item_stack.decrement(drop_amount);
-            let updated_stack = item_stack.clone();
-            let selected_slot = self.inventory.get_selected_slot();
-
-            (dropped_stack, updated_stack, selected_slot)
-        };
+        item_stack.decrement(drop_amount);
+        let updated_stack = item_stack.clone();
+        self.inventory().set_held_item(updated_stack.clone()).await;
 
         self.drop_item(dropped_stack).await;
 
         let inv: Arc<dyn Inventory> = self.inventory.clone();
         let screen_binding = self.current_screen_handler.lock().await;
         let mut screen_handler = screen_binding.lock().await;
+        let selected_slot = self.inventory.get_selected_slot();
         if let Some(slot_index) = screen_handler
             .get_slot_index(&inv, selected_slot as usize)
             .await
@@ -3557,9 +3533,8 @@ impl Player {
         use pumpkin_data::item::Item;
 
         for hand in Hand::all() {
-            let item_in_hand = self.inventory.get_stack_in_hand(hand).await;
+            let stack = self.inventory().get_stack_in_hand(hand).await;
 
-            let stack = item_in_hand.lock().await;
             if stack.item.id == Item::FILLED_MAP.id
                 && let Some(map_id_comp) = stack.get_data_component::<MapIdImpl>()
             {
@@ -3818,7 +3793,7 @@ impl Player {
             return xp;
         }
 
-        let mut candidates: Vec<(usize, EquipmentSlot, Arc<Mutex<ItemStack>>)> = Vec::new();
+        let mut candidates: Vec<(usize, EquipmentSlot, ItemStack)> = Vec::new();
 
         let selected_slot = self.inventory.get_selected_slot() as usize;
         let mut slot_pairs: Vec<(usize, EquipmentSlot)> = vec![
@@ -3832,12 +3807,8 @@ impl Player {
         }
 
         for (slot_index, equipment_slot) in slot_pairs {
-            let stack = self.inventory.get_stack(slot_index).await;
-            let eligible = {
-                let s = stack.lock().await;
-                s.get_enchantment_level(&Enchantment::MENDING) > 0 && s.get_damage() > 0
-            };
-            if eligible {
+            let stack = self.inventory().get_stack(slot_index).await;
+            if stack.get_enchantment_level(&Enchantment::MENDING) > 0 && stack.get_damage() > 0 {
                 candidates.push((slot_index, equipment_slot, stack));
             }
         }
@@ -3847,17 +3818,17 @@ impl Player {
         }
 
         let idx = rand::random::<u32>() as usize % candidates.len();
-        let (slot_index, equipment_slot, stack) = candidates.swap_remove(idx);
+        let (slot_index, equipment_slot, mut stack) = candidates.swap_remove(idx);
 
-        let (updated_stack, repaired) = {
-            let mut stack = stack.lock().await;
-            let repaired = stack.repair_item(xp.saturating_mul(2));
-            (stack.clone(), repaired)
-        };
-
+        let repaired = stack.repair_item(xp.saturating_mul(2));
         if repaired <= 0 {
             return xp;
         }
+
+        let updated_stack = stack.clone();
+        self.inventory()
+            .set_stack(slot_index, updated_stack.clone())
+            .await;
 
         let xp_used = (repaired + 1) / 2;
         xp = xp.saturating_sub(xp_used);
@@ -4436,28 +4407,25 @@ impl Player {
 
         // Check offhand first
         let stack = inventory.get_stack(PlayerInventory::OFF_HAND_SLOT).await;
-        let item = stack.lock().await;
         if matches!(
-            item.item.id,
+            stack.item.id,
             id if id == Item::ARROW.id
                 || id == Item::TIPPED_ARROW.id
                 || id == Item::SPECTRAL_ARROW.id
-        ) && item.item_count > 0
+        ) && stack.item_count > 0
         {
             return Some(PlayerInventory::OFF_HAND_SLOT);
         }
-        drop(item);
 
         // Check hotbar and main inventory
         for slot in 0..PlayerInventory::MAIN_SIZE {
             let stack = inventory.get_stack(slot).await;
-            let item = stack.lock().await;
             if matches!(
-                item.item.id,
+                stack.item.id,
                 id if id == Item::ARROW.id
                     || id == Item::TIPPED_ARROW.id
                     || id == Item::SPECTRAL_ARROW.id
-            ) && item.item_count > 0
+            ) && stack.item_count > 0
             {
                 return Some(slot);
             }
@@ -4474,15 +4442,15 @@ impl Player {
         }
 
         let inventory = self.inventory();
-        let stack_arc = inventory.get_stack(slot).await;
-        let mut stack = stack_arc.lock().await;
+        let mut stack = inventory.get_stack(slot).await;
         match stack.item_count {
             2.. => {
                 stack.item_count -= 1;
+                inventory.set_stack(slot, stack).await;
                 true
             }
             1 => {
-                *stack = ItemStack::EMPTY.clone();
+                inventory.set_stack(slot, ItemStack::EMPTY.clone()).await;
                 true
             }
             _ => false,
@@ -4582,15 +4550,14 @@ impl Player {
     }
 
     pub async fn has_item_in_inventory(&self, item: &pumpkin_data::item::Item) -> bool {
-        for slot in &self.inventory.main_inventory {
-            let stack = slot.lock().await;
+        let main_inv = self.inventory.main_inventory.read().await;
+        for stack in main_inv.iter() {
             if !stack.is_empty() && stack.item.id == item.id {
                 return true;
             }
         }
         let equipment = self.inventory.entity_equipment.lock().await;
-        for slot_stack in equipment.equipment.values() {
-            let stack = slot_stack.lock().await;
+        for stack in equipment.equipment.values() {
             if !stack.is_empty() && stack.item.id == item.id {
                 return true;
             }
@@ -4764,25 +4731,24 @@ impl NBTStorage for PlayerInventory {
 
             // Create inventory list with the correct capacity (inventory size)
             let mut items: Vec<NbtTag> = Vec::with_capacity(41);
-            for (i, item) in self.main_inventory.iter().enumerate() {
-                let stack = item.lock().await;
+            let main_inv = self.main_inventory.read().await;
+            for (i, stack) in main_inv.iter().enumerate() {
                 if !stack.is_empty() {
                     let mut item_compound = NbtCompound::new();
                     item_compound.put_byte("Slot", i as i8);
                     stack.write_item_stack(&mut item_compound);
-                    drop(stack);
                     items.push(NbtTag::Compound(item_compound));
                 }
             }
 
             let mut equipment_compound = NbtCompound::new();
+            let equipment_guard = self.entity_equipment.lock().await;
             for slot in self.equipment_slots.values() {
-                let stack_binding = self.entity_equipment.lock().await.get(slot);
-                let stack = stack_binding.lock().await;
-                if !stack.is_empty() {
+                if let Some(stack) = equipment_guard.equipment.get(slot)
+                    && !stack.is_empty()
+                {
                     let mut item_compound = NbtCompound::new();
                     stack.write_item_stack(&mut item_compound);
-                    drop(stack);
                     match slot {
                         EquipmentSlot::OffHand(_) => {
                             equipment_compound.put_compound("offhand", item_compound);
@@ -4870,13 +4836,12 @@ impl NBTStorage for EnderChestInventory {
         Box::pin(async {
             // Create item list with the correct capacity (inventory size)
             let mut items: Vec<NbtTag> = Vec::with_capacity(Self::INVENTORY_SIZE);
-            for (i, item) in self.items.iter().enumerate() {
-                let stack = item.lock().await;
+            let ec_items = self.items.read().await;
+            for (i, stack) in ec_items.iter().enumerate() {
                 if !stack.is_empty() {
                     let mut item_compound = NbtCompound::new();
                     item_compound.put_byte("Slot", i as i8);
                     stack.write_item_stack(&mut item_compound);
-                    drop(stack);
                     items.push(NbtTag::Compound(item_compound));
                 }
             }

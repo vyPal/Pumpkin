@@ -170,7 +170,9 @@ impl Server {
                 let dat_path = world_path.join(LEVEL_DAT_FILE_NAME);
                 if dat_path.exists() {
                     let backup_path = world_path.join(LEVEL_DAT_BACKUP_FILE_NAME);
-                    fs::copy(dat_path, backup_path).unwrap();
+                    if let Err(err) = fs::copy(&dat_path, &backup_path) {
+                        warn!("Failed to create backup {LEVEL_DAT_BACKUP_FILE_NAME}: {err}");
+                    }
                 }
                 level_info
             }
@@ -848,7 +850,7 @@ impl Server {
         id
     }
 
-    pub fn get_branding(&self) -> CPluginMessage<'_> {
+    pub const fn get_branding(&self) -> CPluginMessage<'_> {
         self.branding.get_branding()
     }
 

@@ -33,12 +33,12 @@ impl TemptGoal {
     }
 
     async fn is_holding_tempt_item(&self, player: &Player) -> bool {
-        let main = player.inventory.held_item();
-        if self.is_tempt_item(&*main.lock().await) {
+        let main = player.inventory().held_item().await;
+        if self.is_tempt_item(&main) {
             return true;
         }
-        let off = player.inventory.off_hand_item().await;
-        self.is_tempt_item(&*off.lock().await)
+        let off = player.inventory().off_hand_item().await;
+        self.is_tempt_item(&off)
     }
 
     async fn find_tempting_player(&self, mob: &dyn Mob) -> Option<Arc<Player>> {

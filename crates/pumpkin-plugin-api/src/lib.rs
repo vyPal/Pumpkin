@@ -1,5 +1,14 @@
 //! Pumpkin plugin API.
 #![warn(missing_docs)]
+#![allow(
+    clippy::undocumented_unsafe_blocks,
+    clippy::option_if_let_else,
+    clippy::collection_is_never_read,
+    clippy::all,
+    clippy::pedantic,
+    clippy::nursery,
+    clippy::cargo
+)]
 //!
 //! This crate provides everything needed to write a Pumpkin server plugin compiled
 //! to WebAssembly. A plugin consists of a type that implements [`Plugin`], registered

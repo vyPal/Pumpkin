@@ -719,7 +719,9 @@ impl ChunkData {
         let mut has_found = [false, false, false];
 
         for y in (self.section.min_y..=start_height).rev() {
-            let state_id = self.section.get_block_absolute_y(x, y, z).unwrap();
+            let Some(state_id) = self.section.get_block_absolute_y(x, y, z) else {
+                continue;
+            };
             let block_state = BlockState::from_id(state_id);
 
             for hm_type in [

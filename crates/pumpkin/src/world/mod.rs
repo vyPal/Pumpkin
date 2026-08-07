@@ -2248,14 +2248,14 @@ impl World {
         client
             .send_game_packet(&CInventoryContent {
                 container_id: VarUInt(0), // player inventory,
-                slots: futures::future::join_all(player.inventory.main_inventory.iter().map(
-                    async |s| {
-                        let stack = s.lock().await;
-
-                        NetworkItemStackDescriptor::from(&*stack)
-                    },
-                ))
-                .await,
+                slots: player
+                    .inventory()
+                    .main_inventory
+                    .read()
+                    .await
+                    .iter()
+                    .map(NetworkItemStackDescriptor::from)
+                    .collect(),
                 full_container_name: FullContainerName {
                     container_name: ContainerName::Inventory,
                     dynamic_id: None,
@@ -3127,18 +3127,12 @@ impl World {
 
                 equipment_list.push((
                     EquipmentSlot::MAIN_HAND.discriminant(),
-                    existing_player.inventory.held_item().lock().await.clone(),
+                    existing_player.inventory.held_item().await,
                 ));
 
-                for (slot, item_arc_mutex) in &existing_player
-                    .inventory
-                    .entity_equipment
-                    .lock()
-                    .await
-                    .equipment
-                {
-                    let item_stack = item_arc_mutex.lock().await.clone();
-                    equipment_list.push((slot.discriminant(), item_stack));
+                let equipment_guard = existing_player.inventory.entity_equipment.lock().await;
+                for (slot, item_stack) in &equipment_guard.equipment {
+                    equipment_list.push((slot.discriminant(), item_stack.clone()));
                 }
 
                 let equipment: Vec<(i8, ItemStackSerializer)> = equipment_list
@@ -3271,12 +3265,12 @@ impl World {
 
         equipment_list.push((
             EquipmentSlot::MAIN_HAND.discriminant(),
-            from.inventory.held_item().lock().await.clone(),
+            from.inventory.held_item().await,
         ));
 
-        for (slot, item_arc_mutex) in &from.inventory.entity_equipment.lock().await.equipment {
-            let item_stack = item_arc_mutex.lock().await.clone();
-            equipment_list.push((slot.discriminant(), item_stack));
+        let equipment_guard = from.inventory.entity_equipment.lock().await;
+        for (slot, item_stack) in &equipment_guard.equipment {
+            equipment_list.push((slot.discriminant(), item_stack.clone()));
         }
 
         let equipment: Vec<(i8, ItemStackSerializer)> = equipment_list
@@ -4663,11 +4657,10 @@ impl World {
             if !flags.contains(BlockFlags::SKIP_DROPS) {
                 let tool = if let Some(player) = &cause {
                     let hand_stack = player
-                        .inventory
+                        .inventory()
                         .get_stack_in_hand(pumpkin_util::Hand::Right)
                         .await;
-                    let stack_guard = hand_stack.lock().await;
-                    (stack_guard.item_count > 0).then(|| stack_guard.clone())
+                    (!hand_stack.is_empty()).then_some(hand_stack)
                 } else {
                     None
                 };

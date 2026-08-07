@@ -113,7 +113,7 @@ async fn recipe_matches(
                         .get_stack((y + y_offset) * inventory.get_width() + (x + x_offset))
                         .await;
                     if current_key == ' ' {
-                        if !slot.lock().await.is_empty() {
+                        if !slot.is_empty() {
                             matched = false;
                             break 'outer;
                         }
@@ -124,8 +124,6 @@ async fn recipe_matches(
                         .iter()
                         .find_map(|(k, v)| (*k == current_key).then_some(v))
                         .expect("Crafting recipe used invalid key");
-
-                    let slot = slot.lock().await;
 
                     if !ingredient.match_item(slot.item) {
                         matched = false;
@@ -146,7 +144,7 @@ async fn recipe_matches(
                             )
                             .await;
                         if current_key == ' ' {
-                            if !slot.lock().await.is_empty() {
+                            if !slot.is_empty() {
                                 matched = false;
                                 break 'outer;
                             }
@@ -156,7 +154,6 @@ async fn recipe_matches(
                             .iter()
                             .find_map(|(k, v)| (*k == current_key).then_some(v))
                             .expect("Crafting recipe used invalid key");
-                        let slot = slot.lock().await;
                         if !ingredient.match_item(slot.item) {
                             matched = false;
                             break 'outer;
@@ -181,7 +178,6 @@ async fn recipe_matches(
             let mut ingredient_used = vec![false; ingredients.len()];
             'next_slot: for i in 0..inventory.size() {
                 let slot = inventory.get_stack(i).await;
-                let slot = slot.lock().await;
                 if slot.is_empty() {
                     continue 'next_slot;
                 }
@@ -209,7 +205,6 @@ async fn recipe_matches(
             }
             'item_stack: for i in 0..inventory.size() {
                 let slot = inventory.get_stack(i).await;
-                let slot = slot.lock().await;
                 if slot.is_empty() {
                     continue 'item_stack;
                 }
@@ -228,7 +223,6 @@ async fn recipe_matches(
             }
             for position in (1..=7).step_by(2) {
                 let slot = inventory.get_stack(position).await;
-                let slot = slot.lock().await;
                 if slot.is_empty()
                     || !slot
                         .item
@@ -268,7 +262,7 @@ async fn recipe_matches(
                         .get_stack((y + y_offset) * inventory.get_width() + (x + x_offset))
                         .await;
                     if current_key == ' ' {
-                        if !slot.lock().await.is_empty() {
+                        if !slot.is_empty() {
                             matched = false;
                             break 'outer;
                         }
@@ -279,7 +273,6 @@ async fn recipe_matches(
                         .find(|(k, _)| *k == current_key)
                         .map(|(_, v)| v)
                         .expect("Crafting recipe used invalid key");
-                    let slot = slot.lock().await;
                     if !ingredient.match_item(slot.item) {
                         matched = false;
                         break 'outer;
@@ -302,7 +295,6 @@ async fn recipe_matches(
             let mut ingredient_used = vec![false; ingredients.len()];
             'next_slot: for i in 0..inventory.size() {
                 let slot = inventory.get_stack(i).await;
-                let slot = slot.lock().await;
                 if slot.is_empty() {
                     continue 'next_slot;
                 }
@@ -347,7 +339,6 @@ impl ResultSlot {
             let x = i % inventory_width;
             let y = i / inventory_width;
             let slot = self.inventory.get_stack(i).await;
-            let slot = slot.lock().await;
             if !slot.is_empty() {
                 top_x = top_x.min(x);
                 top_y = top_y.min(y);
@@ -450,11 +441,7 @@ impl Slot for ResultSlot {
                 )
                 .await;
             for i in 0..self.inventory.size() {
-                let slot = self.inventory.get_stack(i).await;
-                let mut stack = slot.lock().await;
-                if !stack.is_empty() {
-                    stack.item_count -= 1;
-                }
+                self.inventory.remove_stack_specific(i, 1).await;
             }
             self.mark_dirty().await;
         })
@@ -462,8 +449,8 @@ impl Slot for ResultSlot {
     fn can_insert(&self, _stack: &ItemStack) -> BoxFuture<'_, bool> {
         Box::pin(async move { false })
     }
-    fn get_stack(&self) -> BoxFuture<'_, Arc<Mutex<ItemStack>>> {
-        Box::pin(async move { self.result.clone() })
+    fn get_stack(&self) -> BoxFuture<'_, ItemStack> {
+        Box::pin(async move { self.result.lock().await.clone() })
     }
     fn get_cloned_stack(&self) -> BoxFuture<'_, ItemStack> {
         Box::pin(async move { self.result.lock().await.clone() })
@@ -491,7 +478,6 @@ impl Slot for ResultSlot {
             let mut count = u8::MAX;
             for i in 0..self.inventory.size() {
                 let slot = self.inventory.get_stack(i).await;
-                let slot = slot.lock().await;
                 if !slot.is_empty() {
                     count = count.min(slot.item_count);
                 }
@@ -613,8 +599,7 @@ impl ScreenHandler for CraftingTableScreenHandler {
         Box::pin(async move {
             let slot = self.get_behaviour().slots[slot_index as usize].clone();
             if slot.has_stack().await {
-                let slot_stack = slot.get_stack().await;
-                let mut slot_stack = slot_stack.lock().await;
+                let mut slot_stack = slot.get_stack().await;
                 let stack_prev = slot_stack.clone();
                 if slot_index == 0 {
                     if !self.insert_item(&mut slot_stack, 10, 46, true).await {

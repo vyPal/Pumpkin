@@ -630,10 +630,12 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     ) -> wasmtime::Result<Option<Resource<WitHostItemStack>>> {
         let player = player_from_resource(self, &player)?;
         let stack = player.inventory().get_stack(slot as usize).await;
-        if stack.lock().await.is_empty() {
+        if stack.is_empty() {
             Ok(None)
         } else {
-            Ok(Some(self.add_item_stack(stack)?))
+            Ok(Some(self.add_item_stack(Arc::new(
+                tokio::sync::Mutex::new(stack),
+            ))?))
         }
     }
 
@@ -645,10 +647,12 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         let player = player_from_resource(self, &player)?;
         let hand = from_wasm_hand(hand);
         let stack = player.inventory().get_stack_in_hand(hand).await;
-        if stack.lock().await.is_empty() {
+        if stack.is_empty() {
             Ok(None)
         } else {
-            Ok(Some(self.add_item_stack(stack)?))
+            Ok(Some(self.add_item_stack(Arc::new(
+                tokio::sync::Mutex::new(stack),
+            ))?))
         }
     }
 

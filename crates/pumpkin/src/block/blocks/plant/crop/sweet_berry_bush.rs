@@ -65,7 +65,7 @@ impl BlockBehaviour for SweetBerryBushBlock {
         Box::pin(async move {
             let state_id = args.world.get_block_state_id(args.position);
             let props = NetherWartLikeProperties::from_state_id(state_id, &Block::SWEET_BERRY_BUSH);
-            if props.age != 3 && args.item_stack.lock().await.get_item() == &Item::BONE_MEAL {
+            if props.age != 3 && args.item_stack.get_item() == &Item::BONE_MEAL {
                 BlockActionResult::Pass
             } else {
                 BlockActionResult::PassToDefaultBlockAction

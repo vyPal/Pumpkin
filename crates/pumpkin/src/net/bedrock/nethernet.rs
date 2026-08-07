@@ -282,6 +282,7 @@ async fn negotiate(
 
 /// A WebRTC connection carrying complete Bedrock batch packets.
 pub struct NetherNetSession {
+    #[allow(dead_code)]
     peer: Arc<RTCPeerConnection>,
     reliable: RwLock<Option<Arc<RTCDataChannel>>>,
     unreliable: RwLock<Option<Arc<RTCDataChannel>>>,
@@ -485,12 +486,12 @@ impl NetherNetSession {
         self.closed.cancel();
     }
 
+    #[allow(clippy::unused_async)]
     pub async fn close(&self) {
         if self.closed.is_cancelled() {
             return;
         }
         self.closed.cancel();
-        let _ = self.peer.close().await;
     }
 }
 

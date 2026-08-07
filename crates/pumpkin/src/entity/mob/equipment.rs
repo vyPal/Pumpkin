@@ -1027,7 +1027,7 @@ pub async fn equip_mob_on_spawn(mob: &dyn EntityBase, world: &Arc<crate::world::
     let mut equipment_changes: Vec<(EquipmentSlot, ItemStack)> = Vec::new();
 
     for (slot, stack, drop_chance) in changes_with_drops {
-        equipment.put(&slot, stack.clone()).await;
+        equipment.put(&slot, stack.clone());
         drop_chances.insert(slot.clone(), drop_chance);
         equipment_changes.push((slot, stack));
     }

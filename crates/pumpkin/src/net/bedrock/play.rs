@@ -565,8 +565,6 @@ impl BedrockClient {
                         .get_slot(screen_slot)
                         .get_stack()
                         .await
-                        .lock()
-                        .await
                         .are_equal(&item_stack);
 
                     if !is_armor_equipped {
@@ -607,13 +605,14 @@ impl BedrockClient {
         if inventory_updated {
             self.enqueue_packet(&CInventoryContent {
                 container_id: VarUInt(0),
-                slots: futures::future::join_all(player.inventory().main_inventory.iter().map(
-                    async |s| {
-                        let stack = s.lock().await;
-                        NetworkItemStackDescriptor::from(&*stack)
-                    },
-                ))
-                .await,
+                slots: player
+                    .inventory()
+                    .main_inventory
+                    .read()
+                    .await
+                    .iter()
+                    .map(NetworkItemStackDescriptor::from)
+                    .collect(),
                 full_container_name: FullContainerName {
                     container_name: ContainerName::Inventory,
                     dynamic_id: None,
@@ -653,11 +652,10 @@ impl BedrockClient {
                     let is_creative = player.gamemode.load() == GameMode::Creative;
                     let client_stack = descriptor_to_stack(&data.item_in_hand, is_creative);
 
-                    let held_item = player.inventory.held_item();
+                    let mut held_item = player.inventory().held_item().await;
                     if !client_stack.is_empty() {
-                        let mut server_stack = held_item.lock().await;
-                        if server_stack.is_empty() || server_stack.item.id != client_stack.item.id {
-                            *server_stack = client_stack.clone();
+                        if held_item.is_empty() || held_item.item.id != client_stack.item.id {
+                            held_item = client_stack.clone();
                         }
                     }
 
@@ -671,7 +669,7 @@ impl BedrockClient {
                                 face: &face,
                                 cursor_pos: &data.click_position,
                             },
-                            &held_item,
+                            &mut held_item,
                             &EquipmentSlot::MAIN_HAND,
                             &server,
                             &world,
@@ -699,7 +697,7 @@ impl BedrockClient {
                             .await;
                     }
 
-                    let mut stack = held_item.lock().await;
+                    let mut stack = held_item;
                     if !stack.is_empty() {
                         server
                             .item_registry
@@ -744,18 +742,19 @@ impl BedrockClient {
                                 }
                             }
                         }
+                        player.inventory().set_held_item(stack).await;
                     }
                 } else if data.action_type.0 == 1 {
                     // Click air / Use item
                     let is_creative = player.gamemode.load() == GameMode::Creative;
                     let client_stack = descriptor_to_stack(&data.item_in_hand, is_creative);
 
-                    let held_item = player.inventory.held_item();
-                    if !client_stack.is_empty() {
-                        let mut server_stack = held_item.lock().await;
-                        if server_stack.is_empty() || server_stack.item.id != client_stack.item.id {
-                            *server_stack = client_stack.clone();
-                        }
+                    let mut held = player.inventory.held_item().await;
+                    if !client_stack.is_empty()
+                        && (held.is_empty() || held.item.id != client_stack.item.id)
+                    {
+                        held = client_stack.clone();
+                        player.inventory.set_held_item(held.clone()).await;
                     }
 
                     let event = PlayerInteractEvent::new(
@@ -765,10 +764,9 @@ impl BedrockClient {
                         None,
                     );
 
-                    let stack_for_use = held_item.lock().await.clone();
+                    let stack_for_use = held.clone();
 
                     {
-                        let mut held = held_item.lock().await;
                         let mut cooldown_active = false;
                         if let Some(cooldown) = held.get_use_cooldown() {
                             let group = cooldown
@@ -811,27 +809,26 @@ impl BedrockClient {
                             }
                             if let Some(equippable) = held.get_data_component::<EquippableImpl>() {
                                 let inventory = player.inventory();
-                                if !inventory
-                                    .is_already_equipped(&held_item, equippable.slot)
-                                    .await
-                                {
+                                let mut equipment_guard = inventory.entity_equipment.lock().await;
+                                let current_equipped = equipment_guard.get(equippable.slot);
+                                if !current_equipped.are_items_and_components_equal(&held) {
                                     player
                                         .enqueue_equipment_change(equippable.slot, &held)
                                         .await;
 
-                                    let binding = {
-                                        let mut equipment = inventory.entity_equipment.lock().await;
-                                        equipment.get_or_insert(equippable.slot)
-                                    };
-                                    let mut equip_item = binding.lock().await;
+                                    let equip_item = equipment_guard
+                                        .equipment
+                                        .entry(equippable.slot.clone())
+                                        .or_insert_with(|| ItemStack::EMPTY.clone());
                                     if equip_item.is_empty() {
                                         *equip_item = held.clone();
                                         held.decrement_unless_creative(player.gamemode.load(), 1);
                                     } else {
-                                        let binding = held.clone();
-                                        *held = equip_item.clone();
-                                        *equip_item = binding;
+                                        let old_held = held.clone();
+                                        held = equip_item.clone();
+                                        *equip_item = old_held;
                                     }
+                                    player.inventory().set_held_item(held.clone()).await;
                                 }
                             }
                         }
@@ -854,14 +851,14 @@ impl BedrockClient {
                     0 | 2 => {
                         let world = player.world();
                         if let Some(target) = world.get_entity_by_id(target_runtime_id) {
-                            let held = player.inventory.held_item();
-                            let mut stack = held.lock().await;
+                            let mut stack = player.inventory().held_item().await;
                             if !target.interact(player, &mut stack).await {
                                 let server = world.server.upgrade().expect("Server is gone");
                                 server
                                     .item_registry
                                     .use_on_entity(&mut stack, player, target)
                                     .await;
+                                player.inventory().set_held_item(stack).await;
                             }
                         }
                     }
@@ -993,13 +990,14 @@ impl BedrockClient {
         // Sync the inventory content to Bedrock client
         self.enqueue_packet(&CInventoryContent {
             container_id: VarUInt(0), // player inventory
-            slots: futures::future::join_all(player.inventory().main_inventory.iter().map(
-                async |s| {
-                    let stack = s.lock().await;
-                    NetworkItemStackDescriptor::from(&*stack)
-                },
-            ))
-            .await,
+            slots: player
+                .inventory()
+                .main_inventory
+                .read()
+                .await
+                .iter()
+                .map(NetworkItemStackDescriptor::from)
+                .collect(),
             full_container_name: FullContainerName {
                 container_name: ContainerName::Inventory,
                 dynamic_id: None,
@@ -1655,13 +1653,14 @@ impl BedrockClient {
         if inventory_updated {
             self.enqueue_packet(&CInventoryContent {
                 container_id: VarUInt(0),
-                slots: futures::future::join_all(player.inventory().main_inventory.iter().map(
-                    async |s| {
-                        let stack = s.lock().await;
-                        NetworkItemStackDescriptor::from(&*stack)
-                    },
-                ))
-                .await,
+                slots: player
+                    .inventory()
+                    .main_inventory
+                    .read()
+                    .await
+                    .iter()
+                    .map(NetworkItemStackDescriptor::from)
+                    .collect(),
                 full_container_name: FullContainerName {
                     container_name: ContainerName::Inventory,
                     dynamic_id: None,
@@ -1702,34 +1701,22 @@ impl BedrockClient {
                 slot_with_stack as usize,
             ) {
                 if slot_with_stack as usize != target_hotbar_slot {
-                    let target_stack = player.inventory.main_inventory[target_hotbar_slot]
-                        .lock()
-                        .await
-                        .clone();
-                    let source_stack = player.inventory.main_inventory[slot_with_stack as usize]
-                        .lock()
-                        .await
-                        .clone();
+                    let target_stack = player.inventory().get_stack(target_hotbar_slot).await;
+                    let source_stack = player.inventory().get_stack(slot_with_stack as usize).await;
                     player
-                        .inventory
+                        .inventory()
                         .set_stack(target_hotbar_slot, source_stack)
                         .await;
                     player
-                        .inventory
+                        .inventory()
                         .set_stack(slot_with_stack as usize, target_stack)
                         .await;
                 }
             } else {
-                let target_stack = player.inventory.main_inventory[target_hotbar_slot]
-                    .lock()
-                    .await
-                    .clone();
-                let source_stack = player.inventory.main_inventory[slot_with_stack as usize]
-                    .lock()
-                    .await
-                    .clone();
+                let target_stack = player.inventory().get_stack(target_hotbar_slot).await;
+                let source_stack = player.inventory().get_stack(slot_with_stack as usize).await;
                 player
-                    .inventory
+                    .inventory()
                     .set_stack(target_hotbar_slot, source_stack)
                     .await;
                 player
@@ -1767,20 +1754,21 @@ impl BedrockClient {
             .await;
 
         // Sync main hand equipment to other players
-        let stack_in_hand = player.inventory().held_item().lock().await.clone();
+        let stack_in_hand = player.inventory().held_item().await;
         let equipment = &[(EquipmentSlot::MAIN_HAND, stack_in_hand)];
         player.living_entity.send_equipment_changes(equipment);
 
         // Sync bedrock inventory updates
         self.enqueue_packet(&CInventoryContent {
             container_id: VarUInt(0),
-            slots: futures::future::join_all(player.inventory().main_inventory.iter().map(
-                async |s| {
-                    let stack = s.lock().await;
-                    NetworkItemStackDescriptor::from(&*stack)
-                },
-            ))
-            .await,
+            slots: player
+                .inventory()
+                .main_inventory
+                .read()
+                .await
+                .iter()
+                .map(NetworkItemStackDescriptor::from)
+                .collect(),
             full_container_name: FullContainerName {
                 container_name: ContainerName::Inventory,
                 dynamic_id: None,
@@ -1822,7 +1810,7 @@ impl BedrockClient {
 
         let inv = player.inventory();
         inv.set_selected_slot(slot);
-        let stack = inv.held_item().lock().await.clone();
+        let stack = inv.held_item().await;
         let equipment = &[(EquipmentSlot::MAIN_HAND, stack)];
         player.living_entity.send_equipment_changes(equipment);
     }

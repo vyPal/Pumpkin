@@ -128,7 +128,9 @@ impl ItemBehaviour for EnderEyeItem {
             );
 
             player.trigger_advancement(crate::entity::player::advancement::trigger::AdvancementTrigger::LaunchedEyeOfEnder).await;
-            player.inventory.held_item().lock().await.decrement(1);
+            let mut stack = player.inventory.held_item().await;
+            stack.decrement(1);
+            player.inventory.set_held_item(stack).await;
         })
     }
 

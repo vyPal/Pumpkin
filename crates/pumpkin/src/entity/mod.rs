@@ -2455,21 +2455,15 @@ impl Entity {
             return true;
         };
 
-        let armor = {
-            let equipment = living.entity_equipment.lock().await;
-            [
-                equipment.get(&EquipmentSlot::HEAD),
-                equipment.get(&EquipmentSlot::CHEST),
-                equipment.get(&EquipmentSlot::LEGS),
-                equipment.get(&EquipmentSlot::FEET),
-            ]
-        };
-
-        for stack in armor {
-            let stack = stack.lock().await;
-            if stack
-                .get_item()
-                .has_tag(&tag::Item::MINECRAFT_FREEZE_IMMUNE_WEARABLES)
+        let equipment = living.entity_equipment.lock().await;
+        for (slot, stack) in &equipment.equipment {
+            if (*slot == EquipmentSlot::HEAD
+                || *slot == EquipmentSlot::CHEST
+                || *slot == EquipmentSlot::LEGS
+                || *slot == EquipmentSlot::FEET)
+                && stack
+                    .get_item()
+                    .has_tag(&tag::Item::MINECRAFT_FREEZE_IMMUNE_WEARABLES)
             {
                 return false;
             }

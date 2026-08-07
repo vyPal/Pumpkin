@@ -36,7 +36,7 @@ pub struct BlockState {
     pub block_entity_type: u16,
 }
 
-/// Helper struct to ensure the validity of BlockStateIds parsed from external sources.
+/// Helper struct to ensure the validity of `BlockStateIds` parsed from external sources.
 /// Every [`BlockStateId`] is guaranteed to correspond to a valid [`BlockState`].
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]

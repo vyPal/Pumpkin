@@ -103,7 +103,7 @@ impl BlockBehaviour for CandleCakeBlock {
         args: UseWithItemArgs<'a>,
     ) -> BlockFuture<'a, BlockActionResult> {
         Box::pin(async move {
-            let item_id = args.item_stack.lock().await.item.id;
+            let item_id = args.item_stack.item.id;
             match item_id {
                 id if id == Item::FIRE_CHARGE.id || id == Item::FLINT_AND_STEEL.id => {
                     BlockActionResult::Pass
