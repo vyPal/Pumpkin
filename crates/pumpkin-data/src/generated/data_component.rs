@@ -1,5 +1,4 @@
 /* This file is generated. Do not edit manually. */
-use crate::data_component_impl::*;
 #[derive(Copy, Clone, Hash, PartialEq, Eq)]
 #[repr(u8)]
 pub enum DataComponent {

@@ -38,14 +38,14 @@ impl BlockEntity for ShulkerBoxBlockEntity {
     where
         Self: Sized,
     {
-        let shulker_box = Self {
+        let mut shulker_box = Self {
             position,
             items: RwLock::new(from_fn(|_| ItemStack::EMPTY.clone())),
             dirty: AtomicBool::new(false),
             viewers: ViewerCountTracker::new(),
         };
 
-        shulker_box.read_data(nbt, &mut *shulker_box.items.blocking_write());
+        pumpkin_world::inventory::sync_read_items_from_nbt(nbt, shulker_box.items.get_mut());
 
         shulker_box
     }

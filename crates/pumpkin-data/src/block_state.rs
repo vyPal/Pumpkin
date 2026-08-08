@@ -250,7 +250,6 @@ impl Default for BlockStateId {
 
 impl std::fmt::Display for BlockStateId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use std::fmt::Write;
         write!(
             f,
             "BlockStateId({} = \"{}\")",

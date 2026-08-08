@@ -28,13 +28,13 @@ impl BlockEntity for DispenserBlockEntity {
     where
         Self: Sized,
     {
-        let dispenser = Self {
+        let mut dispenser = Self {
             position,
             items: tokio::sync::RwLock::new(from_fn(|_| ItemStack::EMPTY.clone())),
             dirty: AtomicBool::new(false),
         };
 
-        dispenser.read_data(nbt, &mut *dispenser.items.blocking_write());
+        pumpkin_world::inventory::sync_read_items_from_nbt(nbt, dispenser.items.get_mut());
 
         dispenser
     }

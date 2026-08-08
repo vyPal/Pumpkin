@@ -28,13 +28,13 @@ impl BlockEntity for DropperBlockEntity {
     where
         Self: Sized,
     {
-        let dropper = Self {
+        let mut dropper = Self {
             position,
             items: tokio::sync::RwLock::new(from_fn(|_| ItemStack::EMPTY.clone())),
             dirty: AtomicBool::new(false),
         };
 
-        dropper.read_data(nbt, &mut *dropper.items.blocking_write());
+        pumpkin_world::inventory::sync_read_items_from_nbt(nbt, dropper.items.get_mut());
 
         dropper
     }

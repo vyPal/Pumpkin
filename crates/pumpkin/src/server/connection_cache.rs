@@ -103,7 +103,7 @@ impl CachedStatus {
             version.protocol = client_protocol as u32;
         }
 
-        let json = serde_json::to_string(&response).expect("Failed to serialize status response");
+        let json = serde_json::to_string(&response).unwrap_or_default();
 
         CStatusResponse::new(json)
     }

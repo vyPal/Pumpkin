@@ -90,7 +90,10 @@ async fn recipe_matches(
             result,
             ..
         }) => {
-            if pattern.len() != input_height || pattern.first().unwrap().len() != input_width {
+            #[allow(clippy::redundant_closure_for_method_calls)]
+            if pattern.len() != input_height
+                || pattern.first().map_or(0, |f| f.len()) != input_width
+            {
                 return None;
             }
 
@@ -120,10 +123,13 @@ async fn recipe_matches(
                         continue;
                     }
 
-                    let ingredient = key
+                    let Some(ingredient) = key
                         .iter()
                         .find_map(|(k, v)| (*k == current_key).then_some(v))
-                        .expect("Crafting recipe used invalid key");
+                    else {
+                        matched = false;
+                        break 'outer;
+                    };
 
                     if !ingredient.match_item(slot.item) {
                         matched = false;
@@ -136,7 +142,10 @@ async fn recipe_matches(
                 matched = true;
                 'outer: for y in 0..pattern.len() {
                     for x in 0..pattern[y].len() {
-                        let current_key = pattern[y].chars().nth(x).unwrap();
+                        let Some(current_key) = pattern[y].chars().nth(x) else {
+                            matched = false;
+                            break 'outer;
+                        };
                         let slot = inventory
                             .get_stack(
                                 (y + y_offset) * inventory.get_height()
@@ -150,10 +159,13 @@ async fn recipe_matches(
                             }
                             continue;
                         }
-                        let ingredient = key
+                        let Some(ingredient) = key
                             .iter()
                             .find_map(|(k, v)| (*k == current_key).then_some(v))
-                            .expect("Crafting recipe used invalid key");
+                        else {
+                            matched = false;
+                            break 'outer;
+                        };
                         if !ingredient.match_item(slot.item) {
                             matched = false;
                             break 'outer;
@@ -242,7 +254,10 @@ async fn recipe_matches(
             result,
             ..
         }) => {
-            if pattern.len() != input_height || pattern.first().unwrap().len() != input_width {
+            #[allow(clippy::redundant_closure_for_method_calls)]
+            if pattern.len() != input_height
+                || pattern.first().map_or(0, |f| f.len()) != input_width
+            {
                 return None;
             }
             if count
@@ -268,11 +283,12 @@ async fn recipe_matches(
                         }
                         continue;
                     }
-                    let ingredient = key
-                        .iter()
-                        .find(|(k, _)| *k == current_key)
-                        .map(|(_, v)| v)
-                        .expect("Crafting recipe used invalid key");
+                    let Some(ingredient) =
+                        key.iter().find(|(k, _)| *k == current_key).map(|(_, v)| v)
+                    else {
+                        matched = false;
+                        break 'outer;
+                    };
                     if !ingredient.match_item(slot.item) {
                         matched = false;
                         break 'outer;

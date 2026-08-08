@@ -158,7 +158,7 @@ impl From<Text> for NbtTag {
             value
                 .messages
                 .lock()
-                .expect("Text messages mutex should not be poisoned")
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .iter()
                 .map(|s| Self::String(s.clone()))
                 .collect(),

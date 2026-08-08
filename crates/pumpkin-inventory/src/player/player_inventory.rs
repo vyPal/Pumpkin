@@ -116,7 +116,9 @@ impl PlayerInventory {
         match hand {
             Hand::Right => self.set_held_item(stack).await,
             Hand::Left => {
-                let slot = self.equipment_slots.get(&Self::OFF_HAND_SLOT).unwrap();
+                let Some(slot) = self.equipment_slots.get(&Self::OFF_HAND_SLOT) else {
+                    return;
+                };
                 self.entity_equipment.lock().await.put(slot, stack);
             }
         }
@@ -137,7 +139,9 @@ impl PlayerInventory {
     ///
     /// Mojang name: `getOffHandStack`
     pub async fn off_hand_item(&self) -> ItemStack {
-        let slot = self.equipment_slots.get(&Self::OFF_HAND_SLOT).unwrap();
+        let Some(slot) = self.equipment_slots.get(&Self::OFF_HAND_SLOT) else {
+            return ItemStack::EMPTY.clone();
+        };
         self.entity_equipment.lock().await.get(slot)
     }
 
@@ -146,7 +150,9 @@ impl PlayerInventory {
     /// # Returns
     /// The new main hand item and new off-hand item.
     pub async fn swap_item(&self) -> (ItemStack, ItemStack) {
-        let slot = self.equipment_slots.get(&Self::OFF_HAND_SLOT).unwrap();
+        let Some(slot) = self.equipment_slots.get(&Self::OFF_HAND_SLOT) else {
+            return (ItemStack::EMPTY.clone(), ItemStack::EMPTY.clone());
+        };
         let mut equipment = self.entity_equipment.lock().await;
         let selected = self.get_selected_slot() as usize;
         let mut main_inv = self.main_inventory.write().await;
@@ -514,8 +520,6 @@ impl PlayerInventory {
     pub fn set_selected_slot(&self, slot: u8) {
         if Self::is_valid_hotbar_index(slot as usize) {
             self.selected_slot.store(slot, Ordering::Relaxed);
-        } else {
-            panic!("Invalid hotbar slot: {slot}");
         }
     }
 

@@ -53,6 +53,9 @@ print_stderr = "deny"
 todo = "deny"
 unreachable = "deny"
 unimplemented = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
 
 # Safety & Soundness
 undocumented_unsafe_blocks = "deny"

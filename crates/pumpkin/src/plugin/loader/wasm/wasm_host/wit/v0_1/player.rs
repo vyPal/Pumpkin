@@ -510,11 +510,11 @@ impl DowncastResourceExt<PlayerResource> for Resource<Player> {
             .resource_table
             .get_any_mut(self.rep())
             .map_err(|_| wasmtime::Error::msg("invalid player resource handle"))
-            .unwrap()
+            .expect("valid player resource handle")
             .downcast_ref::<PlayerResource>()
             .ok_or("resource type mismatch")
             .map_err(wasmtime::Error::msg)
-            .unwrap()
+            .expect("resource type mismatch")
     }
 
     fn downcast_mut<'a>(&'a self, state: &'a mut PluginHostState) -> &'a mut PlayerResource {
@@ -522,11 +522,11 @@ impl DowncastResourceExt<PlayerResource> for Resource<Player> {
             .resource_table
             .get_any_mut(self.rep())
             .map_err(|_| wasmtime::Error::msg("invalid player resource handle"))
-            .unwrap()
+            .expect("valid player resource handle")
             .downcast_mut::<PlayerResource>()
             .ok_or("resource type mismatch")
             .map_err(wasmtime::Error::msg)
-            .unwrap()
+            .expect("resource type mismatch")
     }
 
     fn consume(self, state: &mut PluginHostState) -> PlayerResource {
@@ -534,7 +534,7 @@ impl DowncastResourceExt<PlayerResource> for Resource<Player> {
             .resource_table
             .delete::<PlayerResource>(Resource::new_own(self.rep()))
             .map_err(|_| wasmtime::Error::msg("invalid player resource handle"))
-            .unwrap()
+            .expect("invalid player resource handle")
     }
 }
 

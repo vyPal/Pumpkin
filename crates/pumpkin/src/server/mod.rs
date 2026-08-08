@@ -194,7 +194,8 @@ impl Server {
             ) => {
                 error!("Failed to load world info!");
                 error!("{error}");
-                panic!("Unsupported world version! See the logs for more info.");
+                error!("Unsupported world version! See the logs for more info.");
+                std::process::exit(1);
             }
             Err(error) => {
                 error!("Failed to load the world data in {}!", world_path.display());
@@ -202,7 +203,8 @@ impl Server {
                 error!(
                     "Refusing to continue: a default world would generate different terrain on top of the existing region files. Restore {LEVEL_DAT_FILE_NAME} from {LEVEL_DAT_BACKUP_FILE_NAME}, which also holds a copy of the world seed, or move the world folder aside to start a new world."
                 );
-                panic!("Failed to load the world data! See the logs for more info.");
+                error!("Failed to load the world data! See the logs for more info.");
+                std::process::exit(1);
             }
         };
 
@@ -311,7 +313,10 @@ impl Server {
             rayon::ThreadPoolBuilder::new()
                 .thread_name(|i| format!("Gen-Pool-{i}"))
                 .build()
-                .expect("Failed to build generation thread pool"),
+                .unwrap_or_else(|err| {
+                    error!("Failed to build generation thread pool: {err}");
+                    std::process::exit(1);
+                }),
         );
 
         let server_clone = server.clone();
@@ -355,8 +360,8 @@ impl Server {
             tokio::join!(futures::future::join_all(world_futures), mojang_keys_task);
 
         let mut worlds_vec = Vec::new();
-        for world_result in worlds_results {
-            worlds_vec.push(world_result.expect("World loading panicked"));
+        for world in worlds_results.into_iter().flatten() {
+            worlds_vec.push(world);
         }
 
         server.worlds.store(Arc::new(worlds_vec));
@@ -399,17 +404,15 @@ impl Server {
     }
 
     pub fn get_world_from_dimension(&self, dimension: &Dimension) -> Arc<World> {
-        self.worlds
-            .load()
+        let worlds = self.worlds.load();
+        worlds
             .iter()
             .find(|w| w.dimension.minecraft_name == dimension.minecraft_name)
             .cloned()
+            .or_else(|| worlds.first().cloned())
             .unwrap_or_else(|| {
-                self.worlds
-                    .load()
-                    .first()
-                    .expect("Default world should exist")
-                    .clone()
+                error!("No default world exists");
+                std::process::exit(1);
             })
     }
 
@@ -460,7 +463,10 @@ impl Server {
             world
         })
         .await
-        .expect("World creation panicked")
+        .unwrap_or_else(|_| {
+            error!("World creation failed");
+            std::process::exit(1);
+        })
     }
 
     /// Adds a new player to the server.
@@ -496,6 +502,8 @@ impl Server {
     ) -> Option<(Arc<Player>, Arc<World>)> {
         let gamemode = self.defaultgamemode.lock().await.gamemode;
 
+        let first_world = self.worlds.load().first().cloned()?;
+
         let (world, nbt) =
             if let Ok(Some(data)) = self.player_data_storage.load_data(&profile.id).await {
                 if let Some(dimension_key) = data.get_string("Dimension") {
@@ -504,33 +512,15 @@ impl Server {
                         (world, Some(data))
                     } else {
                         warn!("Invalid dimension key in player data: {dimension_key}");
-                        let default_world = self
-                            .worlds
-                            .load()
-                            .first()
-                            .expect("Default world should exist")
-                            .clone();
-                        (default_world, Some(data))
+                        (first_world, Some(data))
                     }
                 } else {
                     // Player data exists but doesn't have a "Dimension" key.
-                    let default_world = self
-                        .worlds
-                        .load()
-                        .first()
-                        .expect("Default world should exist")
-                        .clone();
-                    (default_world, Some(data))
+                    (first_world, Some(data))
                 }
             } else {
                 // No player data found or an error occurred, default to the Overworld.
-                let default_world = self
-                    .worlds
-                    .load()
-                    .first()
-                    .expect("Default world should exist")
-                    .clone();
-                (default_world, None)
+                (first_world, None)
             };
 
         let mut player = Player::new(
@@ -1031,7 +1021,9 @@ impl Server {
                 .map_or_else(Vec::new, |player| vec![player]),
         };
 
-        let player_type = EntityType::from_name("player").expect("entity type player must exist");
+        let Some(player_type) = EntityType::from_name("player") else {
+            return Vec::new();
+        };
         let type_included = target_selector
             .conditions
             .iter()

@@ -792,7 +792,10 @@ fn apply_vanilla_enchantments(
                 break;
             }
         }
-        let selected = selected.unwrap_or(candidates.last().copied().unwrap());
+        let Some(&fallback) = candidates.last() else {
+            break;
+        };
+        let selected = selected.unwrap_or(fallback);
 
         let level = enchantment_level_from_cost(selected, cost);
         stack.add_enchantment(selected, level.clamp(1, selected.max_level) as u16);
@@ -825,7 +828,7 @@ fn weighted_select_item(items: &[WeaponEntry]) -> &'static Item {
             return entry.item;
         }
     }
-    items.last().unwrap().item
+    items.last().map_or(&Item::AIR, |e| e.item)
 }
 
 /// Selects armor using the vanilla algorithm.

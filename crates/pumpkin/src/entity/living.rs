@@ -383,7 +383,10 @@ impl LivingEntity {
         attribute: &Attributes,
         f: F,
     ) {
-        let mut map = self.attributes.write().unwrap();
+        let mut map = self
+            .attributes
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
 
         let inst = map.entry(attribute.id).or_insert_with(|| {
             let base = self
@@ -414,7 +417,10 @@ impl LivingEntity {
     /// Returns the computed value for `attribute` using the local instance, falling back
     /// to `attribute.default_value` if no local instance exists.
     pub fn get_attribute_value(&self, attribute: &Attributes) -> f64 {
-        let map = self.attributes.read().unwrap();
+        let map = self
+            .attributes
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         map.get(&attribute.id)
             .map_or(attribute.default_value, AttributeInstance::value)
     }
@@ -422,7 +428,10 @@ impl LivingEntity {
     /// Returns the base attribute value for `attribute` for this entity's type.
     pub fn get_attribute_base(&self, attribute: &Attributes) -> f64 {
         // Check the local base value first (could be modified)
-        let map = self.attributes.read().unwrap();
+        let map = self
+            .attributes
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(instance) = map.get(&attribute.id) {
             return instance.base_value;
         }
@@ -433,14 +442,16 @@ impl LivingEntity {
             .attributes
             .iter()
             .find(|a| a.0.id == attribute.id)
-            .unwrap()
-            .1
+            .map_or(attribute.default_value, |a| a.1)
     }
 
     /// Update or insert the base value for an attribute on this entity.
     /// If the attribute doesn't exist locally yet, it will be inserted.
     pub fn set_attribute_base(&self, attribute: &Attributes, new_base: f64) {
-        let mut map = self.attributes.write().unwrap();
+        let mut map = self
+            .attributes
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(inst) = map.get_mut(&attribute.id) {
             inst.base_value = new_base;
             inst.dirty.store(true, Ordering::Relaxed);
@@ -1329,9 +1340,9 @@ impl LivingEntity {
         cause: Option<&dyn EntityBase>,
     ) {
         let world = self.entity.world.load();
-        let dyn_self = world
-            .get_entity_by_id(self.entity.entity_id)
-            .expect("Entity not found in world");
+        let Some(dyn_self) = world.get_entity_by_id(self.entity.entity_id) else {
+            return;
+        };
         if self
             .dead
             .compare_exchange(false, true, Relaxed, Relaxed)
@@ -1862,10 +1873,9 @@ impl LivingEntity {
         if let Some(player) = caller.get_player() {
             return player.inventory.off_hand_item().await;
         }
-        let slot = self
-            .equipment_slots
-            .get(&PlayerInventory::OFF_HAND_SLOT)
-            .unwrap();
+        let Some(slot) = self.equipment_slots.get(&PlayerInventory::OFF_HAND_SLOT) else {
+            return ItemStack::EMPTY.clone();
+        };
         let equipment = self.entity_equipment.lock().await;
         equipment
             .equipment
@@ -2062,14 +2072,14 @@ impl NBTStorage for LivingEntity {
                 if let Some(nbt_effects) = nbt_effects {
                     for effect in nbt_effects {
                         if let NbtTag::Compound(effect_nbt) = effect {
-                            let effect = Effect::create_from_nbt(&mut effect_nbt.clone()).await;
-                            if effect.is_none() {
+                            if let Some(mut effect) =
+                                Effect::create_from_nbt(&mut effect_nbt.clone()).await
+                            {
+                                effect.blend = true; // TODO: change, is taken from effect give command
+                                active_effects.insert(effect.effect_type, effect);
+                            } else {
                                 warn!("Unable to read effect from nbt");
-                                continue;
                             }
-                            let mut effect = effect.unwrap();
-                            effect.blend = true; // TODO: change, is taken from effect give command
-                            active_effects.insert(effect.effect_type, effect);
                         }
                     }
                 }
@@ -2380,7 +2390,10 @@ impl EntityBase for LivingEntity {
             self.last_damage_taken.store(amount);
             let damage_amount = damage_amount.max(0.0);
 
-            let config = &world.server.upgrade().unwrap().advanced_config.pvp;
+            let Some(server) = world.server.upgrade() else {
+                return false;
+            };
+            let config = &server.advanced_config.pvp;
 
             if config.hurt_animation {
                 let entity_id = self.entity.entity_id;

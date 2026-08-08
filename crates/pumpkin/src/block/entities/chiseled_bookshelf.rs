@@ -44,13 +44,13 @@ impl BlockEntity for ChiseledBookshelfBlockEntity {
     where
         Self: Sized,
     {
-        let bookshelf = Self {
+        let mut bookshelf = Self {
             position,
             items: tokio::sync::RwLock::new(from_fn(|_| ItemStack::EMPTY.clone())),
             last_interacted_slot: AtomicI8::new(-1),
             dirty: AtomicBool::new(false),
         };
-        bookshelf.read_data(nbt, &mut *bookshelf.items.blocking_write());
+        pumpkin_world::inventory::sync_read_items_from_nbt(nbt, bookshelf.items.get_mut());
         if let Some(slot) = nbt.get_int(LAST_INTERACTED_SLOT) {
             bookshelf
                 .last_interacted_slot

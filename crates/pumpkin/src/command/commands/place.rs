@@ -231,7 +231,10 @@ impl CommandExecutor for PlaceJigsawExecutor {
                     JIGSAW_FAILED.create_without_context(TextComponent::text(pool.clone()))
                 })?;
 
-                let collector = position.collector.lock().unwrap();
+                let collector = position
+                    .collector
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 let piece_count = collector.pieces.len();
 
                 let mut placer = WorldBlockPlacer::new(context.world());
@@ -341,7 +344,10 @@ impl CommandExecutor for PlaceStructureExecutor {
                             .create_without_context(TextComponent::text(structure_name.clone()))
                     })?;
 
-                    let collector = position.collector.lock().unwrap();
+                    let collector = position
+                        .collector
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
                     let piece_count = collector.pieces.len();
 
                     let mut placer = WorldBlockPlacer::new(context.world());
@@ -377,7 +383,10 @@ impl CommandExecutor for PlaceStructureExecutor {
                                 .create_without_context(TextComponent::text(structure_name.clone()))
                         })?;
 
-                    let mut collector = position.collector.lock().unwrap();
+                    let mut collector = position
+                        .collector
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
                     let piece_count = collector.pieces.len();
 
                     let mut placer = WorldBlockPlacer::new(context.world());

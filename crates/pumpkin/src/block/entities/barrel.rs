@@ -47,14 +47,14 @@ impl BlockEntity for BarrelBlockEntity {
     where
         Self: Sized,
     {
-        let barrel = Self {
+        let mut barrel = Self {
             position,
             items: tokio::sync::RwLock::new(from_fn(|_| ItemStack::EMPTY.clone())),
             dirty: AtomicBool::new(false),
             viewers: ViewerCountTracker::new(),
         };
 
-        barrel.read_data(nbt, &mut *barrel.items.blocking_write());
+        pumpkin_world::inventory::sync_read_items_from_nbt(nbt, barrel.items.get_mut());
 
         barrel
     }
@@ -88,7 +88,9 @@ impl BlockEntity for BarrelBlockEntity {
 
     fn chunk_data_nbt(&self) -> Option<NbtCompound> {
         let mut nbt = NbtCompound::new();
-        sync_write_items_to_nbt(&*self.items.blocking_read(), &mut nbt);
+        if let Ok(guard) = self.items.try_read() {
+            sync_write_items_to_nbt(&*guard, &mut nbt);
+        }
         Some(nbt)
     }
 

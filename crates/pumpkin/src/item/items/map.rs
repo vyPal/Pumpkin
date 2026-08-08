@@ -26,7 +26,9 @@ impl ItemBehaviour for MapItem {
         player: &'a Player,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
         Box::pin(async move {
-            let server = player.world().server.upgrade().unwrap();
+            let Some(server) = player.world().server.upgrade() else {
+                return;
+            };
 
             let inventory = player.inventory();
             let held_stack = inventory.held_item().await;

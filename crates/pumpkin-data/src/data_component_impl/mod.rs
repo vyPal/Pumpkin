@@ -3,7 +3,6 @@
 use crate::Block;
 use crate::BlockId;
 use crate::data_component::DataComponent;
-use crate::effect::StatusEffect;
 use crate::entity_type::EntityType;
 use crate::sound::Sound;
 use crate::tag::Taggable;
@@ -52,7 +51,13 @@ pub fn get<T: DataComponentImpl + 'static>(value: &dyn DataComponentImpl) -> &T 
 
 #[inline]
 pub fn get_mut<T: DataComponentImpl + 'static>(value: &mut dyn DataComponentImpl) -> &mut T {
-    value.as_mut_any().downcast_mut::<T>().unwrap()
+    let name = value.get_self_enum().to_name();
+    value.as_mut_any().downcast_mut::<T>().unwrap_or_else(|| {
+        panic!(
+            "you are trying to cast {name} to {}",
+            T::get_enum().to_name()
+        )
+    })
 }
 
 macro_rules! default_impl {
@@ -84,8 +89,6 @@ macro_rules! default_impl {
         }
     };
 }
-
-pub(crate) use default_impl;
 
 pub fn get_str_hash(val: &str) -> u32 {
     let mut digest = Digest::new(Crc32Iscsi);
@@ -154,9 +157,9 @@ pub fn get_idor(nbt: &NbtCompound, key: &str, default: Sound) -> IdOr<basic::Sou
         let sound = sound.strip_prefix("minecraft:").unwrap_or(sound);
         IdOr::Id(Sound::from_name(sound).unwrap_or(default))
     } else if let Some(sound_compound) = nbt.get_compound(key) {
-        let sound_name = sound_compound
-            .get_string("sound_id")
-            .expect("SoundEvent compound must have a 'sound_id' field");
+        let Some(sound_name) = sound_compound.get_string("sound_id") else {
+            return IdOr::Id(default);
+        };
         let range = sound_compound.get_float("range");
         IdOr::Value(basic::SoundEvent {
             sound_name: sound_name.to_string(),

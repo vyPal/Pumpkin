@@ -52,11 +52,23 @@ impl SlimeEntity {
         let mob_arc = Arc::new(slime);
 
         {
-            let mut move_control = mob_arc.entity.move_control.lock().unwrap();
+            let mut move_control = mob_arc
+                .entity
+                .move_control
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             *move_control = Box::new(SlimeMoveControl::new(Arc::downgrade(&mob_arc)));
 
-            let mut goal_selector = mob_arc.entity.goals_selector.lock().unwrap();
-            let mut target_selector = mob_arc.entity.target_selector.lock().unwrap();
+            let mut goal_selector = mob_arc
+                .entity
+                .goals_selector
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut target_selector = mob_arc
+                .entity
+                .target_selector
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
 
             goal_selector.add_goal(1, Box::new(SlimeFloatGoal::new(mob_arc.clone())));
             goal_selector.add_goal(2, Box::new(SlimeAttackGoal::new(mob_arc.clone())));
@@ -94,7 +106,12 @@ impl SlimeEntity {
 
         // Update attributes
         {
-            let mut attributes = self.entity.living_entity.attributes.write().unwrap();
+            let mut attributes = self
+                .entity
+                .living_entity
+                .attributes
+                .write()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             if let Some(health) = attributes.get_mut(&Attributes::MAX_HEALTH.id) {
                 health.base_value = (actual_size * actual_size) as f64;
                 health.dirty.store(true, Ordering::Relaxed);

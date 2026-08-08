@@ -2478,7 +2478,10 @@ impl JavaClient {
             &sign_entity.back_text
         };
 
-        *text.messages.lock().unwrap() = [
+        *text
+            .messages
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = [
             sign_data.line_1.into(),
             sign_data.line_2.into(),
             sign_data.line_3.into(),

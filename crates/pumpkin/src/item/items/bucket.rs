@@ -83,7 +83,10 @@ fn is_waterlogged(block: &Block, state: BlockStateId) -> bool {
 }
 
 fn set_waterlogged(block: &Block, state: BlockStateId, waterlogged: bool) -> BlockStateId {
-    let original_props = &block.properties(state).unwrap().to_props();
+    let Some(props) = block.properties(state) else {
+        return state;
+    };
+    let original_props = &props.to_props();
     let waterlogged = waterlogged.to_string();
     let props: Vec<(&str, &str)> = original_props
         .iter()

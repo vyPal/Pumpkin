@@ -18,13 +18,11 @@ macro_rules! impl_block_entity_for_chest {
             where
                 Self: Sized,
             {
-                use pumpkin_world::inventory::Inventory;
-
                 // Read deferred loot-table fields first.
                 let loot_table_key = nbt.get_string("LootTable").map(|s| s.to_string());
                 let loot_table_seed = nbt.get_long("LootTableSeed").unwrap_or(0);
 
-                let chest = Self {
+                let mut chest = Self {
                     position,
                     items: tokio::sync::RwLock::new(std::array::from_fn(|_| ItemStack::EMPTY.clone())),
                     dirty: std::sync::atomic::AtomicBool::new(false),
@@ -34,8 +32,13 @@ macro_rules! impl_block_entity_for_chest {
                 };
 
                 // Only read saved items when there is no pending loot table.
-                if chest.loot_table.lock().expect("Loot table mutex should not be poisoned").is_none() {
-                    chest.read_data(nbt, &mut *chest.items.blocking_write());
+                let has_loot_table = chest
+                    .loot_table
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .is_some();
+                if !has_loot_table {
+                    pumpkin_world::inventory::sync_read_items_from_nbt(nbt, chest.items.get_mut());
                 }
 
                 chest
@@ -50,7 +53,7 @@ macro_rules! impl_block_entity_for_chest {
                 Box::pin(async move {
                     // Clone the loot table key without holding the lock across an await.
                     let loot_table_key = {
-                        let guard = self.loot_table.lock().expect("Loot table mutex should not be poisoned");
+                        let guard = self.loot_table.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
                         guard.clone()
                     };
 
@@ -97,7 +100,7 @@ macro_rules! impl_block_entity_for_chest {
 
             fn chunk_data_nbt(&self) -> Option<pumpkin_nbt::compound::NbtCompound> {
                 let mut nbt = pumpkin_nbt::compound::NbtCompound::new();
-                let loot_table_key = self.loot_table.lock().expect("Loot table mutex should not be poisoned").clone();
+                let loot_table_key = self.loot_table.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
                 if let Some(key) = loot_table_key {
                     nbt.put_string("LootTable", key);
                     if self.loot_table_seed != 0 {

@@ -537,7 +537,7 @@ impl BlockBehaviour for SignBlock {
                                             .item
                                             .registry_key
                                             .strip_suffix("_dye")
-                                            .unwrap();
+                                            .unwrap_or(args.item_stack.item.registry_key);
                                         dye.apply_to_sign(&args, &block_entity, text, color_name)
                                     } else {
                                         BlockActionResult::PassToDefaultBlockAction

@@ -1,11 +1,13 @@
-#![allow(unused_imports)]
 #![allow(
     clippy::all,
     clippy::pedantic,
     clippy::nursery,
     clippy::cargo,
     clippy::undocumented_unsafe_blocks,
-    clippy::if_then_some_else_none
+    clippy::if_then_some_else_none,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic
 )]
 
 #[rustfmt::skip]

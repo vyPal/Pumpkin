@@ -7,8 +7,10 @@
     clippy::all,
     clippy::pedantic,
     clippy::nursery,
-    clippy::cargo
+    clippy::cargo,
+    clippy::panic
 )]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 //!
 //! This crate provides everything needed to write a Pumpkin server plugin compiled
 //! to WebAssembly. A plugin consists of a type that implements [`Plugin`], registered
@@ -149,7 +151,7 @@ impl wit::Guest for Component {
     ///
     /// Returns the event unchanged if no handler is registered for the given id.
     fn handle_event(event_id: u32, server: Server, event: events::Event) -> events::Event {
-        let handlers = EVENT_HANDLERS.lock().unwrap();
+        let handlers = EVENT_HANDLERS.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(handler) = handlers.get(&event_id) {
             handler.handle_erased(server, event)
         } else {
@@ -166,7 +168,7 @@ impl wit::Guest for Component {
         server: Server,
         args: command::ConsumedArgs,
     ) -> Result<i32, command::CommandError> {
-        let handlers = COMMAND_HANDLERS.lock().unwrap();
+        let handlers = COMMAND_HANDLERS.lock().unwrap_or_else(|e| e.into_inner());
         handlers.get(&command_id).map_or_else(
             || {
                 Err(command::CommandError::CommandFailed(TextComponent::text(
@@ -179,12 +181,14 @@ impl wit::Guest for Component {
 
     /// WIT entry point — dispatches a scheduled task invocation to the registered handler for `handler_id`.
     fn handle_task(handler_id: u32, server: Server) {
-        let mut handlers = TASK_HANDLERS.lock().unwrap();
+        let mut handlers = TASK_HANDLERS.lock().unwrap_or_else(|e| e.into_inner());
         handlers.handle(handler_id, server);
     }
 
     fn handle_ai_goal_can_start(goal_id: u32, server: Server, entity: entity::Entity) -> bool {
-        let mut handlers = crate::ai::AI_GOAL_HANDLERS.lock().unwrap();
+        let mut handlers = crate::ai::AI_GOAL_HANDLERS
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         if let Some(goal) = handlers.handlers.get_mut(&goal_id) {
             goal.can_start(server, entity)
         } else {
@@ -197,7 +201,9 @@ impl wit::Guest for Component {
         server: Server,
         entity: entity::Entity,
     ) -> bool {
-        let mut handlers = crate::ai::AI_GOAL_HANDLERS.lock().unwrap();
+        let mut handlers = crate::ai::AI_GOAL_HANDLERS
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         if let Some(goal) = handlers.handlers.get_mut(&goal_id) {
             goal.should_continue(server, entity)
         } else {
@@ -206,21 +212,27 @@ impl wit::Guest for Component {
     }
 
     fn handle_ai_goal_start(goal_id: u32, server: Server, entity: entity::Entity) {
-        let mut handlers = crate::ai::AI_GOAL_HANDLERS.lock().unwrap();
+        let mut handlers = crate::ai::AI_GOAL_HANDLERS
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         if let Some(goal) = handlers.handlers.get_mut(&goal_id) {
             goal.start(server, entity);
         }
     }
 
     fn handle_ai_goal_tick(goal_id: u32, server: Server, entity: entity::Entity) {
-        let mut handlers = crate::ai::AI_GOAL_HANDLERS.lock().unwrap();
+        let mut handlers = crate::ai::AI_GOAL_HANDLERS
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         if let Some(goal) = handlers.handlers.get_mut(&goal_id) {
             goal.tick(server, entity);
         }
     }
 
     fn handle_ai_goal_stop(goal_id: u32, server: Server, entity: entity::Entity) {
-        let mut handlers = crate::ai::AI_GOAL_HANDLERS.lock().unwrap();
+        let mut handlers = crate::ai::AI_GOAL_HANDLERS
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         if let Some(goal) = handlers.handlers.get_mut(&goal_id) {
             goal.stop(server, entity);
         }
@@ -271,6 +283,7 @@ pub fn register_plugin(build_plugin: fn() -> Box<dyn Plugin>) {
 /// If called before [`register_plugin`] has initialized `PLUGIN`.
 fn plugin() -> &'static mut dyn Plugin {
     #[expect(static_mut_refs)]
+    #[allow(clippy::unwrap_used)]
     unsafe {
         PLUGIN.as_deref_mut().unwrap()
     }

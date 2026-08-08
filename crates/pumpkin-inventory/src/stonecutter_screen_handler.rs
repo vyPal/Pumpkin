@@ -70,8 +70,7 @@ impl StonecutterScreenHandler {
 
         if recipe_index != u8::MAX && (recipe_index as usize) < available_recipes.len() {
             let recipe = available_recipes[recipe_index as usize];
-            let item =
-                Item::from_registry_key(recipe.result.id).expect("Invalid recipe result item");
+            let item = Item::from_registry_key(recipe.result.id).unwrap_or(&Item::AIR);
             let result = ItemStack::new(recipe.result.count, item);
             self.output_inventory.set_stack(0, result).await;
         } else {

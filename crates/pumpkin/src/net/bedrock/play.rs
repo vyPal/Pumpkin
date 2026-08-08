@@ -159,7 +159,9 @@ impl BedrockClient {
             .await;
             return;
         }
-        let server = player.world().server.upgrade().unwrap();
+        let Some(server) = player.world().server.upgrade() else {
+            return;
+        };
 
         let view_distance = chunk_radius.clamp(
             2,
@@ -177,7 +179,7 @@ impl BedrockClient {
             let mut new_config = (**current_config).clone();
 
             new_config.view_distance =
-                NonZero::new(view_distance as u8).expect("View distance must be > 0");
+                NonZero::new(view_distance as u8).unwrap_or(NonZero::<u8>::MIN);
             player.config.store(std::sync::Arc::new(new_config));
 
             old_vd
@@ -406,7 +408,9 @@ impl BedrockClient {
         packet: pumpkin_protocol::bedrock::server::player_auth_input::PlayerBlockAction,
     ) {
         use pumpkin_protocol::bedrock::server::player_action::Action as PlayerAction;
-        let action = PlayerAction::try_from(packet.action.0).unwrap();
+        let Ok(action) = PlayerAction::try_from(packet.action.0) else {
+            return;
+        };
         self.handle_player_action(
             player,
             server,
@@ -640,7 +644,9 @@ impl BedrockClient {
                 };
                 let world = player.world();
                 let block = world.get_block(&data.block_position);
-                let server = world.server.upgrade().expect("Server is gone");
+                let Some(server) = world.server.upgrade() else {
+                    return;
+                };
 
                 if player.gamemode.load() == GameMode::Spectator {
                     // TODO: openMenu ?
@@ -853,7 +859,9 @@ impl BedrockClient {
                         if let Some(target) = world.get_entity_by_id(target_runtime_id) {
                             let mut stack = player.inventory().held_item().await;
                             if !target.interact(player, &mut stack).await {
-                                let server = world.server.upgrade().expect("Server is gone");
+                                let Some(server) = world.server.upgrade() else {
+                                    return;
+                                };
                                 server
                                     .item_registry
                                     .use_on_entity(&mut stack, player, target)
@@ -881,7 +889,9 @@ impl BedrockClient {
             TransactionData::ReleaseItem(_data) => {
                 let item_in_use = player.living_entity.item_in_use.lock().await.clone();
                 if let Some(stack) = item_in_use {
-                    let server = player.world().server.upgrade().expect("Server is gone");
+                    let Some(server) = player.world().server.upgrade() else {
+                        return;
+                    };
                     server.item_registry.on_stopped_using(&stack, player).await;
                 }
                 player.living_entity.clear_active_hand().await;

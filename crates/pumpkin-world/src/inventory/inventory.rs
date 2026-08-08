@@ -103,20 +103,7 @@ pub trait Inventory: Send + Sync + Clearable {
     fn mark_dirty(&self) {}
 
     fn read_data(&self, nbt: &NbtCompound, stacks: &mut [ItemStack]) {
-        if let Some(inventory_list) = nbt.get_list("Items") {
-            for tag in inventory_list {
-                if let Some(item_compound) = tag.extract_compound()
-                    && let Some(slot_byte) = item_compound.get_byte("Slot")
-                {
-                    let slot = slot_byte as usize;
-                    if slot < stacks.len()
-                        && let Some(item_stack) = ItemStack::read_item_stack(item_compound)
-                    {
-                        stacks[slot] = item_stack;
-                    }
-                }
-            }
-        }
+        sync_read_items_from_nbt(nbt, stacks);
     }
 
     fn is_valid_slot_for(&self, _slot: usize, _stack: &ItemStack) -> bool {
@@ -137,6 +124,23 @@ pub trait Inventory: Send + Sync + Clearable {
 
 pub trait Clearable {
     fn clear(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
+}
+
+pub fn sync_read_items_from_nbt(nbt: &NbtCompound, stacks: &mut [ItemStack]) {
+    if let Some(inventory_list) = nbt.get_list("Items") {
+        for tag in inventory_list {
+            if let Some(item_compound) = tag.extract_compound()
+                && let Some(slot_byte) = item_compound.get_byte("Slot")
+            {
+                let slot = slot_byte as usize;
+                if slot < stacks.len()
+                    && let Some(item_stack) = ItemStack::read_item_stack(item_compound)
+                {
+                    stacks[slot] = item_stack;
+                }
+            }
+        }
+    }
 }
 
 pub fn sync_write_items_to_nbt(items: &[ItemStack], nbt: &mut NbtCompound) {

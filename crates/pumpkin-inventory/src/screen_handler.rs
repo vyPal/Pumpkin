@@ -917,15 +917,14 @@ pub trait ScreenHandler: Send + Sync {
                         if (stack.are_items_and_components_equal(&cursor_stack) || stack.is_empty())
                             && slot.can_insert(&cursor_stack).await
                         {
-                            let mut inserting_count = if drag_button == 0 {
-                                initial_count / behaviour.drag_slots.len() as u8
-                            } else if drag_button == 1 {
-                                1
-                            } else if drag_button == 2 {
-                                cursor_stack.item_count = cursor_stack.get_max_stack_size();
-                                cursor_stack.item_count
-                            } else {
-                                panic!("Invalid drag button: {drag_button}");
+                            let mut inserting_count = match drag_button {
+                                0 => initial_count / behaviour.drag_slots.len() as u8,
+                                1 => 1,
+                                2 => {
+                                    cursor_stack.item_count = cursor_stack.get_max_stack_size();
+                                    cursor_stack.item_count
+                                }
+                                _ => 0,
                             };
                             inserting_count = inserting_count
                                 .min(max(

@@ -87,9 +87,7 @@ impl CakeBlock {
                     .await;
                 BlockActionResult::Consume
             }
-            _ => {
-                panic!("invalid bite index");
-            }
+            _ => BlockActionResult::Pass,
         }
     }
 }

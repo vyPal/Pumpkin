@@ -53,7 +53,7 @@ impl BrewingStandBlockEntity {
     fn ingredient_matches(&self, ingredient: &ItemStack) -> bool {
         self.ingredient_item
             .lock()
-            .expect("Ingredient item mutex should not be poisoned")
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .is_some_and(|stored| !ingredient.is_empty() && ingredient.get_item().id == stored.id)
     }
 
@@ -351,7 +351,7 @@ impl crate::block::entities::BlockEntity for BrewingStandBlockEntity {
             *entity
                 .ingredient_item
                 .lock()
-                .expect("Ingredient item mutex should not be poisoned") =
+                .unwrap_or_else(std::sync::PoisonError::into_inner) =
                 Some(items_guard[3].get_item());
         }
 
@@ -369,7 +369,7 @@ impl crate::block::entities::BlockEntity for BrewingStandBlockEntity {
         *entity
             .last_potion_count
             .lock()
-            .expect("Last potion count mutex should not be poisoned") = Some(current);
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(current);
 
         entity
     }
@@ -464,7 +464,7 @@ impl crate::block::entities::BlockEntity for BrewingStandBlockEntity {
                 *self
                     .ingredient_item
                     .lock()
-                    .expect("Ingredient item mutex should not be poisoned") =
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) =
                     Some(ingredient.get_item());
                 self.mark_dirty();
             } else if fuel_refilled {
@@ -488,7 +488,7 @@ impl crate::block::entities::BlockEntity for BrewingStandBlockEntity {
                 let mut last_guard = self
                     .last_potion_count
                     .lock()
-                    .expect("Last potion count mutex should not be poisoned");
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 if last_guard.as_ref() != Some(&current) {
                     *last_guard = Some(current);
                     needs_update = true;

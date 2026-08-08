@@ -173,7 +173,11 @@ impl TripwireBlock {
                 if current_block == &Block::TRIPWIRE_HOOK {
                     let current_props =
                         TripwireHookProperties::from_state_id(current_state, &Block::TRIPWIRE_HOOK);
-                    if current_props.facing == dir.opposite().to_horizontal_facing().unwrap() {
+                    if dir
+                        .opposite()
+                        .to_horizontal_facing()
+                        .is_some_and(|f| current_props.facing == f)
+                    {
                         TripwireHookBlock::update(
                             world,
                             current_pos,

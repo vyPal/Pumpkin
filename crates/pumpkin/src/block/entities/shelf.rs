@@ -27,13 +27,13 @@ impl BlockEntity for ShelfBlockEntity {
     where
         Self: Sized,
     {
-        let shelf = Self {
+        let mut shelf = Self {
             position,
             items: tokio::sync::RwLock::new(from_fn(|_| ItemStack::EMPTY.clone())),
             dirty: AtomicBool::new(false),
         };
 
-        shelf.read_data(nbt, &mut *shelf.items.blocking_write());
+        pumpkin_world::inventory::sync_read_items_from_nbt(nbt, shelf.items.get_mut());
 
         shelf
     }

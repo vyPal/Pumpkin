@@ -92,16 +92,23 @@ impl Goal for TemptGoal {
                 let mob_entity = mob.get_mob_entity();
                 let player_pos = player.get_entity().pos.load();
 
-                mob_entity.look_control.lock().unwrap().look_at(
-                    mob,
-                    player_pos.x,
-                    player.get_entity().get_eye_y(),
-                    player_pos.z,
-                );
+                mob_entity
+                    .look_control
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .look_at(
+                        mob,
+                        player_pos.x,
+                        player.get_entity().get_eye_y(),
+                        player_pos.z,
+                    );
 
                 let mob_pos = mob_entity.living_entity.entity.pos.load();
                 if mob_pos.squared_distance_to_vec(&player_pos) > STOP_DISTANCE * STOP_DISTANCE {
-                    let mut navigator = mob_entity.navigator.lock().unwrap();
+                    let mut navigator = mob_entity
+                        .navigator
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
                     navigator.set_progress(NavigatorGoal::new(mob_pos, player_pos, self.speed));
                 }
             }

@@ -34,9 +34,12 @@ pub struct NetherNetConfig {
 
 impl Default for NetherNetConfig {
     fn default() -> Self {
+        let address = "0.0.0.0:19132"
+            .parse()
+            .unwrap_or_else(|_| std::net::SocketAddr::from(([0, 0, 0, 0], 19132)));
         Self {
             enabled: true,
-            address: "0.0.0.0:19132".parse().unwrap(),
+            address,
             identity_key: "nethernet-key.der".into(),
             stun_servers: Vec::new(),
         }
@@ -80,12 +83,14 @@ pub struct BedrockConfig {
 
 impl Default for BedrockConfig {
     fn default() -> Self {
+        let view_distance = NonZeroU8::new(16).unwrap_or(NonZeroU8::MIN);
+        let simulation_distance = NonZeroU8::new(10).unwrap_or(NonZeroU8::MIN);
         Self {
             enabled: true,
             online_mode: true,
             max_players: 1000,
-            view_distance: NonZeroU8::new(16).unwrap(),
-            simulation_distance: NonZeroU8::new(10).unwrap(),
+            view_distance,
+            simulation_distance,
             compression: CompressionConfig::default(),
             motd: "A blazingly fast Pumpkin server!".to_string(),
             authentication: BedrockAuthenticationConfig::default(),

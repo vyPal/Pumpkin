@@ -57,7 +57,7 @@ impl BlockEntity for HopperBlockEntity {
     where
         Self: Sized,
     {
-        let hopper = Self {
+        let mut hopper = Self {
             position,
             items: tokio::sync::RwLock::new(from_fn(|_| ItemStack::EMPTY.clone())),
             dirty: AtomicBool::new(false),
@@ -66,7 +66,7 @@ impl BlockEntity for HopperBlockEntity {
             ticked_game_time: AtomicI64::new(0),
         };
 
-        hopper.read_data(nbt, &mut *hopper.items.blocking_write());
+        pumpkin_world::inventory::sync_read_items_from_nbt(nbt, hopper.items.get_mut());
 
         hopper
     }

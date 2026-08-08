@@ -164,17 +164,14 @@ impl BedrockClient {
     pub fn start_outgoing_packet_task(self: &Arc<Self>) {
         let client = self.clone();
         self.spawn_task(async move {
-            let mut packet_receiver = {
-                let mut guard = client.outgoing_packet_queue_recv.lock().await;
-                guard
-                    .take()
-                    .expect("Outgoing packet receiver was already taken")
+            let Some(mut packet_receiver) = client.outgoing_packet_queue_recv.lock().await.take()
+            else {
+                return;
             };
-            let mut priority_packet_receiver = {
-                let mut guard = client.outgoing_packet_priority_recv.lock().await;
-                guard
-                    .take()
-                    .expect("Outgoing packet receiver was already taken")
+            let Some(mut priority_packet_receiver) =
+                client.outgoing_packet_priority_recv.lock().await.take()
+            else {
+                return;
             };
             let mut interval = tokio::time::interval(std::time::Duration::from_millis(100));
 

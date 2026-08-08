@@ -103,13 +103,19 @@ macro_rules! impl_cooking_block_entity_base {
             fn add_recipe_used(&self, recipe: &pumpkin_data::recipes::CookingRecipe) {
                 // Track recipe usage by recipe ID for XP calculation
                 let recipe_id = recipe.recipe_id.to_string();
-                let mut recipes = self.recipes_used.lock().unwrap();
+                let mut recipes = self
+                    .recipes_used
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 *recipes.entry(recipe_id).or_insert(0) += 1;
             }
 
             fn extract_experience_from_recipes(&self) -> i32 {
                 // Calculate total XP from tracked recipes and clear the map (vanilla behavior)
-                let mut recipes = self.recipes_used.lock().unwrap();
+                let mut recipes = self
+                    .recipes_used
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 let mut total_xp: f32 = 0.0;
                 for (recipe_id, count) in recipes.iter() {
                     // Look up the recipe's XP value
@@ -444,14 +450,16 @@ macro_rules! impl_block_entity_for_cooking {
                             self.set_cooking_time_spent(0);
                         }
                     } else if !self.is_burning() && self.get_cooking_time_spent() > 0 {
-                        self.cooking_time_spent
-                            .try_update(Ordering::Acquire, Ordering::Acquire, |v| {
+                        let _ = self.cooking_time_spent.try_update(
+                            Ordering::Acquire,
+                            Ordering::Acquire,
+                            |v| {
                                 Some(
                                     v.saturating_sub(2)
                                         .min(self.cooking_total_time.load(Ordering::Acquire)),
                                 )
-                            })
-                            .unwrap();
+                            },
+                        );
                     }
 
                     if is_burning != self.is_burning() {
@@ -531,7 +539,7 @@ macro_rules! impl_block_entity_for_cooking {
                     }
                 }
 
-                let furnace = Self {
+                let mut furnace = Self {
                     position,
                     dirty: AtomicBool::new(false),
                     items: tokio::sync::RwLock::new(from_fn(|_| ItemStack::EMPTY.clone())),
@@ -541,7 +549,7 @@ macro_rules! impl_block_entity_for_cooking {
                     lit_time_remaining,
                     recipes_used: std::sync::Mutex::new(recipes_used_map),
                 };
-                furnace.read_data(nbt, &mut *furnace.items.blocking_write());
+                pumpkin_world::inventory::sync_read_items_from_nbt(nbt, furnace.items.get_mut());
 
                 furnace
             }
@@ -559,7 +567,10 @@ macro_rules! impl_block_entity_for_cooking {
                     // Save RecipesUsed in vanilla format (map of recipe ID -> craft count)
                     // Scope the mutex guard so it's dropped before the await
                     {
-                        let recipes = self.recipes_used.lock().unwrap();
+                        let recipes = self
+                            .recipes_used
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
                         if !recipes.is_empty() {
                             let mut recipes_compound = pumpkin_nbt::compound::NbtCompound::new();
                             for (recipe_id, count) in recipes.iter() {
@@ -612,10 +623,9 @@ macro_rules! impl_block_entity_for_cooking {
                     }
                 }
 
-                pumpkin_world::inventory::sync_write_items_to_nbt(
-                    &*self.items.blocking_read(),
-                    &mut nbt,
-                );
+                if let Ok(guard) = self.items.try_read() {
+                    pumpkin_world::inventory::sync_write_items_to_nbt(&*guard, &mut nbt);
+                }
                 Some(nbt)
             }
 

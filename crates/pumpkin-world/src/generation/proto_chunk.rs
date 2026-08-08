@@ -260,16 +260,29 @@ impl ProtoChunk {
     ) -> Self {
         let mut proto_chunk = Self::new(chunk_data.x, chunk_data.z, generator);
 
-        proto_chunk.light = chunk_data.light_engine.lock().unwrap().clone();
+        proto_chunk.light = chunk_data
+            .light_engine
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
         proto_chunk
             .blending_data
             .clone_from(&chunk_data.blending_data);
 
         let section_data = &chunk_data.section;
-        let heightmap_data = chunk_data.heightmap.lock().unwrap();
+        let heightmap_data = chunk_data
+            .heightmap
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
 
-        let block_sections_guard = section_data.block_sections.read().unwrap();
-        let biome_sections_guard = section_data.biome_sections.read().unwrap();
+        let block_sections_guard = section_data
+            .block_sections
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let biome_sections_guard = section_data
+            .biome_sections
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
 
         for (section_idx, block_palette) in block_sections_guard.iter().enumerate() {
             let section_base_y = section_idx as i32 * 16;
@@ -533,7 +546,7 @@ impl ProtoChunk {
     #[inline]
     #[must_use]
     pub fn get_biome(&self, x: i32, y: i32, z: i32) -> &'static Biome {
-        Biome::from_id(self.get_biome_id(x, y, z)).unwrap()
+        Biome::from_id(self.get_biome_id(x, y, z)).unwrap_or(&Biome::PLAINS)
     }
 
     #[inline]
@@ -618,7 +631,9 @@ impl ProtoChunk {
                 StructureInstance::Reference(collector) => collector,
             };
 
-            let collector = collector.lock().unwrap();
+            let collector = collector
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             for piece in &collector.pieces {
                 let bounding_box = piece.get_structure_piece().bounding_box;
 
@@ -933,7 +948,7 @@ impl ProtoChunk {
 
     #[must_use]
     pub fn get_terrain_gen_biome(&self, x: i32, y: i32, z: i32) -> &'static Biome {
-        Biome::from_id(self.get_terrain_gen_biome_id(x, y, z)).unwrap()
+        Biome::from_id(self.get_terrain_gen_biome_id(x, y, z)).unwrap_or(&Biome::PLAINS)
     }
 
     #[expect(clippy::too_many_lines)]
@@ -1223,7 +1238,9 @@ impl ProtoChunk {
 
         let chunk = cache.get_center_chunk_mut();
         for collector_arc in tasks {
-            let mut collector = collector_arc.lock().unwrap();
+            let mut collector = collector_arc
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             collector.generate_in_chunk(chunk, block_registry, &mut random, world_seed);
         }
     }
