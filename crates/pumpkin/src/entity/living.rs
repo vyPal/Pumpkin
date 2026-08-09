@@ -2825,31 +2825,57 @@ impl LivingEntity {
         };
 
         for consume_effect in consumable.effects.iter() {
-            let ConsumeEffect::ApplyEffects((effects, probability)) = consume_effect else {
-                continue;
-            };
-            if !consume_effect_probability_applies(*probability, rand::random()) {
-                continue;
-            }
+            match consume_effect {
+                ConsumeEffect::ApplyEffects((effects, probability)) => {
+                    if !consume_effect_probability_applies(*probability, rand::random()) {
+                        continue;
+                    }
 
-            for effect in effects.iter() {
-                let Some(effect_type) = StatusEffect::from_minecraft_name(&effect.effect_id) else {
-                    continue;
-                };
-                let Ok(amplifier) = u8::try_from(effect.amplifier) else {
-                    continue;
-                };
+                    for effect in effects.iter() {
+                        let Some(effect_type) =
+                            StatusEffect::from_minecraft_name(&effect.effect_id)
+                        else {
+                            continue;
+                        };
+                        let Ok(amplifier) = u8::try_from(effect.amplifier) else {
+                            continue;
+                        };
 
-                self.add_effect(Effect {
-                    effect_type,
-                    duration: effect.duration,
-                    amplifier,
-                    ambient: effect.ambient,
-                    show_particles: effect.show_particles,
-                    show_icon: effect.show_icon,
-                    blend: false,
-                })
-                .await;
+                        self.add_effect(Effect {
+                            effect_type,
+                            duration: effect.duration,
+                            amplifier,
+                            ambient: effect.ambient,
+                            show_particles: effect.show_particles,
+                            show_icon: effect.show_icon,
+                            blend: false,
+                        })
+                        .await;
+                    }
+                }
+                ConsumeEffect::ClearAllEffects => {
+                    self.reset_effects_and_attributes().await;
+                }
+                ConsumeEffect::RemoveEffects(idset) => {
+                    if let pumpkin_data::data_component_impl::IDSet::IDs(ids) = idset {
+                        for effect_type in ids.iter() {
+                            self.remove_effect(effect_type).await;
+                        }
+                    }
+                }
+                ConsumeEffect::TeleportRandomly(diameter) => {
+                    let center = self.entity.pos.load();
+                    let radius = f64::from(*diameter) / 2.0;
+                    let target_x = center.x + (rand::random::<f64>() - 0.5) * radius * 2.0;
+                    let target_y = center.y + (rand::random::<f64>() - 0.5) * radius;
+                    let target_z = center.z + (rand::random::<f64>() - 0.5) * radius * 2.0;
+                    let pos =
+                        pumpkin_util::math::vector3::Vector3::new(target_x, target_y, target_z);
+                    let (yaw, pitch) = (self.entity.yaw.load(), self.entity.pitch.load());
+                    let world = self.entity.world.load().clone();
+                    self.entity.teleport(pos, Some(yaw), Some(pitch), world);
+                }
+                ConsumeEffect::PlaySound(_) => {}
             }
         }
     }
