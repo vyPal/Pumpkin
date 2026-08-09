@@ -116,8 +116,8 @@ impl RoomPiece {
                     && graph.rooms[east].connections[BlockDirection::Up as usize]
                         .is_some_and(|up| !graph.rooms[up].claimed)
             }) {
-            let east = east.unwrap();
-            let up = up.unwrap();
+            let east = east.unwrap_or(0);
+            let up = up.unwrap_or(0);
             let east_up = graph.connection(east, BlockDirection::Up);
             claim(graph, &[room, east, up, east_up]);
             RoomKind::DoubleXY
@@ -131,26 +131,30 @@ impl RoomPiece {
                         .is_some_and(|up| !graph.rooms[up].claimed)
             })
         {
-            let north = north.unwrap();
-            let up = up.unwrap();
+            let north = north.unwrap_or(0);
+            let up = up.unwrap_or(0);
             let north_up = graph.connection(north, BlockDirection::Up);
             claim(graph, &[room, north, up, north_up]);
             RoomKind::DoubleYZ
         } else if opening(&graph.rooms[room], BlockDirection::North)
             && north.is_some_and(|north| !graph.rooms[north].claimed)
         {
-            let north = north.unwrap();
+            let north = north.unwrap_or(0);
             claim(graph, &[room, north]);
             RoomKind::DoubleZ
         } else if opening(&graph.rooms[room], BlockDirection::East)
             && east.is_some_and(|east| !graph.rooms[east].claimed)
         {
-            claim(graph, &[room, east.unwrap()]);
+            if let Some(east) = east {
+                claim(graph, &[room, east]);
+            }
             RoomKind::DoubleX
         } else if opening(&graph.rooms[room], BlockDirection::Up)
             && up.is_some_and(|up| !graph.rooms[up].claimed)
         {
-            claim(graph, &[room, up.unwrap()]);
+            if let Some(up) = up {
+                claim(graph, &[room, up]);
+            }
             RoomKind::DoubleY
         } else if ![
             BlockDirection::West,
@@ -204,7 +208,7 @@ impl RoomPiece {
     }
 
     fn room<'a>(&self, graph: &'a RoomGraph) -> &'a RoomDefinition {
-        &graph.rooms[self.room.unwrap()]
+        &graph.rooms[self.room.unwrap_or(0)]
     }
 
     fn place_entry(
@@ -308,7 +312,7 @@ impl RoomPiece {
         graph: &RoomGraph,
     ) {
         let p = &self.piece;
-        let west = self.room.unwrap();
+        let west = self.room.unwrap_or(0);
         let east = graph.connection(west, BlockDirection::East);
         let west_room = &graph.rooms[west];
         let east_room = &graph.rooms[east];
@@ -370,7 +374,7 @@ impl RoomPiece {
         graph: &RoomGraph,
     ) {
         let p = &self.piece;
-        let west = self.room.unwrap();
+        let west = self.room.unwrap_or(0);
         let east = graph.connection(west, BlockDirection::East);
         let west_up = graph.connection(west, BlockDirection::Up);
         let east_up = graph.connection(east, BlockDirection::Up);
@@ -515,7 +519,7 @@ impl RoomPiece {
         graph: &RoomGraph,
     ) {
         let p = &self.piece;
-        let lower = self.room.unwrap();
+        let lower = self.room.unwrap_or(0);
         let upper = graph.connection(lower, BlockDirection::Up);
         let lower_room = &graph.rooms[lower];
         let upper_room = &graph.rooms[upper];
@@ -680,7 +684,7 @@ impl RoomPiece {
         graph: &RoomGraph,
     ) {
         let p = &self.piece;
-        let south = self.room.unwrap();
+        let south = self.room.unwrap_or(0);
         let north = graph.connection(south, BlockDirection::North);
         let south_up = graph.connection(south, BlockDirection::Up);
         let north_up = graph.connection(north, BlockDirection::Up);
@@ -833,7 +837,7 @@ impl RoomPiece {
         graph: &RoomGraph,
     ) {
         let p = &self.piece;
-        let south = self.room.unwrap();
+        let south = self.room.unwrap_or(0);
         let north = graph.connection(south, BlockDirection::North);
         let south_room = &graph.rooms[south];
         let north_room = &graph.rooms[north];

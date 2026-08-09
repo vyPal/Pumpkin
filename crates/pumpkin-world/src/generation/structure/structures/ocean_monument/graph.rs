@@ -67,7 +67,9 @@ impl RoomGraph {
                 grid[index as usize] = Some(graph.push(index));
             }
         }
-        graph.source = grid[SOURCE_INDEX as usize].unwrap();
+        if let Some(src) = grid[SOURCE_INDEX as usize] {
+            graph.source = src;
+        }
 
         for x in 0..5 {
             for z in 0..5 {
@@ -101,27 +103,23 @@ impl RoomGraph {
         let roof = graph.push(1003);
         let left_wing = graph.push(1001);
         let right_wing = graph.push(1002);
-        graph.connect(
-            grid[TOP_CONNECT_INDEX as usize].unwrap(),
-            BlockDirection::Up,
-            roof,
-        );
-        graph.connect(
-            grid[LEFT_CONNECT_INDEX as usize].unwrap(),
-            BlockDirection::South,
-            left_wing,
-        );
-        graph.connect(
-            grid[RIGHT_CONNECT_INDEX as usize].unwrap(),
-            BlockDirection::South,
-            right_wing,
-        );
+        if let Some(top) = grid[TOP_CONNECT_INDEX as usize] {
+            graph.connect(top, BlockDirection::Up, roof);
+        }
+        if let Some(left) = grid[LEFT_CONNECT_INDEX as usize] {
+            graph.connect(left, BlockDirection::South, left_wing);
+        }
+        if let Some(right) = grid[RIGHT_CONNECT_INDEX as usize] {
+            graph.connect(right, BlockDirection::South, right_wing);
+        }
         graph.rooms[roof].claimed = true;
         graph.rooms[left_wing].claimed = true;
         graph.rooms[right_wing].claimed = true;
         graph.rooms[graph.source].source = true;
 
-        graph.core = grid[room_index(random.next_bounded_i32(4), 0, 2) as usize].unwrap();
+        if let Some(core_room) = grid[room_index(random.next_bounded_i32(4), 0, 2) as usize] {
+            graph.core = core_room;
+        }
         graph.claim_core();
         for room in &mut graph.rooms {
             // Vanilla updates every grid room and the roof room here. The two wing
@@ -147,7 +145,9 @@ impl RoomGraph {
                 if !graph.rooms[room].openings[direction] {
                     continue;
                 }
-                let neighbor = graph.rooms[room].connections[direction].unwrap();
+                let Some(neighbor) = graph.rooms[room].connections[direction] else {
+                    continue;
+                };
                 let opposite = opposite_index(direction);
                 graph.rooms[room].openings[direction] = false;
                 graph.rooms[neighbor].openings[opposite] = false;
@@ -218,7 +218,7 @@ impl RoomGraph {
     }
 
     pub fn connection(&self, room: usize, direction: BlockDirection) -> usize {
-        self.rooms[room].connections[direction as usize].unwrap()
+        self.rooms[room].connections[direction as usize].unwrap_or(0)
     }
 }
 
