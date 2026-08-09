@@ -59,8 +59,10 @@ use pumpkin_nbt::tag::NbtTag;
 use pumpkin_protocol::IdOr;
 use pumpkin_protocol::SoundEvent;
 use pumpkin_protocol::bedrock::client::container_open::CContainerOpen;
+use pumpkin_protocol::bedrock::server::actor_event::{ActorEventType, SActorEvent};
 use pumpkin_protocol::codec::var_int::VarInt;
 use pumpkin_protocol::codec::var_long::VarLong;
+use pumpkin_protocol::codec::var_ulong::VarULong;
 use pumpkin_protocol::java::client::play::{
     Animation, CActionBar, CAwardStats, CChangeDifficulty, CCloseContainer, CCombatDeath,
     CCustomPayload, CDisguisedChatMessage, CEntityAnimation, CEntityPositionSync, CGameEvent,
@@ -1085,11 +1087,12 @@ impl Player {
 
         let attack_speed = base_attack_speed + add_speed;
 
-        let attack_cooldown_progress = self.get_attack_cooldown_progress(
-            f64::from(server.basic_config.tps),
-            0.5,
-            attack_speed,
-        );
+        let is_bedrock = matches!(self.client.as_ref(), ClientPlatform::Bedrock(_));
+        let attack_cooldown_progress = if is_bedrock {
+            1.0
+        } else {
+            self.get_attack_cooldown_progress(f64::from(server.basic_config.tps), 0.5, attack_speed)
+        };
         self.last_attacked_ticks.store(0, Ordering::Relaxed);
 
         // Only reduce attack damage if in cooldown
@@ -1349,6 +1352,7 @@ impl Player {
                 self.world().send_entity_status(
                     &self.living_entity.entity,
                     super::equipment_break_status(slot),
+                    None,
                 );
             }
 
@@ -2589,7 +2593,7 @@ impl Player {
             PermissionLvl::Four => EntityStatus::PermissionLevelOwners,
         };
         self.world()
-            .send_entity_status(&self.living_entity.entity, status);
+            .send_entity_status(&self.living_entity.entity, status, None);
     }
 
     /// Sets the player's difficulty level.
@@ -3250,8 +3254,17 @@ impl Player {
         self.breath_manager.reset(self);
 
         self.client
-            .send_packet_now(&CCombatDeath::new(self.entity_id().into(), &death_msg))
+            .send_packet_now_editioned(
+                &CCombatDeath::new(self.entity_id().into(), &death_msg),
+                &SActorEvent {
+                    entity_runtime_id: VarULong(self.entity_id() as u64),
+                    event_type: ActorEventType::Death,
+                    event_data: VarInt(0),
+                    fire_at_position: None,
+                },
+            )
             .await;
+        self.send_health().await;
     }
 
     pub async fn set_gamemode(self: &Arc<Self>, gamemode: GameMode) -> bool {

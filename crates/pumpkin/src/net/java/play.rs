@@ -2411,9 +2411,11 @@ impl JavaClient {
             } else {
                 &EquipmentSlot::OFF_HAND
             };
-            player
-                .world()
-                .send_entity_status(player.get_entity(), equipment_break_status(slot));
+            player.world().send_entity_status(
+                player.get_entity(),
+                equipment_break_status(slot),
+                None,
+            );
         }
 
         if !after.are_equal(&before) {
