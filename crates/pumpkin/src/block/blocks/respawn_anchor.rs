@@ -4,7 +4,6 @@ use pumpkin_data::item::Item;
 use pumpkin_data::sound::{Sound, SoundCategory};
 use pumpkin_data::translation;
 use pumpkin_macros::pumpkin_block;
-use pumpkin_util::text::TextComponent;
 use pumpkin_world::world::BlockFlags;
 
 use crate::block::registry::BlockActionResult;
@@ -70,9 +69,9 @@ impl BlockBehaviour for RespawnAnchorBlock {
 
             if props.charges == 0 {
                 args.player
-                    .send_system_message(&TextComponent::translate(
+                    .send_system_message(&pumpkin_macros::translate_cross!(
                         translation::java::BLOCK_MINECRAFT_BED_NO_SLEEP,
-                        &[],
+                        translation::bedrock::TILE_BED_NOSLEEP
                     ))
                     .await;
                 return BlockActionResult::SuccessServer;
@@ -105,10 +104,9 @@ impl BlockBehaviour for RespawnAnchorBlock {
                 );
 
                 args.player
-                    .send_system_message(&TextComponent::translate_cross(
+                    .send_system_message(&pumpkin_macros::translate_cross!(
                         translation::java::BLOCK_MINECRAFT_SET_SPAWN,
-                        translation::bedrock::TILE_BED_RESPAWNSET,
-                        [],
+                        translation::bedrock::TILE_BED_RESPAWNSET
                     ))
                     .await;
             }

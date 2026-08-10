@@ -35,9 +35,10 @@ impl CommandExecutor for ListExecutor {
             let dimension = world.dimension.minecraft_name.to_string();
 
             sender
-                .send_message(TextComponent::translate(
+                .send_message(pumpkin_macros::translate_cross!(
                     translation::java::COMMANDS_WAYPOINT_LIST_EMPTY,
-                    [TextComponent::text(dimension)],
+                    translation::java::COMMANDS_WAYPOINT_LIST_EMPTY,
+                    TextComponent::text(dimension)
                 ))
                 .await;
             Ok(0)
@@ -98,9 +99,10 @@ impl CommandExecutor for ColorExecutor {
                 ColorAction::Named => {
                     let color = TeamColorArgumentConsumer::find_arg(args, ARG_COLOR)?;
                     sender
-                        .send_message(TextComponent::translate(
+                        .send_message(pumpkin_macros::translate_cross!(
                             translation::java::COMMANDS_WAYPOINT_MODIFY_COLOR,
-                            [TextComponent::text(color.name()).color_named(color)],
+                            translation::java::COMMANDS_WAYPOINT_MODIFY_COLOR,
+                            TextComponent::text(color.name()).color_named(color)
                         ))
                         .await;
                 }
@@ -108,17 +110,18 @@ impl CommandExecutor for ColorExecutor {
                     let color_val = HexColorArgumentConsumer::find_arg(args, ARG_COLOR)?;
                     let hex_str = format!("{:06X}", color_val & 0xFFFFFF);
                     sender
-                        .send_message(TextComponent::translate(
+                        .send_message(pumpkin_macros::translate_cross!(
                             translation::java::COMMANDS_WAYPOINT_MODIFY_COLOR,
-                            [TextComponent::text(hex_str)],
+                            translation::java::COMMANDS_WAYPOINT_MODIFY_COLOR,
+                            TextComponent::text(hex_str)
                         ))
                         .await;
                 }
                 ColorAction::Reset => {
                     sender
-                        .send_message(TextComponent::translate(
+                        .send_message(pumpkin_macros::translate_cross!(
                             translation::java::COMMANDS_WAYPOINT_MODIFY_COLOR_RESET,
-                            [],
+                            translation::java::COMMANDS_WAYPOINT_MODIFY_COLOR_RESET
                         ))
                         .await;
                 }
@@ -176,9 +179,9 @@ impl CommandExecutor for StyleExecutor {
             }
 
             sender
-                .send_message(TextComponent::translate(
+                .send_message(pumpkin_macros::translate_cross!(
                     translation::java::COMMANDS_WAYPOINT_MODIFY_STYLE,
-                    [],
+                    translation::java::COMMANDS_WAYPOINT_MODIFY_STYLE
                 ))
                 .await;
 

@@ -198,7 +198,7 @@ impl JavaClient {
                 _ = keep_alive_interval.tick() => {
                     // If the client never responded to the LAST keep-alive, they timed out.
                     if self.wait_for_keep_alive.load(Ordering::Relaxed) {
-                        self.kick(TextComponent::translate(translation::java::DISCONNECT_TIMEOUT, [])).await;
+                        self.kick(pumpkin_macros::translate_cross!(translation::java::DISCONNECT_TIMEOUT, translation::bedrock::DISCONNECT_TIMEOUT)).await;
                         break;
                     }
 
