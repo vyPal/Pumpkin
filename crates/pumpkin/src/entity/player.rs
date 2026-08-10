@@ -2133,16 +2133,7 @@ impl Player {
             let state = world.get_block_state(&pos);
             // Is the block broken?
             if state.is_air() {
-                world
-                    .set_block_breaking(
-                        &self.living_entity.entity,
-                        pos,
-                        BlockBreakingProgress::Stop,
-                    )
-                    .await;
-                self.current_block_destroy_stage
-                    .store(-1, Ordering::Relaxed);
-                self.mining.store(false, Ordering::Relaxed);
+                self.stop_mining().await;
             } else {
                 let finished = self
                     .continue_mining(
@@ -2153,16 +2144,7 @@ impl Player {
                     )
                     .await;
                 if finished && matches!(self.client.as_ref(), ClientPlatform::Bedrock(_)) {
-                    self.mining.store(false, Ordering::Relaxed);
-                    self.current_block_destroy_stage
-                        .store(-1, Ordering::Relaxed);
-                    world
-                        .set_block_breaking(
-                            &self.living_entity.entity,
-                            pos,
-                            BlockBreakingProgress::Stop,
-                        )
-                        .await;
+                    self.stop_mining().await;
 
                     let block = Block::from_state_id(state.id);
                     let can_harvest = self.can_harvest(state, block).await;
@@ -2257,6 +2239,20 @@ impl Player {
                 .store(stage, Ordering::Relaxed);
         }
         total_progress >= 1.0
+    }
+
+    pub(crate) async fn stop_mining(&self) {
+        let was_mining = self.mining.swap(false, Ordering::Relaxed);
+        let stage = self.current_block_destroy_stage.swap(-1, Ordering::Relaxed);
+        self.current_block_breaking_speed
+            .store(0, Ordering::Relaxed);
+
+        if was_mining || stage >= 0 {
+            let pos = *self.mining_pos.lock().await;
+            self.world()
+                .set_block_breaking(&self.living_entity.entity, pos, BlockBreakingProgress::Stop)
+                .await;
+        }
     }
 
     pub async fn jump(&self) {
@@ -5512,7 +5508,12 @@ impl InventoryPlayer for Player {
         })
     }
 
-    fn enqueue_slot_packet<'a>(&'a self, packet: &'a CSetContainerSlot) -> PlayerFuture<'a, ()> {
+    fn enqueue_slot_packet<'a>(
+        &'a self,
+        packet: &'a CSetContainerSlot,
+        window_type: Option<WindowType>,
+        total_slots: usize,
+    ) -> PlayerFuture<'a, ()> {
         Box::pin(async move {
             match self.client.as_ref() {
                 ClientPlatform::Java(java) => {
@@ -5547,11 +5548,6 @@ impl InventoryPlayer for Player {
                         let slot_idx = packet.slot as usize;
                         let item_desc = NetworkItemStackDescriptor::from(&*packet.slot_data.0);
 
-                        // Container screen
-                        let current_handler = self.current_screen_handler.lock().await.clone();
-                        let handler = current_handler.lock().await;
-                        let window_type = handler.window_type();
-                        let total_slots = handler.get_behaviour().slots.len();
                         let bedrock_info = if total_slots >= 36 {
                             let container_slots = total_slots - 36;
                             if slot_idx < container_slots {
