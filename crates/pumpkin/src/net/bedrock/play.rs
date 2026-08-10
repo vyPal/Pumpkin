@@ -1066,8 +1066,11 @@ impl BedrockClient {
                         false,
                     );
 
-                    let be_packet = SText::new(
-                        message, gameprofile.name.clone()
+                    let be_packet = SText::chat_with_xuid(
+                        message,
+                        gameprofile.name.clone(),
+                        packet.xuid.into_owned(),
+                        packet.filtered_message.map(std::borrow::Cow::into_owned),
                     );
 
                     entity.world.load().broadcast_editioned(&je_packet, &be_packet).await;
