@@ -1,4 +1,5 @@
 use std::io::{Error, Write};
+use xxhash_rust::xxh64::xxh64;
 
 use pumpkin_macros::packet;
 use pumpkin_world::chunk::{ChunkData, palette::NetworkPalette};
@@ -7,6 +8,7 @@ use crate::{
     codec::{var_int::VarInt, var_uint::VarUInt},
     serial::PacketWrite,
 };
+
 const VERSION: u8 = 9;
 
 #[packet(58)]
@@ -20,94 +22,137 @@ pub struct CLevelChunk<'a> {
     pub chunk: &'a ChunkData,
 }
 
-impl PacketWrite for CLevelChunk<'_> {
-    fn write<W: Write>(&self, writer: &mut W) -> Result<(), Error> {
-        VarInt(self.chunk.x).write(writer)?;
-        VarInt(self.chunk.z).write(writer)?;
+pub type ChunkBlob = (u64, Vec<u8>);
+pub type EncodedChunk = (Vec<u8>, Vec<ChunkBlob>);
 
-        VarInt(self.dimension).write(writer)?;
-        let sub_chunk_count = self.chunk.section.count as u32;
-        debug_assert_eq!(sub_chunk_count, 24);
-        VarUInt(sub_chunk_count).write(writer)?;
+impl CLevelChunk<'_> {
+    pub fn encode_chunk(
+        chunk: &ChunkData,
+        dimension: i32,
+        cache_enabled: bool,
+    ) -> Result<EncodedChunk, Error> {
+        let mut writer = Vec::new();
+
+        VarInt(chunk.x).write(&mut writer)?;
+        VarInt(chunk.z).write(&mut writer)?;
+
+        VarInt(dimension).write(&mut writer)?;
+        let sub_chunk_count = chunk.section.count as u32;
+        VarUInt(sub_chunk_count).write(&mut writer)?;
         // Optional sub-chunk request limit. Pumpkin sends complete chunks.
-        false.write(writer)?;
-        self.cache_enabled.write(writer)?;
-        // Blob IDs are present in 26.40 even when client caching is disabled.
-        VarUInt(0).write(writer)?;
+        false.write(&mut writer)?;
+        cache_enabled.write(&mut writer)?;
 
-        let mut chunk_data = Vec::new();
-        let data_write = &mut chunk_data;
+        let mut blobs = Vec::new();
 
-        let block_sections = self
-            .chunk
+        let block_sections = chunk
             .section
             .block_sections
             .read()
             .map_err(|_| Error::other("block_sections read lock poisoned"))?;
-        let min_y_section = (self.chunk.section.min_y >> 4) as i8;
+        let min_y_section = (chunk.section.min_y >> 4) as i8;
+
+        let mut subchunk_bytes_list = Vec::with_capacity(block_sections.len());
 
         for (i, block_palette) in block_sections.iter().enumerate() {
+            let mut subchunk_buf = Vec::new();
             // Version 9: [version:byte][num_storages:byte][sub_chunk_index:byte]
             let y = (i as i8) + min_y_section;
             let num_storages = 1;
-            data_write.write_all(&[VERSION, num_storages, y as u8])?;
+            subchunk_buf.write_all(&[VERSION, num_storages, y as u8])?;
 
             let network_repr = block_palette.convert_be_network();
 
-            (network_repr.bits_per_entry << 1 | 1).write(data_write)?;
+            (network_repr.bits_per_entry << 1 | 1).write(&mut subchunk_buf)?;
 
             for data in network_repr.packed_data {
-                data.write(data_write)?;
+                data.write(&mut subchunk_buf)?;
             }
 
             match network_repr.palette {
                 NetworkPalette::Single(id) => {
-                    VarInt(i32::from(id)).write(data_write)?;
+                    VarInt(i32::from(id)).write(&mut subchunk_buf)?;
                 }
                 NetworkPalette::Indirect(palette) => {
-                    VarInt(palette.len() as i32).write(data_write)?;
+                    VarInt(palette.len() as i32).write(&mut subchunk_buf)?;
                     for id in palette {
-                        VarInt(i32::from(id)).write(data_write)?;
+                        VarInt(i32::from(id)).write(&mut subchunk_buf)?;
                     }
                 }
                 NetworkPalette::Direct => (),
             }
+
+            subchunk_bytes_list.push(subchunk_buf);
         }
 
-        let biome_sections = self
-            .chunk
+        let biome_sections = chunk
             .section
             .biome_sections
             .read()
             .map_err(|_| Error::other("biome_sections read lock poisoned"))?;
 
+        let mut biome_buf = Vec::new();
         for biome_palette in biome_sections.iter() {
             let network_repr = biome_palette.convert_be_network();
 
-            (network_repr.bits_per_entry << 1 | 1).write(data_write)?;
+            (network_repr.bits_per_entry << 1 | 1).write(&mut biome_buf)?;
 
             for data in network_repr.packed_data {
-                data.write(data_write)?;
+                data.write(&mut biome_buf)?;
             }
 
             match network_repr.palette {
                 NetworkPalette::Single(id) => {
-                    VarInt(i32::from(id)).write(data_write)?;
+                    VarInt(i32::from(id)).write(&mut biome_buf)?;
                 }
                 NetworkPalette::Indirect(palette) => {
-                    VarInt(palette.len() as i32).write(data_write)?;
+                    VarInt(palette.len() as i32).write(&mut biome_buf)?;
                     for id in palette {
-                        VarInt(i32::from(id)).write(data_write)?;
+                        VarInt(i32::from(id)).write(&mut biome_buf)?;
                     }
                 }
                 NetworkPalette::Direct => (),
             }
         }
 
-        data_write.write_all(&[0])?;
+        if cache_enabled {
+            for subchunk_buf in subchunk_bytes_list {
+                let hash = xxh64(&subchunk_buf, 0);
+                blobs.push((hash, subchunk_buf));
+            }
+            let biome_hash = xxh64(&biome_buf, 0);
+            blobs.push((biome_hash, biome_buf));
 
-        VarUInt(chunk_data.len() as u32).write(writer)?;
-        writer.write_all(&chunk_data)
+            VarUInt(blobs.len() as u32).write(&mut writer)?;
+            for (hash, _) in &blobs {
+                writer.write_all(&hash.to_le_bytes())?;
+            }
+
+            // Chunk data payload when cache_enabled: only border block count byte (0).
+            VarUInt(1).write(&mut writer)?;
+            writer.write_all(&[0])?;
+        } else {
+            VarUInt(0).write(&mut writer)?;
+
+            let mut chunk_data = Vec::new();
+            for subchunk_buf in subchunk_bytes_list {
+                chunk_data.write_all(&subchunk_buf)?;
+            }
+            chunk_data.write_all(&biome_buf)?;
+            chunk_data.write_all(&[0])?;
+
+            VarUInt(chunk_data.len() as u32).write(&mut writer)?;
+            writer.write_all(&chunk_data)?;
+        }
+
+        Ok((writer, blobs))
+    }
+}
+
+impl PacketWrite for CLevelChunk<'_> {
+    fn write<W: Write>(&self, writer: &mut W) -> Result<(), Error> {
+        let (encoded, _) = Self::encode_chunk(self.chunk, self.dimension, self.cache_enabled)?;
+        writer.write_all(&encoded)
     }
 }
 

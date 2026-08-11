@@ -2180,6 +2180,7 @@ impl Player {
                     .enqueue_packet(&CPlayStatus::PlayerSpawn)
                     .await;
                 self.bedrock_spawned.store(true, Ordering::Relaxed);
+                self.set_client_loaded(true);
             }
         }
         self.tick_counter.fetch_add(1, Ordering::Relaxed);
@@ -2839,6 +2840,7 @@ impl Player {
     }
 
     /// Teleports the player to a different world or dimension with an optional position, yaw, and pitch.
+    #[expect(clippy::too_many_lines)]
     pub async fn teleport_world(
         self: &Arc<Self>,
         new_world: Arc<World>,
@@ -2938,6 +2940,7 @@ impl Player {
                             false,
                         );
                         bedrock.enqueue_packet(&change_dim_packet).await;
+                        self.bedrock_spawned.store(false, Ordering::Relaxed);
                     }
                 }
 

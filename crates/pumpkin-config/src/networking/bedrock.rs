@@ -82,6 +82,8 @@ pub struct BedrockConfig {
     pub authentication: BedrockAuthenticationConfig,
     /// Bedrock `NetherNet` transport settings.
     pub nethernet: NetherNetConfig,
+    /// Whether Bedrock client chunk blob caching is enabled.
+    pub chunk_caching: bool,
 }
 
 impl Default for BedrockConfig {
@@ -98,6 +100,7 @@ impl Default for BedrockConfig {
             motd: "A blazingly fast Pumpkin server!".to_string(),
             authentication: BedrockAuthenticationConfig::default(),
             nethernet: NetherNetConfig::default(),
+            chunk_caching: true,
         }
     }
 }

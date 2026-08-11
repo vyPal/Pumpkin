@@ -34,6 +34,7 @@ async-compression = { workspace = true, features = ["tokio", "zlib", "deflate"] 
 flate2.workspace = true
 
 bitflags.workspace = true
+xxhash-rust.workspace = true
 
 [dev-dependencies]
 # Validate correctness
