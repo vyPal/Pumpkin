@@ -193,7 +193,7 @@ impl LivingEntity {
         if equipment.is_empty() {
             return;
         }
-        let equipment: Vec<(i8, ItemStackSerializer)> = equipment
+        let equipment_java: Vec<(i8, ItemStackSerializer)> = equipment
             .iter()
             .map(|(slot, stack)| {
                 (
@@ -202,10 +202,43 @@ impl LivingEntity {
                 )
             })
             .collect();
-        self.entity.world.load().broadcast_packet_except(
-            &[self.entity.entity_uuid],
-            &CSetEquipment::new(self.entity_id().into(), equipment),
-        );
+        let je_packet = CSetEquipment::new(self.entity_id().into(), equipment_java);
+
+        let mut sent_editioned = false;
+        for (slot, stack) in equipment {
+            if *slot == EquipmentSlot::MAIN_HAND || *slot == EquipmentSlot::OFF_HAND {
+                let window_id = if *slot == EquipmentSlot::OFF_HAND {
+                    120
+                } else {
+                    0
+                };
+                let be_packet = pumpkin_protocol::bedrock::client::CMobEquipment::new(
+                    self.entity_id() as u64,
+                    pumpkin_protocol::bedrock::network_item::NetworkItemStackDescriptor::from(
+                        stack,
+                    ),
+                    0,
+                    0,
+                    window_id,
+                );
+                self.entity
+                    .world
+                    .load()
+                    .broadcast_packet_except_editioned_sync(
+                        &[self.entity.entity_uuid],
+                        &je_packet,
+                        &be_packet,
+                    );
+                sent_editioned = true;
+            }
+        }
+
+        if !sent_editioned {
+            self.entity
+                .world
+                .load()
+                .broadcast_packet_except(&[self.entity.entity_uuid], &je_packet);
+        }
     }
 
     /// Picks up and Item entity or XP Orb

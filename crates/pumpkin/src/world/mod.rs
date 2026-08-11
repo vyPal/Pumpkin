@@ -6,7 +6,7 @@ use pumpkin_data::item::{BedrockItem, BedrockItemVersion};
 use pumpkin_protocol::bedrock::client::EntityProperties;
 use pumpkin_protocol::bedrock::client::item_registry::{CItemRegistry, ItemDefinition};
 use pumpkin_protocol::bedrock::client::level_event::{CLevelEvent, LevelEvent};
-use pumpkin_protocol::bedrock::network_item::NetworkItemDescriptor;
+use pumpkin_protocol::bedrock::network_item::{NetworkItemDescriptor, NetworkItemStackDescriptor};
 use pumpkin_protocol::codec::data_component::data_to_proto_sound;
 use pumpkin_world::generation::proto_chunk::GenerationCache;
 use std::sync::atomic::Ordering::Relaxed;
@@ -2527,6 +2527,22 @@ impl World {
             &bedrock_add_player,
         );
 
+        let held_item = player.inventory().held_item().await;
+
+        let be_mob_equipment = pumpkin_protocol::bedrock::client::CMobEquipment::new(
+            runtime_id,
+            NetworkItemStackDescriptor::from(&held_item),
+            0,
+            0,
+            0,
+        );
+
+        self.broadcast_packet_except_editioned_sync(
+            &[gameprofile.id],
+            &CSetEquipment::new((runtime_id as i32).into(), vec![]),
+            &be_mob_equipment,
+        );
+
         // Broadcast metadata to Java players so they can correctly interact with the new player
         let skin_parts = player.config.load().skin_parts;
 
@@ -2606,6 +2622,18 @@ impl World {
             };
 
             client.send_game_packet(&ex_add_player).await;
+
+            let ex_held_item = existing_player.inventory().held_item().await;
+
+            let ex_be_mob_equipment = pumpkin_protocol::bedrock::client::CMobEquipment::new(
+                existing_player.entity_id() as u64,
+                NetworkItemStackDescriptor::from(&ex_held_item),
+                0,
+                0,
+                0,
+            );
+
+            client.send_game_packet(&ex_be_mob_equipment).await;
         }
 
         // 3. Trigger Join Event and Broadcast Join Message
@@ -2981,6 +3009,22 @@ impl World {
             &bedrock_add_player,
         );
 
+        let held_item = player.inventory().held_item().await;
+
+        let be_mob_equipment = pumpkin_protocol::bedrock::client::CMobEquipment::new(
+            entity_id as u64,
+            NetworkItemStackDescriptor::from(&held_item),
+            0,
+            0,
+            0,
+        );
+
+        self.broadcast_packet_except_editioned_sync(
+            &[player.gameprofile.id],
+            &CSetEquipment::new(entity_id.into(), vec![]),
+            &be_mob_equipment,
+        );
+
         // Broadcast metadata to Java players so they can correctly interact with the new player
         let skin_parts = player.config.load().skin_parts;
 
@@ -3153,12 +3197,9 @@ impl World {
             };
 
             {
-                let mut equipment_list = Vec::new();
-
-                equipment_list.push((
-                    EquipmentSlot::MAIN_HAND.discriminant(),
-                    existing_player.inventory.held_item().await,
-                ));
+                let held_item = existing_player.inventory.held_item().await;
+                let mut equipment_list =
+                    vec![(EquipmentSlot::MAIN_HAND.discriminant(), held_item.clone())];
 
                 let equipment_guard = existing_player.inventory.entity_equipment.lock().await;
                 for (slot, item_stack) in &equipment_guard.equipment {
@@ -3170,11 +3211,19 @@ impl World {
                     .map(|(slot, stack)| (*slot, ItemStackSerializer::from(stack.clone())))
                     .collect();
 
-                client
-                    .enqueue_packet(&CSetEquipment::new(
-                        existing_player.entity_id().into(),
-                        equipment,
-                    ))
+                let je_packet = CSetEquipment::new(existing_player.entity_id().into(), equipment);
+
+                let be_mob_equipment = pumpkin_protocol::bedrock::client::CMobEquipment::new(
+                    existing_player.entity_id() as u64,
+                    NetworkItemStackDescriptor::from(&held_item),
+                    0,
+                    0,
+                    0,
+                );
+
+                player
+                    .client
+                    .enqueue_packet_editioned(&je_packet, &be_mob_equipment)
                     .await;
             }
         }
@@ -3291,12 +3340,8 @@ impl World {
     }
 
     async fn send_player_equipment(&self, from: &Player) {
-        let mut equipment_list = Vec::new();
-
-        equipment_list.push((
-            EquipmentSlot::MAIN_HAND.discriminant(),
-            from.inventory.held_item().await,
-        ));
+        let held_item = from.inventory.held_item().await;
+        let mut equipment_list = vec![(EquipmentSlot::MAIN_HAND.discriminant(), held_item.clone())];
 
         let equipment_guard = from.inventory.entity_equipment.lock().await;
         for (slot, item_stack) in &equipment_guard.equipment {
@@ -3307,12 +3352,24 @@ impl World {
             .iter()
             .map(|(slot, stack)| (*slot, ItemStackSerializer::from(stack.clone())))
             .collect();
+        let je_packet = CSetEquipment::new(from.entity_id().into(), equipment);
+
+        let be_mob_equipment = pumpkin_protocol::bedrock::client::CMobEquipment::new(
+            from.entity_id() as u64,
+            NetworkItemStackDescriptor::from(&held_item),
+            0,
+            0,
+            0,
+        );
+
         let chunk_pos = from.get_entity().chunk_pos.load();
-        self.broadcast_to_chunk_except(
+        self.broadcast_to_chunk_except_editioned(
             chunk_pos,
             &[from.get_entity().entity_uuid],
-            &CSetEquipment::new(from.entity_id().into(), equipment),
-        );
+            &je_packet,
+            &be_mob_equipment,
+        )
+        .await;
     }
 
     pub async fn send_world_info(
