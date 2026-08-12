@@ -23,6 +23,7 @@ use crate::block::blocks::conduit::ConduitBlock;
 use crate::block::blocks::coral::coral_block::CoralBlock;
 use crate::block::blocks::coral::coral_fan::CoralFanBlock;
 use crate::block::blocks::coral::coral_plant::CoralPlantBlock;
+use crate::block::blocks::creaking_heart::CreakingHeartBlock;
 use crate::block::blocks::decorated_pot::DecoratedPotBlock;
 use crate::block::blocks::dirt_path::DirtPathBlock;
 use crate::block::blocks::doors::DoorBlock;
@@ -254,6 +255,7 @@ pub fn default_registry() -> Arc<BlockRegistry> {
     manager.register(TrialSpawnerBlock);
     manager.register(VaultBlock);
     manager.register(DecoratedPotBlock);
+    manager.register(CreakingHeartBlock);
     manager.register(BushBlock);
     manager.register(FlowerBlock);
     manager.register(PotatoBlock);
