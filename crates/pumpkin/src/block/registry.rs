@@ -138,6 +138,7 @@ use crate::block::blocks::snow::LayeredSnowBlock;
 use crate::block::blocks::spawner::SpawnerBlock;
 use crate::block::blocks::sponge::{SpongeBlock, WetSpongeBlock};
 use crate::block::blocks::stairs::StairBlock;
+use crate::block::blocks::structure_block::StructureBlock;
 use crate::block::blocks::tnt::TNTBlock;
 use crate::block::blocks::torches::TorchBlock;
 use crate::block::blocks::trapdoor::TrapDoorBlock;
@@ -257,6 +258,7 @@ pub fn default_registry() -> Arc<BlockRegistry> {
     manager.register(CartographyTableBlock);
     manager.register(SmithingTableBlock);
     manager.register(FletchingTableBlock);
+    manager.register(StructureBlock);
     manager.register(ShortPlantBlock);
     manager.register(DryVegetationBlock);
     manager.register(LilyPadBlock);
