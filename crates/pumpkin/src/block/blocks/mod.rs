@@ -113,6 +113,7 @@ pub mod beacon;
 pub mod brushable_block;
 pub mod creaking_heart;
 pub mod decorated_pot;
+pub mod loom;
 pub mod sniffer_egg;
 pub mod trial_spawner;
 pub mod turtle_egg;
