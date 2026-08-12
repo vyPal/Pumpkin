@@ -110,6 +110,7 @@ pub mod coral;
 pub mod abstract_wall_mounting;
 
 pub mod beacon;
+pub mod brushable_block;
 pub mod creaking_heart;
 pub mod decorated_pot;
 pub mod sniffer_egg;
