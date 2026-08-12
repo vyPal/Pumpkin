@@ -131,6 +131,7 @@ use crate::block::blocks::shelf::ShelfBlock;
 use crate::block::blocks::signs::SignBlock;
 use crate::block::blocks::slabs::SlabBlock;
 use crate::block::blocks::slime::SlimeBlock;
+use crate::block::blocks::smithing_table::SmithingTableBlock;
 use crate::block::blocks::sniffer_egg::SnifferEggBlock;
 use crate::block::blocks::snow::LayeredSnowBlock;
 use crate::block::blocks::spawner::SpawnerBlock;
@@ -253,6 +254,7 @@ pub fn default_registry() -> Arc<BlockRegistry> {
     manager.register(StonecutterBlock);
     manager.register(LoomBlock);
     manager.register(CartographyTableBlock);
+    manager.register(SmithingTableBlock);
     manager.register(ShortPlantBlock);
     manager.register(DryVegetationBlock);
     manager.register(LilyPadBlock);

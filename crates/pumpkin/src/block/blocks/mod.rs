@@ -115,6 +115,7 @@ pub mod cartography_table;
 pub mod creaking_heart;
 pub mod decorated_pot;
 pub mod loom;
+pub mod smithing_table;
 pub mod sniffer_egg;
 pub mod trial_spawner;
 pub mod turtle_egg;
