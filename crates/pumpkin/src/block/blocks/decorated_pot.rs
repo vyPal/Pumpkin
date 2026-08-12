@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
+use pumpkin_data::BlockStateId;
 use pumpkin_data::block_properties::{BlockProperties, DecoratedPotLikeProperties};
 use pumpkin_data::item::Item;
 use pumpkin_data::item_stack::ItemStack;
 use pumpkin_data::sound::{Sound, SoundCategory};
-use pumpkin_data::BlockStateId;
 use pumpkin_macros::pumpkin_block;
 
 use crate::block::entities::decorated_pot::DecoratedPotBlockEntity;
@@ -20,10 +20,8 @@ pub struct DecoratedPotBlock;
 impl BlockBehaviour for DecoratedPotBlock {
     fn on_place<'a>(&'a self, args: OnPlaceArgs<'a>) -> BlockFuture<'a, BlockStateId> {
         Box::pin(async move {
-            let mut props = DecoratedPotLikeProperties::from_state_id(
-                args.block.default_state.id,
-                args.block,
-            );
+            let mut props =
+                DecoratedPotLikeProperties::from_state_id(args.block.default_state.id, args.block);
             props.facing = args
                 .player
                 .living_entity
@@ -60,8 +58,9 @@ impl BlockBehaviour for DecoratedPotBlock {
             }
 
             if let Some(block_entity) = args.world.get_block_entity(args.position)
-                && let Some(pot_entity) =
-                    block_entity.as_any().downcast_ref::<DecoratedPotBlockEntity>()
+                && let Some(pot_entity) = block_entity
+                    .as_any()
+                    .downcast_ref::<DecoratedPotBlockEntity>()
             {
                 if pot_entity.try_insert_item(args.item_stack, 1).await {
                     args.world.play_sound(
@@ -97,8 +96,9 @@ impl BlockBehaviour for DecoratedPotBlock {
     fn broken<'a>(&'a self, args: BrokenArgs<'a>) -> BlockFuture<'a, ()> {
         Box::pin(async move {
             if let Some(block_entity) = args.world.get_block_entity(args.position)
-                && let Some(pot_entity) =
-                    block_entity.as_any().downcast_ref::<DecoratedPotBlockEntity>()
+                && let Some(pot_entity) = block_entity
+                    .as_any()
+                    .downcast_ref::<DecoratedPotBlockEntity>()
                 && let Some(contained) = pot_entity.take_item().await
             {
                 args.world.drop_stack(args.position, contained).await;
@@ -109,7 +109,9 @@ impl BlockBehaviour for DecoratedPotBlock {
                 SoundCategory::Blocks,
                 &args.position.to_f64(),
             );
-            args.world.drop_stack(args.position, ItemStack::new(4, &Item::BRICK)).await;
+            args.world
+                .drop_stack(args.position, ItemStack::new(4, &Item::BRICK))
+                .await;
         })
     }
 
@@ -119,8 +121,9 @@ impl BlockBehaviour for DecoratedPotBlock {
     ) -> BlockFuture<'a, Option<u8>> {
         Box::pin(async move {
             if let Some(block_entity) = args.world.get_block_entity(args.position)
-                && let Some(pot_entity) =
-                    block_entity.as_any().downcast_ref::<DecoratedPotBlockEntity>()
+                && let Some(pot_entity) = block_entity
+                    .as_any()
+                    .downcast_ref::<DecoratedPotBlockEntity>()
             {
                 Some(pot_entity.get_comparator_output().await)
             } else {
