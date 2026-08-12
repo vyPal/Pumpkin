@@ -115,4 +115,5 @@ pub mod creaking_heart;
 pub mod decorated_pot;
 pub mod sniffer_egg;
 pub mod trial_spawner;
+pub mod turtle_egg;
 pub mod vault;

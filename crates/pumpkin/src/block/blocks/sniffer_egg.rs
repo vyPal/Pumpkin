@@ -76,8 +76,12 @@ impl BlockBehaviour for SnifferEggBlock {
 
                 let on_moss = Self::is_on_moss(args.world.as_ref(), args.position);
                 let delay = Self::get_hatch_delay(on_moss);
-                args.world
-                    .schedule_block_tick(args.block, *args.position, delay, TickPriority::Normal);
+                args.world.schedule_block_tick(
+                    args.block,
+                    *args.position,
+                    delay,
+                    TickPriority::Normal,
+                );
             } else {
                 args.world
                     .break_block(args.position, None, BlockFlags::SKIP_DROPS)
