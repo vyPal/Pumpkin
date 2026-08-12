@@ -110,3 +110,5 @@ pub mod coral;
 pub mod abstract_wall_mounting;
 
 pub mod beacon;
+pub mod trial_spawner;
+pub mod vault;

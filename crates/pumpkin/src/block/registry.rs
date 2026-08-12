@@ -133,6 +133,8 @@ use crate::block::blocks::stairs::StairBlock;
 use crate::block::blocks::tnt::TNTBlock;
 use crate::block::blocks::torches::TorchBlock;
 use crate::block::blocks::trapdoor::TrapDoorBlock;
+use crate::block::blocks::trial_spawner::TrialSpawnerBlock;
+use crate::block::blocks::vault::VaultBlock;
 use crate::block::blocks::vine::VineBlock;
 use crate::block::blocks::walls::WallBlock;
 use crate::block::blocks::wither_skull::WitherSkeletonSkullBlock;
@@ -248,6 +250,8 @@ pub fn default_registry() -> Arc<BlockRegistry> {
     manager.register(SugarCaneBlock);
     manager.register(VineBlock);
     manager.register(TNTBlock);
+    manager.register(TrialSpawnerBlock);
+    manager.register(VaultBlock);
     manager.register(BushBlock);
     manager.register(FlowerBlock);
     manager.register(PotatoBlock);
