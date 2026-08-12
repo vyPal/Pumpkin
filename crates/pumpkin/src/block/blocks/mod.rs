@@ -112,5 +112,6 @@ pub mod abstract_wall_mounting;
 pub mod beacon;
 pub mod creaking_heart;
 pub mod decorated_pot;
+pub mod sniffer_egg;
 pub mod trial_spawner;
 pub mod vault;

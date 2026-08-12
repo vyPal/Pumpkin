@@ -129,6 +129,7 @@ use crate::block::blocks::signs::SignBlock;
 use crate::block::blocks::slabs::SlabBlock;
 use crate::block::blocks::slime::SlimeBlock;
 use crate::block::blocks::snow::LayeredSnowBlock;
+use crate::block::blocks::sniffer_egg::SnifferEggBlock;
 use crate::block::blocks::spawner::SpawnerBlock;
 use crate::block::blocks::sponge::{SpongeBlock, WetSpongeBlock};
 use crate::block::blocks::stairs::StairBlock;
@@ -256,6 +257,7 @@ pub fn default_registry() -> Arc<BlockRegistry> {
     manager.register(VaultBlock);
     manager.register(DecoratedPotBlock);
     manager.register(CreakingHeartBlock);
+    manager.register(SnifferEggBlock);
     manager.register(BushBlock);
     manager.register(FlowerBlock);
     manager.register(PotatoBlock);
