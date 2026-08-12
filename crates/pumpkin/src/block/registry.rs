@@ -14,6 +14,7 @@ use crate::block::blocks::campfire::CampfireBlock;
 use crate::block::blocks::candle_cakes::CandleCakeBlock;
 use crate::block::blocks::candles::CandleBlock;
 use crate::block::blocks::carpet::{CarpetBlock, MossCarpetBlock, PaleMossCarpetBlock};
+use crate::block::blocks::cartography_table::CartographyTableBlock;
 use crate::block::blocks::carved_pumpkin::CarvedPumpkinBlock;
 use crate::block::blocks::cauldron::CauldronBlock;
 use crate::block::blocks::chests::{ChestBlock, CopperChestBlock, TrappedChestBlock};
@@ -251,6 +252,7 @@ pub fn default_registry() -> Arc<BlockRegistry> {
     manager.register(StairBlock);
     manager.register(StonecutterBlock);
     manager.register(LoomBlock);
+    manager.register(CartographyTableBlock);
     manager.register(ShortPlantBlock);
     manager.register(DryVegetationBlock);
     manager.register(LilyPadBlock);

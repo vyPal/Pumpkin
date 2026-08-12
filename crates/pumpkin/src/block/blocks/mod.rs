@@ -111,6 +111,7 @@ pub mod abstract_wall_mounting;
 
 pub mod beacon;
 pub mod brushable_block;
+pub mod cartography_table;
 pub mod creaking_heart;
 pub mod decorated_pot;
 pub mod loom;
