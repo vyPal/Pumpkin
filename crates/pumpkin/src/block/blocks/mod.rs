@@ -114,6 +114,7 @@ pub mod brushable_block;
 pub mod cartography_table;
 pub mod creaking_heart;
 pub mod decorated_pot;
+pub mod fletching_table;
 pub mod loom;
 pub mod smithing_table;
 pub mod sniffer_egg;

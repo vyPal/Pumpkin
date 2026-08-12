@@ -38,6 +38,7 @@ use crate::block::blocks::fence_gates::FenceGateBlock;
 use crate::block::blocks::fences::FenceBlock;
 use crate::block::blocks::fire::fire::FireBlock;
 use crate::block::blocks::fire::soul_fire::SoulFireBlock;
+use crate::block::blocks::fletching_table::FletchingTableBlock;
 use crate::block::blocks::flower_pots::FlowerPotBlock;
 use crate::block::blocks::furnace::FurnaceBlock;
 use crate::block::blocks::glass_panes::GlassPaneBlock;
@@ -255,6 +256,7 @@ pub fn default_registry() -> Arc<BlockRegistry> {
     manager.register(LoomBlock);
     manager.register(CartographyTableBlock);
     manager.register(SmithingTableBlock);
+    manager.register(FletchingTableBlock);
     manager.register(ShortPlantBlock);
     manager.register(DryVegetationBlock);
     manager.register(LilyPadBlock);
