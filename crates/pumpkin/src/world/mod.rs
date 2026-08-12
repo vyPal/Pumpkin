@@ -1945,6 +1945,12 @@ impl World {
             (position, level_info.spawn_yaw, level_info.spawn_pitch)
         };
 
+        // Keep the server-side transform aligned with the StartGame position. In
+        // particular, this ensures an early disconnect persists the real spawn.
+        player.living_entity.entity.set_pos(position);
+        player.living_entity.entity.set_rotation(yaw, pitch);
+        player.living_entity.entity.last_pos.store(position);
+
         // Todo make the data less spread
         let level_settings = LevelSettings {
             seed: self.level.seed.0,
@@ -2029,7 +2035,12 @@ impl World {
                 entity_id: VarLong(runtime_id as _),
                 runtime_entity_id: VarULong(runtime_id),
                 player_gamemode: player.gamemode.load(),
-                position: Vector3::new(position.x as f32, position.y as f32, position.z as f32),
+                // Bedrock represents the local player at eye height; Pumpkin stores feet position.
+                position: Vector3::new(
+                    position.x as f32,
+                    position.y as f32 + player.get_entity().entity_type.eye_height,
+                    position.z as f32,
+                ),
                 pitch,
                 yaw,
                 level_settings,
@@ -2635,6 +2646,8 @@ impl World {
 
             client.send_game_packet(&ex_be_mob_equipment).await;
         }
+
+        player.has_played_before.store(true, Ordering::Relaxed);
 
         // 3. Trigger Join Event and Broadcast Join Message
         let msg_comp = TextComponent::translate_cross(
