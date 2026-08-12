@@ -5291,10 +5291,12 @@ impl World {
 
     pub fn get_block_entity(&self, block_pos: &BlockPos) -> Option<Arc<dyn BlockEntity>> {
         let chunk_pos = block_pos.chunk_position();
-        if let Some(chunk_block_entities) = self.block_entities.get(&chunk_pos)
-            && let Some(entity) = chunk_block_entities.get(block_pos)
+        if let Some(entity) = self
+            .block_entities
+            .get(&chunk_pos)
+            .and_then(|m| m.get(block_pos).cloned())
         {
-            return Some(entity.clone());
+            return Some(entity);
         }
 
         let nbt = self
