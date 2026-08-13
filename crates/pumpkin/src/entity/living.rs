@@ -2106,7 +2106,7 @@ impl NBTStorage for LivingEntity {
             };
             // Persist current absorption amount
             nbt.put("AbsorptionAmount", NbtTag::Float(self.absorption.load()));
-            nbt.put("fall_distance", NbtTag::Float(fall_distance));
+            nbt.put("FallDistance", NbtTag::Float(fall_distance));
             {
                 let effects = self.active_effects.lock().await;
                 if !effects.is_empty() {
@@ -2138,7 +2138,10 @@ impl NBTStorage for LivingEntity {
 
             // Load fall distance, but if this entity is currently marked dead ensure we don't restore
             // a lethal fall distance that would immediately re-kill on spawn.
-            let fd = nbt.get_float("fall_distance").unwrap_or(0.0);
+            let fd = nbt
+                .get_float("FallDistance")
+                .or_else(|| nbt.get_float("fall_distance"))
+                .unwrap_or(0.0);
             if self.dead.load(Relaxed) {
                 self.fall_distance.store(0.0);
             } else {

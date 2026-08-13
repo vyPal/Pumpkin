@@ -123,6 +123,14 @@ impl Navigator {
         self.path_type_overrides.insert(path_type, malus);
     }
 
+    #[must_use]
+    pub fn get_pathfinding_malus(&self, path_type: PathType) -> f32 {
+        self.path_type_overrides
+            .get(&path_type)
+            .copied()
+            .unwrap_or_else(|| path_type.get_malus())
+    }
+
     pub const fn set_mob_dimensions(&mut self, width: f32, height: f32) {
         self.mob_width = width;
         self.mob_height = height;

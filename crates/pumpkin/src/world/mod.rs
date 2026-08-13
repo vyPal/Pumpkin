@@ -5011,15 +5011,40 @@ impl World {
         self.spawn_entity(item_entity).await;
     }
 
-    pub async fn strike_lightning(self: &Arc<Self>, pos: Vector3<f64>, _effect_only: bool) {
+    pub async fn strike_lightning(self: &Arc<Self>, pos: Vector3<f64>, effect_only: bool) {
         use pumpkin_data::entity::EntityType;
         use uuid::Uuid;
+
+        let server_ref = self.server.upgrade();
+        if let Some(server_ref) = server_ref {
+            let mut event =
+                crate::plugin::api::events::world::lightning_strike::LightningStrikeEvent::new(
+                    pos,
+                    effect_only,
+                );
+            server_ref
+                .plugin_manager
+                .fire(&server_ref, &mut event)
+                .await;
+            if event.cancelled {
+                return;
+            }
+        }
+
         let lightning = crate::entity::r#type::from_type(
             &EntityType::LIGHTNING_BOLT,
             pos,
             self,
             Uuid::new_v4(),
         );
+
+        if let Some(bolt) = lightning
+            .cast_any()
+            .downcast_ref::<crate::entity::lightning::LightningBoltEntity>()
+        {
+            bolt.set_visual_only(effect_only);
+        }
+
         self.spawn_entity(lightning).await;
     }
 
