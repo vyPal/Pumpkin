@@ -495,7 +495,11 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
         world: Resource<World>,
     ) -> wasmtime::Result<Resource<pumpkin::plugin::scoreboard::Scoreboard>> {
         let world_provider = self.get_world_res(&world)?.provider.clone();
-        self.add_scoreboard(world_provider)
+        self.add_scoreboard(
+            crate::plugin::loader::wasm::wasm_host::state::ScoreboardProvider::World(
+                world_provider,
+            ),
+        )
     }
 
     async fn play_sound(

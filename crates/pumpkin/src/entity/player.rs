@@ -10,6 +10,8 @@ use std::sync::atomic::{AtomicBool, AtomicI8, AtomicI32, AtomicU8, AtomicU32, Or
 use std::sync::{Arc, Weak};
 use std::time::{Duration, Instant};
 
+use crate::world::scoreboard::{BedrockScoreboard, Scoreboard};
+use advancement::PlayerAdvancement;
 use arc_swap::ArcSwap;
 use crossbeam::atomic::AtomicCell;
 use crossbeam::channel::Receiver;
@@ -37,7 +39,162 @@ use tokio::task::JoinHandle;
 use tracing::{debug, warn};
 use uuid::Uuid;
 
-use advancement::PlayerAdvancement;
+#[derive(Clone, Debug)]
+pub enum CustomScoreboard {
+    Java(Scoreboard),
+    Bedrock(BedrockScoreboard),
+}
+
+impl From<Scoreboard> for CustomScoreboard {
+    fn from(sb: Scoreboard) -> Self {
+        Self::Java(sb)
+    }
+}
+
+impl From<BedrockScoreboard> for CustomScoreboard {
+    fn from(sb: BedrockScoreboard) -> Self {
+        Self::Bedrock(sb)
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct JavaPlayer<'a>(pub &'a Player);
+
+impl JavaPlayer<'_> {
+    pub async fn send_packet<C: pumpkin_protocol::ClientPacket + Sync>(&self, packet: &C) {
+        if let ClientPlatform::Java(client) = self.0.client.as_ref() {
+            client.enqueue_packet(packet).await;
+        }
+    }
+
+    pub async fn send_custom_payload(&self, channel: &str, data: &[u8]) {
+        if let ClientPlatform::Java(java) = self.0.client.as_ref() {
+            java.enqueue_packet(&CCustomPayload::new(channel, data))
+                .await;
+        }
+    }
+
+    pub async fn send_stats(&self) {
+        self.0.send_stats().await;
+    }
+
+    pub async fn set_scoreboard(&self, scoreboard: Option<Scoreboard>) {
+        *self.0.custom_scoreboard.lock().await = scoreboard.map(CustomScoreboard::Java);
+        self.0.send_scoreboard().await;
+    }
+
+    pub async fn reset_scoreboard(&self) {
+        self.set_scoreboard(None).await;
+    }
+
+    pub async fn get_scoreboard(&self) -> Option<Scoreboard> {
+        let guard = self.0.custom_scoreboard.lock().await;
+        if let Some(CustomScoreboard::Java(sb)) = guard.as_ref() {
+            Some(sb.clone())
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct BedrockPlayer<'a>(pub &'a Player);
+
+impl BedrockPlayer<'_> {
+    pub async fn send_packet<P: pumpkin_protocol::BClientPacket + Sync>(&self, packet: &P) {
+        if let ClientPlatform::Bedrock(client) = self.0.client.as_ref() {
+            client.send_game_packet(packet).await;
+        }
+    }
+
+    pub async fn set_scoreboard(&self, scoreboard: Option<BedrockScoreboard>) {
+        *self.0.custom_scoreboard.lock().await = scoreboard.map(CustomScoreboard::Bedrock);
+        self.0.send_scoreboard().await;
+    }
+
+    pub async fn reset_scoreboard(&self) {
+        self.set_scoreboard(None).await;
+    }
+
+    pub async fn get_scoreboard(&self) -> Option<BedrockScoreboard> {
+        let guard = self.0.custom_scoreboard.lock().await;
+        if let Some(CustomScoreboard::Bedrock(sb)) = guard.as_ref() {
+            Some(sb.clone())
+        } else {
+            None
+        }
+    }
+
+    #[must_use]
+    pub fn client_data(&self) -> Option<Arc<pumpkin_protocol::bedrock::server::login::ClientData>> {
+        if let ClientPlatform::Bedrock(client) = self.0.client.as_ref() {
+            let data = client.client_data.load();
+            (**data).clone()
+        } else {
+            None
+        }
+    }
+
+    #[must_use]
+    pub fn device_os(&self) -> Option<i32> {
+        self.client_data().map(|d| d.device_os)
+    }
+
+    #[must_use]
+    pub fn device_id(&self) -> Option<String> {
+        self.client_data().map(|d| d.device_id.clone())
+    }
+
+    #[must_use]
+    pub fn device_model(&self) -> Option<String> {
+        self.client_data().map(|d| d.device_model.clone())
+    }
+
+    #[must_use]
+    pub fn game_version(&self) -> Option<String> {
+        self.client_data().map(|d| d.game_version.clone())
+    }
+
+    #[must_use]
+    pub fn language_code(&self) -> Option<String> {
+        self.client_data().map(|d| d.language_code.clone())
+    }
+
+    #[must_use]
+    pub fn current_input_mode(&self) -> Option<i32> {
+        self.client_data().map(|d| d.current_input_mode)
+    }
+
+    #[must_use]
+    pub fn default_input_mode(&self) -> Option<i32> {
+        self.client_data().map(|d| d.default_input_mode)
+    }
+
+    #[must_use]
+    pub fn ui_profile(&self) -> Option<i32> {
+        self.client_data().map(|d| d.ui_profile)
+    }
+
+    #[must_use]
+    pub fn gui_scale(&self) -> Option<i32> {
+        self.client_data().map(|d| d.gui_scale)
+    }
+
+    #[must_use]
+    pub fn max_view_distance(&self) -> Option<i32> {
+        self.client_data().map(|d| d.max_view_distance)
+    }
+
+    #[must_use]
+    pub fn memory_tier(&self) -> Option<i32> {
+        self.client_data().map(|d| d.memory_tier)
+    }
+
+    #[must_use]
+    pub fn graphics_mode(&self) -> Option<i32> {
+        self.client_data().map(|d| d.graphics_mode)
+    }
+}
 use pumpkin_data::attributes::Attributes;
 use pumpkin_data::block_properties::{BlockProperties, HorizontalFacing};
 use pumpkin_data::damage::DamageType;
@@ -594,6 +751,7 @@ pub struct Player {
     pub tab_list_listed: AtomicBool,
     pub per_player_time: AtomicCell<Option<(u64, bool)>>,
     pub per_player_weather: AtomicCell<Option<PlayerWeather>>,
+    pub custom_scoreboard: Mutex<Option<CustomScoreboard>>,
     pub compass_target: AtomicCell<Option<pumpkin_util::math::position::BlockPos>>,
     pub respawn_location: AtomicCell<Option<pumpkin_util::math::position::BlockPos>>,
     pub hidden_players: Mutex<std::collections::HashSet<uuid::Uuid>>,
@@ -853,6 +1011,7 @@ impl Player {
             tab_list_listed: AtomicBool::new(true),
             per_player_time: AtomicCell::new(None),
             per_player_weather: AtomicCell::new(None),
+            custom_scoreboard: Mutex::new(None),
             compass_target: AtomicCell::new(None),
             respawn_location: AtomicCell::new(None),
             hidden_players: Mutex::new(std::collections::HashSet::new()),
@@ -2760,14 +2919,16 @@ impl Player {
             .await;
     }
 
-    pub async fn set_player_time(&self, world: &World, time: u64, relative: bool) {
+    pub async fn set_player_time(&self, time: u64, relative: bool) {
+        let world = self.world();
         self.per_player_time.store(Some((time, relative)));
-        self.send_time(world).await;
+        self.send_time(&world).await;
     }
 
-    pub async fn reset_player_time(&self, world: &World) {
+    pub async fn reset_player_time(&self) {
+        let world = self.world();
         self.per_player_time.store(None);
-        self.send_time(world).await;
+        self.send_time(&world).await;
     }
 
     pub fn get_player_time(&self) -> Option<u64> {
@@ -2788,6 +2949,66 @@ impl Player {
 
     pub fn get_player_weather(&self) -> Option<PlayerWeather> {
         self.per_player_weather.load()
+    }
+
+    pub async fn send_editioned<
+        J: pumpkin_protocol::ClientPacket + Sync,
+        B: pumpkin_protocol::BClientPacket + Sync,
+    >(
+        &self,
+        je_packet: &J,
+        be_packet: &B,
+    ) {
+        match self.client.as_ref() {
+            ClientPlatform::Java(client) => client.enqueue_packet(je_packet).await,
+            ClientPlatform::Bedrock(client) => client.enqueue_packet(be_packet).await,
+        }
+    }
+
+    pub async fn send_client_packet<C: pumpkin_protocol::ClientPacket + Sync>(&self, packet: &C) {
+        if let ClientPlatform::Java(client) = self.client.as_ref() {
+            client.enqueue_packet(packet).await;
+        }
+    }
+
+    #[must_use]
+    pub fn as_java(&self) -> Option<JavaPlayer<'_>> {
+        matches!(self.client.as_ref(), ClientPlatform::Java(_)).then(|| JavaPlayer(self))
+    }
+
+    #[must_use]
+    pub fn as_bedrock(&self) -> Option<BedrockPlayer<'_>> {
+        matches!(self.client.as_ref(), ClientPlatform::Bedrock(_)).then(|| BedrockPlayer(self))
+    }
+
+    pub async fn reset_scoreboard(&self) {
+        *self.custom_scoreboard.lock().await = None;
+        self.send_scoreboard().await;
+    }
+
+    pub async fn send_scoreboard(&self) {
+        let guard = self.custom_scoreboard.lock().await;
+        match guard.as_ref() {
+            Some(CustomScoreboard::Java(custom))
+                if matches!(self.client.as_ref(), ClientPlatform::Java(_)) =>
+            {
+                custom.send_to_player(self).await;
+            }
+            Some(CustomScoreboard::Bedrock(custom))
+                if matches!(self.client.as_ref(), ClientPlatform::Bedrock(_)) =>
+            {
+                custom.send_to_player(self).await;
+            }
+            _ => {
+                drop(guard);
+                self.world()
+                    .scoreboard
+                    .lock()
+                    .await
+                    .send_to_player(self)
+                    .await;
+            }
+        }
     }
 
     pub async fn set_compass_target(&self, pos: pumpkin_util::math::position::BlockPos) {
@@ -2820,6 +3041,85 @@ impl Player {
 
     pub async fn can_see(&self, other_id: &uuid::Uuid) -> bool {
         !self.hidden_players.lock().await.contains(other_id)
+    }
+
+    pub async fn can_see_player(&self, other_id: &uuid::Uuid) -> bool {
+        self.can_see(other_id).await
+    }
+
+    // --- Experience & Leveling API ---
+    pub async fn add_experience(self: &Arc<Self>, points: i32) {
+        self.add_experience_points(points).await;
+    }
+
+    pub async fn add_levels(&self, levels: i32) {
+        self.add_experience_levels(levels).await;
+    }
+
+    pub fn get_experience_level(&self) -> i32 {
+        self.experience_level.load(Ordering::Relaxed)
+    }
+
+    pub fn get_experience_progress(&self) -> f32 {
+        self.experience_progress.load()
+    }
+
+    pub fn get_total_experience(&self) -> i32 {
+        self.experience_points.load(Ordering::Relaxed)
+    }
+
+    pub async fn set_experience_progress(&self, progress: f32) {
+        let level = self.get_experience_level();
+        let max_points = experience::points_in_level(level);
+        let points = (progress.clamp(0.0, 1.0) * max_points as f32) as i32;
+        self.set_experience(level, progress, points).await;
+    }
+
+    pub async fn set_total_experience(&self, points: i32) {
+        self.set_experience_points(points).await;
+    }
+
+    // --- Item Cooldown System ---
+    pub async fn set_item_cooldown(&self, item_id: &str, ticks: i32) {
+        self.start_cooldown(item_id.to_string(), ticks).await;
+    }
+
+    pub async fn get_item_cooldown(&self, item_id: &str) -> Option<i32> {
+        let cooldowns = self.item_cooldowns.lock().await;
+        if let Some(cooldown) = cooldowns.get(item_id) {
+            let current_tick = self.tick_counter.load(Ordering::Relaxed);
+            let elapsed = current_tick - cooldown.start_tick;
+            if elapsed < cooldown.duration {
+                return Some(cooldown.duration - elapsed);
+            }
+        }
+        None
+    }
+
+    pub async fn has_item_cooldown(&self, item_id: &str) -> bool {
+        self.is_on_cooldown(item_id).await
+    }
+
+    // --- Tab List & Display Names ---
+    pub fn set_tab_list_ping(&self, latency_ms: i32) {
+        self.set_tab_list_latency(latency_ms);
+    }
+
+    // --- Hunger & Saturation Aliases ---
+    pub fn get_food_saturation(&self) -> f32 {
+        self.get_saturation()
+    }
+
+    pub async fn set_food_saturation(&self, saturation: f32) {
+        self.set_saturation(saturation).await;
+    }
+
+    pub fn get_food_exhaustion(&self) -> f32 {
+        self.get_exhaustion()
+    }
+
+    pub async fn set_food_exhaustion(&self, exhaustion: f32) {
+        self.set_exhaustion(exhaustion).await;
     }
 
     pub async fn get_target_block(
@@ -3651,14 +3951,6 @@ impl Player {
                 target_name,
             ))
             .await;
-    }
-
-    /// Sends a custom payload packet to this player (Java edition only).
-    pub async fn send_custom_payload(&self, channel: &str, data: &[u8]) {
-        if let ClientPlatform::Java(java) = self.client.as_ref() {
-            java.enqueue_packet(&CCustomPayload::new(channel, data))
-                .await;
-        }
     }
 
     pub async fn drop_item(&self, item_stack: ItemStack) {

@@ -3407,6 +3407,9 @@ impl World {
         // Sends initial time
         player.send_time(self).await;
 
+        // Sends initial scoreboard state
+        player.send_scoreboard().await;
+
         let (spawn_block_pos, yaw, pitch) = {
             let level_info_lock = self.level_info.load();
             (
