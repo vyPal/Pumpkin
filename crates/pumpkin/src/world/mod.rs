@@ -5,7 +5,9 @@ use pumpkin_data::chunk::Biome;
 use pumpkin_data::item::{BedrockItem, BedrockItemVersion};
 use pumpkin_protocol::bedrock::client::item_registry::{CItemRegistry, ItemDefinition};
 use pumpkin_protocol::bedrock::client::level_event::{CLevelEvent, LevelEvent};
-use pumpkin_protocol::bedrock::client::{CBiomeDefinitionList, EntityProperties};
+use pumpkin_protocol::bedrock::client::{
+    CBiomeDefinitionList, EntityProperties, block_actor_data::CBlockActorData,
+};
 use pumpkin_protocol::bedrock::network_item::{NetworkItemDescriptor, NetworkItemStackDescriptor};
 use pumpkin_protocol::codec::data_component::data_to_proto_sound;
 use pumpkin_world::generation::proto_chunk::GenerationCache;
@@ -1289,6 +1291,12 @@ impl World {
                         be_block_id as u32,
                     ),
                 );
+                if let Some(data) = self.bedrock_block_entity_data(block_state_id, block_pos) {
+                    self.broadcast_to_chunk_bedrock(
+                        chunk_pos,
+                        &CBlockActorData::new(block_pos, data),
+                    );
+                }
             } else {
                 let players = self.players.load();
                 let mut java_recipients = Vec::new();
@@ -1311,6 +1319,13 @@ impl World {
                                         be_block_id as u32,
                                     ),
                                 );
+                                if let Some(data) =
+                                    self.bedrock_block_entity_data(*block_state_id, *block_pos)
+                                {
+                                    be_client.try_enqueue_packet(&CBlockActorData::new(
+                                        *block_pos, data,
+                                    ));
+                                }
                             }
                         }
                     }
@@ -5442,33 +5457,61 @@ impl World {
         Some(entity)
     }
 
+    fn bedrock_block_entity_data(
+        &self,
+        state_id: BlockStateId,
+        position: BlockPos,
+    ) -> Option<NbtCompound> {
+        self.get_block_entity(&position)?
+            .bedrock_block_actor_data(state_id)
+    }
+
     /// Builds Bedrock block actor tags that are not represented by Java block states alone.
     pub fn bedrock_chunk_block_actors(&self, chunk: &ChunkData) -> Vec<NbtCompound> {
         let chunk_pos = Vector2::new(chunk.x, chunk.z);
-        let live_positions: FxHashSet<_> = self
+        let live_entities: FxHashMap<_, _> = self
             .block_entities
             .get(&chunk_pos)
-            .map(|entities| entities.keys().copied().collect())
+            .map(|entities| {
+                entities
+                    .iter()
+                    .map(|(position, entity)| (*position, entity.clone()))
+                    .collect()
+            })
             .unwrap_or_default();
-
         let pending = chunk
             .pending_block_entities
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        live_positions
+
+        live_entities
             .iter()
-            .chain(
-                pending
-                    .keys()
-                    .filter(|position| !live_positions.contains(position)),
-            )
-            .filter_map(|position| {
+            .filter_map(|(position, entity)| {
                 let relative = position.chunk_relative_position();
                 chunk
                     .section
                     .get_block_absolute_y(relative.x as usize, relative.y, relative.z as usize)
-                    .and_then(|state_id| bedrock_chest_block_actor(state_id, *position))
+                    .and_then(|state_id| {
+                        bedrock_chest_block_actor(state_id, *position)
+                            .or_else(|| entity.bedrock_block_actor_data(state_id))
+                    })
             })
+            .chain(
+                pending
+                    .iter()
+                    .filter(|(position, _)| !live_entities.contains_key(position))
+                    .filter_map(|(position, nbt)| {
+                        let relative = position.chunk_relative_position();
+                        let state_id = chunk.section.get_block_absolute_y(
+                            relative.x as usize,
+                            relative.y,
+                            relative.z as usize,
+                        )?;
+                        bedrock_chest_block_actor(state_id, *position).or_else(|| {
+                            block_entity_from_nbt(nbt)?.bedrock_block_actor_data(state_id)
+                        })
+                    }),
+            )
             .collect()
     }
 
@@ -5803,6 +5846,19 @@ impl World {
 
         let recipients_by_version = Self::collect_java_recipients_by_version(recipients);
         Self::broadcast_java_grouped(packet, recipients_by_version);
+    }
+
+    fn broadcast_to_chunk_bedrock<P: BClientPacket>(&self, chunk_pos: Vector2<i32>, packet: &P) {
+        let players = self.players.load();
+        for player in players.iter().filter(|player| {
+            let center = player.get_entity().chunk_pos.load();
+            let view_distance = get_view_distance(player).get() as i32;
+            is_within_view_distance(chunk_pos, center, view_distance)
+        }) {
+            if let ClientPlatform::Bedrock(client) = player.client.as_ref() {
+                client.try_enqueue_packet(packet);
+            }
+        }
     }
 
     pub fn broadcast_to_chunk_editioned_sync<J: ClientPacket, B: BClientPacket>(
