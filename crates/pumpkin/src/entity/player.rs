@@ -4133,15 +4133,26 @@ impl Player {
                         let dx = pos.x - map_data.center_x as f64;
                         let dz = pos.z - map_data.center_z as f64;
 
-                        let icon_x = (dx / scale as f64 * 2.0).clamp(-128.0, 127.0) as i8;
-                        let icon_z = (dz / scale as f64 * 2.0).clamp(-128.0, 127.0) as i8;
+                        let raw_x = dx / scale as f64 * 2.0;
+                        let raw_z = dz / scale as f64 * 2.0;
+                        let is_off_map = !(-127.0..=127.0).contains(&raw_x)
+                            || !(-127.0..=127.0).contains(&raw_z);
+
+                        let icon_x = raw_x.clamp(-128.0, 127.0) as i8;
+                        let icon_z = raw_z.clamp(-128.0, 127.0) as i8;
 
                         let yaw = self.living_entity.entity.yaw.load();
                         let icon_direction =
                             ((((yaw * 16.0 / 360.0).round() as i32 + 8) % 16 + 16) % 16) as i8;
 
+                        let decoration_type = if is_off_map {
+                            &pumpkin_data::map_decoration::MapDecorationType::PLAYER_OFF_MAP
+                        } else {
+                            &pumpkin_data::map_decoration::MapDecorationType::PLAYER
+                        };
+
                         let icons = [MapIcon {
-                            icon_type: VarInt(0), // White pointer
+                            icon_type: VarInt(decoration_type.id as i32),
                             x: icon_x,
                             z: icon_z,
                             direction: icon_direction,

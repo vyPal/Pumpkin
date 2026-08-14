@@ -30,6 +30,7 @@ pub mod hopper;
 pub mod jigsaw_block;
 pub mod jukebox;
 pub mod lectern;
+pub mod map;
 pub mod mob_spawner;
 pub mod piston;
 pub mod shulker_box;
@@ -277,6 +278,7 @@ pub fn block_entity_from_nbt(nbt: &NbtCompound) -> Option<Arc<dyn BlockEntity>> 
         conduit::ConduitBlockEntity::ID => {
             Some(Arc::new(conduit::ConduitBlockEntity::from_nbt(nbt, pos)))
         }
+        map::MAP_BLOCK_ENTITY_ID => Some(Arc::new(map::MapBlockEntity::from_nbt(nbt, pos))),
         campfire::CampfireBlockEntity::ID => {
             Some(Arc::new(campfire::CampfireBlockEntity::from_nbt(nbt, pos)))
         }
@@ -439,6 +441,7 @@ pub fn create_block_entity(
         "potent_sulfur" => Some(Arc::new(potent_sulfur::PotentSulfurBlockEntity::new(
             position,
         ))),
+        "map" => Some(Arc::new(map::MapBlockEntity::new(position, 0))),
         _ => None,
     }
 }

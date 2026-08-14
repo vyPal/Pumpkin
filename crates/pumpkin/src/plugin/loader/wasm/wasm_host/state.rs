@@ -67,6 +67,14 @@ pub type ItemStackResource = WasmResource<Arc<Mutex<pumpkin_data::item_stack::It
 pub type RecipeManagerResource = WasmResource<Arc<RecipeManager>>;
 pub type BlockEntityResource = WasmResource<Arc<dyn crate::block::entities::BlockEntity>>;
 
+#[derive(Clone)]
+pub struct ContainerBlockEntity {
+    pub provider: Arc<dyn crate::block::entities::BlockEntity>,
+    pub inventory: Arc<dyn pumpkin_world::inventory::Inventory>,
+}
+
+pub type ContainerBlockEntityResource = WasmResource<ContainerBlockEntity>;
+
 pub type OwnedConsumedArgs = HashMap<String, OwnedArg>;
 
 pub struct PluginHostState {
@@ -291,6 +299,20 @@ impl PluginHostState {
         provider: Arc<dyn crate::block::entities::BlockEntity>,
     ) -> wasmtime::Result<wasmtime::component::Resource<T>> {
         let resource = self.resource_table.push(BlockEntityResource { provider })?;
+        Ok(wasmtime::component::Resource::new_own(resource.rep()))
+    }
+
+    pub fn add_container_block_entity<T>(
+        &mut self,
+        provider: Arc<dyn crate::block::entities::BlockEntity>,
+        inventory: Arc<dyn pumpkin_world::inventory::Inventory>,
+    ) -> wasmtime::Result<wasmtime::component::Resource<T>> {
+        let resource = self.resource_table.push(ContainerBlockEntityResource {
+            provider: ContainerBlockEntity {
+                provider,
+                inventory,
+            },
+        })?;
         Ok(wasmtime::component::Resource::new_own(resource.rep()))
     }
 }
