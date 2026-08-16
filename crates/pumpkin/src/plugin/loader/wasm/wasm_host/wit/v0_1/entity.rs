@@ -666,7 +666,10 @@ impl HostEntity for PluginHostState {
         let entity = entity_from_resource(self, &entity)?;
         let attribute = from_wit_attribute(attr);
         if let Some(living) = entity.get_living_entity() {
-            let map = living.attributes.read().unwrap();
+            let map = living
+                .attributes
+                .read()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             if let Some(inst) = map.get(&attribute.id) {
                 return Ok(inst
                     .modifiers
@@ -691,7 +694,10 @@ impl HostEntity for PluginHostState {
         let attribute = from_wit_attribute(attr);
         if let Some(living) = entity.get_living_entity() {
             {
-                let mut map = living.attributes.write().unwrap();
+                let mut map = living
+                    .attributes
+                    .write()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 map.remove(&attribute.id);
             };
             crate::entity::attributes::send_attribute_updates_for_living(
