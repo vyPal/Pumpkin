@@ -3556,7 +3556,6 @@ dependencies = [
  "ed25519-dalek",
  "hex",
  "pumpkin-plugin-api",
- "semver",
  "serde",
  "serde_json",
  "tempfile",
