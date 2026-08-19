@@ -33,7 +33,10 @@ use tracing::{debug, error, warn};
 
 use crate::{
     entity::player::ChatMode,
-    net::{EncryptionError, GameProfile, PacketHandlerResult, PlayerConfig, can_not_join},
+    net::{
+        EncryptionError, GameProfile, PacketHandlerResult, PacketRateLimiter, PlayerConfig,
+        can_not_join,
+    },
     server::Server,
 };
 
@@ -53,11 +56,17 @@ pub struct PendingConnection {
     pub gameprofile: Option<GameProfile>,
     pub config: Option<PlayerConfig>,
     pub brand: Option<String>,
+    pub packet_limiter: PacketRateLimiter,
 }
 
 impl PendingConnection {
     #[must_use]
-    pub fn new(tcp_stream: TcpStream, address: SocketAddr, id: u64) -> Self {
+    pub fn new(
+        tcp_stream: TcpStream,
+        address: SocketAddr,
+        id: u64,
+        packet_limiter: PacketRateLimiter,
+    ) -> Self {
         let (read, write) = tcp_stream.into_split();
         Self {
             id,
@@ -71,6 +80,7 @@ impl PendingConnection {
             gameprofile: None,
             config: None,
             brand: None,
+            packet_limiter,
         }
     }
 
@@ -172,6 +182,25 @@ impl PendingConnection {
 
     pub async fn handle_login_sequence(&mut self, server: &Arc<Server>) -> PacketHandlerResult {
         while let Some(packet) = self.get_packet().await {
+            if !self.packet_limiter.check_packet() {
+                warn!(
+                    "Pending client {} exceeded packet rate limit (rate: {}/s)",
+                    self.id,
+                    self.packet_limiter.max_rate()
+                );
+                self.kick(TextComponent::text(
+                    server
+                        .advanced_config
+                        .networking
+                        .java
+                        .packet_limiter
+                        .kick_message
+                        .clone(),
+                ))
+                .await;
+                return PacketHandlerResult::Stop;
+            }
+
             match self.handle_packet(server, &packet).await {
                 Ok(result) => {
                     if let Some(result) = result {

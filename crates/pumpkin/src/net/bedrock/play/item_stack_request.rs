@@ -514,10 +514,11 @@ impl BedrockClient {
         }
 
         // Send Bedrock specific responses and updates
-        self.enqueue_packet(&CItemStackResponse { responses }).await;
+        self.enqueue_client_packet(&CItemStackResponse { responses })
+            .await;
 
         if inventory_updated {
-            self.enqueue_packet(&CInventoryContent {
+            self.enqueue_client_packet(&CInventoryContent {
                 container_id: VarUInt(0),
                 slots: player
                     .inventory()

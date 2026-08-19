@@ -108,13 +108,10 @@ impl CommandExecutor for RecipeGiveExecutor {
             }
 
             let recipe_count = matching_recipes.len();
+            let packet = CRecipeBookAdd::new(false, &matching_recipes);
 
             for player in &targets {
-                if let crate::net::ClientPlatform::Java(java_client) = player.client.as_ref() {
-                    java_client
-                        .send_packet_now(&CRecipeBookAdd::new(false, &matching_recipes))
-                        .await;
-                }
+                player.send_client_packet(&packet).await;
             }
 
             let recipe_count_str = recipe_count.to_string();
@@ -193,12 +190,9 @@ impl CommandExecutor for RecipeTakeExecutor {
                 all_recipes.len() - remaining_recipes.len()
             };
 
+            let packet = CRecipeBookAdd::new(true, &remaining_recipes);
             for player in &targets {
-                if let crate::net::ClientPlatform::Java(java_client) = player.client.as_ref() {
-                    java_client
-                        .send_packet_now(&CRecipeBookAdd::new(true, &remaining_recipes))
-                        .await;
-                }
+                player.send_client_packet(&packet).await;
             }
 
             let taken_count_str = taken_count.to_string();

@@ -62,16 +62,16 @@ pub struct JavaPlayer<'a>(pub &'a Player);
 
 impl JavaPlayer<'_> {
     pub async fn send_packet<C: pumpkin_protocol::ClientPacket + Sync>(&self, packet: &C) {
-        if let ClientPlatform::Java(client) = self.0.client.as_ref() {
-            client.enqueue_packet(packet).await;
+        if let ClientPlatform::Java(client) = self.0.client.as_ref()
+            && let Ok(data) = client.serialize_packet(packet)
+        {
+            client.enqueue_packet(data).await;
         }
     }
 
     pub async fn send_custom_payload(&self, channel: &str, data: &[u8]) {
-        if let ClientPlatform::Java(java) = self.0.client.as_ref() {
-            java.enqueue_packet(&CCustomPayload::new(channel, data))
-                .await;
-        }
+        let packet = CCustomPayload::new(channel, data);
+        self.send_packet(&packet).await;
     }
 
     pub async fn send_stats(&self) {
@@ -102,8 +102,10 @@ pub struct BedrockPlayer<'a>(pub &'a Player);
 
 impl BedrockPlayer<'_> {
     pub async fn send_packet<P: pumpkin_protocol::BClientPacket + Sync>(&self, packet: &P) {
-        if let ClientPlatform::Bedrock(client) = self.0.client.as_ref() {
-            client.send_game_packet(packet).await;
+        if let ClientPlatform::Bedrock(client) = self.0.client.as_ref()
+            && let Ok(data) = client.serialize_packet(packet)
+        {
+            client.enqueue_packet(data).await;
         }
     }
 
@@ -1070,8 +1072,7 @@ impl Player {
     pub async fn set_tab_list_header_footer(&self, header: TextComponent, footer: TextComponent) {
         *self.tab_list_header.lock().await = header.clone();
         *self.tab_list_footer.lock().await = footer.clone();
-        self.client
-            .enqueue_packet(&CTabList::new(&header, &footer))
+        self.send_client_packet(&CTabList::new(&header, &footer))
             .await;
     }
 
@@ -1084,8 +1085,7 @@ impl Player {
                 duration,
             },
         );
-        self.client
-            .send_packet_now(&CItemCooldown::new(group, VarInt(duration)))
+        self.send_client_packet(&CItemCooldown::new(group, VarInt(duration)))
             .await;
     }
 
@@ -2227,26 +2227,17 @@ impl Player {
     }
 
     pub async fn send_title_animation(&self, fade_in: i32, stay: i32, fade_out: i32) {
-        match self.client.as_ref() {
-            ClientPlatform::Java(client) => {
-                client
-                    .enqueue_packet(&CTitleAnimation::new(fade_in, stay, fade_out))
-                    .await;
-            }
-            ClientPlatform::Bedrock(client) => {
-                client
-                    .send_game_packet(
-                        &pumpkin_protocol::bedrock::client::set_title::CSetTitle::new(
-                            5,
-                            String::new(),
-                            fade_in,
-                            stay,
-                            fade_out,
-                        ),
-                    )
-                    .await;
-            }
-        }
+        self.enqueue_packet_editioned(
+            &CTitleAnimation::new(fade_in, stay, fade_out),
+            &pumpkin_protocol::bedrock::client::set_title::CSetTitle::new(
+                5,
+                String::new(),
+                fade_in,
+                stay,
+                fade_out,
+            ),
+        )
+        .await;
     }
 
     pub fn spawn_particle(
@@ -2257,7 +2248,7 @@ impl Player {
         particle_count: i32,
         particle: Particle,
     ) {
-        self.client.try_enqueue_packet(&CParticle::new(
+        let packet = CParticle::new(
             false,
             false,
             position,
@@ -2266,7 +2257,12 @@ impl Player {
             particle_count,
             VarInt(particle as i32),
             &[],
-        ));
+        );
+        if let ClientPlatform::Java(client) = self.client.as_ref()
+            && let Ok(data) = client.serialize_packet(&packet)
+        {
+            client.try_enqueue_packet(data);
+        }
     }
 
     pub async fn play_sound(
@@ -2278,16 +2274,8 @@ impl Player {
         pitch: f32,
         seed: f64,
     ) {
-        self.client
-            .enqueue_packet(&CSoundEffect::new(
-                IdOr::Id(sound_id),
-                category,
-                position,
-                volume,
-                pitch,
-                seed,
-            ))
-            .await;
+        let packet = CSoundEffect::new(IdOr::Id(sound_id), category, position, volume, pitch, seed);
+        self.send_client_packet(&packet).await;
     }
 
     pub async fn play_sound_event(
@@ -2299,16 +2287,8 @@ impl Player {
         pitch: f32,
         seed: f64,
     ) {
-        self.client
-            .enqueue_packet(&CSoundEffect::new(
-                IdOr::Value(sound),
-                category,
-                position,
-                volume,
-                pitch,
-                seed,
-            ))
-            .await;
+        let packet = CSoundEffect::new(IdOr::Value(sound), category, position, volume, pitch, seed);
+        self.send_client_packet(&packet).await;
     }
 
     /// Stops a sound playing on the client.
@@ -2322,9 +2302,8 @@ impl Player {
         sound_id: Option<ResourceLocation>,
         category: Option<SoundCategory>,
     ) {
-        self.client
-            .enqueue_packet(&CStopSound::new(sound_id, category))
-            .await;
+        let packet = CStopSound::new(sound_id, category);
+        self.send_client_packet(&packet).await;
     }
 
     #[expect(clippy::too_many_lines)]
@@ -2348,8 +2327,7 @@ impl Player {
                 } else {
                     // Target no longer exists, reset camera back to player
                     self.camera_target_id.store(None);
-                    self.client
-                        .send_packet_now(&CSetCamera::new(self.entity_id().into()))
+                    self.send_client_packet(&CSetCamera::new(self.entity_id().into()))
                         .await;
                 }
             }
@@ -2416,9 +2394,9 @@ impl Player {
                 && !self.bedrock_spawned.load(Ordering::Relaxed)
                 && total_sent_chunks > 4
             {
-                bedrock_client
-                    .enqueue_packet(&CPlayStatus::PlayerSpawn)
-                    .await;
+                if let Ok(data) = bedrock_client.serialize_packet(&CPlayStatus::PlayerSpawn) {
+                    bedrock_client.enqueue_packet(data).await;
+                }
                 self.bedrock_spawned.store(true, Ordering::Relaxed);
                 self.set_client_loaded(true);
                 self.send_health().await;
@@ -2717,12 +2695,10 @@ impl Player {
                 if abilities.creative {
                     b |= 8;
                 }
-                java.enqueue_packet(&CPlayerAbilities::new(
-                    b,
-                    abilities.fly_speed,
-                    abilities.walk_speed,
-                ))
-                .await;
+                let packet = CPlayerAbilities::new(b, abilities.fly_speed, abilities.walk_speed);
+                if let Ok(data) = java.serialize_packet(&packet) {
+                    java.enqueue_packet(data).await;
+                }
             }
             ClientPlatform::Bedrock(bedrock) => {
                 let abilities = self.abilities.lock().await;
@@ -2797,7 +2773,9 @@ impl Player {
                     layers,
                 };
 
-                bedrock.send_game_packet(&packet).await;
+                if let Ok(data) = bedrock.serialize_packet(&packet) {
+                    bedrock.send_game_packet(data).await;
+                }
             }
         }
     }
@@ -2815,10 +2793,12 @@ impl Player {
                 })
                 .collect();
 
-            java.enqueue_packet(&CAwardStats {
+            let packet = CAwardStats {
                 stats: &packet_stats,
-            })
-            .await;
+            };
+            if let Ok(data) = java.serialize_packet(&packet) {
+                java.enqueue_packet(data).await;
+            }
         }
     }
 
@@ -3062,15 +3042,54 @@ impl Player {
         je_packet: &J,
         be_packet: &B,
     ) {
-        match self.client.as_ref() {
-            ClientPlatform::Java(client) => client.enqueue_packet(je_packet).await,
-            ClientPlatform::Bedrock(client) => client.enqueue_packet(be_packet).await,
-        }
+        self.client
+            .enqueue_packet_editioned(je_packet, be_packet)
+            .await;
+    }
+
+    pub async fn enqueue_packet_editioned<
+        J: pumpkin_protocol::ClientPacket + Sync,
+        B: pumpkin_protocol::BClientPacket + Sync,
+    >(
+        &self,
+        je_packet: &J,
+        be_packet: &B,
+    ) {
+        self.client
+            .enqueue_packet_editioned(je_packet, be_packet)
+            .await;
+    }
+
+    pub fn try_enqueue_packet_editioned<
+        J: pumpkin_protocol::ClientPacket + Sync,
+        B: pumpkin_protocol::BClientPacket + Sync,
+    >(
+        &self,
+        je_packet: &J,
+        be_packet: &B,
+    ) {
+        self.client
+            .try_enqueue_packet_editioned(je_packet, be_packet);
+    }
+
+    pub async fn send_packet_now_editioned<
+        J: pumpkin_protocol::ClientPacket + Sync,
+        B: pumpkin_protocol::BClientPacket + Sync,
+    >(
+        &self,
+        je_packet: &J,
+        be_packet: &B,
+    ) {
+        self.client
+            .send_packet_now_editioned(je_packet, be_packet)
+            .await;
     }
 
     pub async fn send_client_packet<C: pumpkin_protocol::ClientPacket + Sync>(&self, packet: &C) {
-        if let ClientPlatform::Java(client) = self.client.as_ref() {
-            client.enqueue_packet(packet).await;
+        if let ClientPlatform::Java(client) = self.client.as_ref()
+            && let Ok(data) = client.serialize_packet(packet)
+        {
+            client.enqueue_packet(data).await;
         }
     }
 
@@ -3129,8 +3148,7 @@ impl Player {
     pub async fn set_compass_target(&self, pos: pumpkin_util::math::position::BlockPos) {
         use pumpkin_protocol::java::client::play::CPlayerSpawnPosition;
         self.compass_target.store(Some(pos));
-        self.client
-            .enqueue_packet(&CPlayerSpawnPosition::new(pos, 0.0, 0.0, String::new()))
+        self.send_client_packet(&CPlayerSpawnPosition::new(pos, 0.0, 0.0, String::new()))
             .await;
     }
 
@@ -3272,8 +3290,7 @@ impl Player {
             level.clean_entity_chunks(&chunks_to_clean);
         }
         for chunk in &chunks_to_clean {
-            self.client
-                .enqueue_packet(&CUnloadChunk::new(chunk.x, chunk.y))
+            self.send_client_packet(&CUnloadChunk::new(chunk.x, chunk.y))
                 .await;
         }
 
@@ -3352,7 +3369,7 @@ impl Player {
                 ));
                 match self.client.as_ref() {
                     ClientPlatform::Java(java) => {
-                        java.send_packet_now(&CRespawn::new(
+                        let packet = CRespawn::new(
                             PlayerSpawnData::new(
                                 new_world.dimension.clone(),
                                 biome::hash_seed(new_world.level.seed.0), // seed
@@ -3365,7 +3382,10 @@ impl Player {
                                 new_world.sea_level.into(),
                             ),
                             CRespawn::KEEP_ALL_DATA,
-                        )).await;
+                        );
+                        if let Ok(data) = java.serialize_packet(&packet) {
+                            java.send_packet_now(data).await;
+                        }
                     }
                     ClientPlatform::Bedrock(bedrock) => {
                         let bedrock_dimension = if new_world.dimension == Dimension::OVERWORLD {
@@ -3383,7 +3403,9 @@ impl Player {
                             pos_f32,
                             false,
                         );
-                        bedrock.enqueue_packet(&change_dim_packet).await;
+                        if let Ok(data) = bedrock.serialize_packet(&change_dim_packet) {
+                            bedrock.enqueue_packet(data).await;
+                        }
                         self.bedrock_spawned.store(false, Ordering::Relaxed);
                     }
                 }
@@ -3440,40 +3462,42 @@ impl Player {
                     ClientPlatform::Java(client) => {
                         *self.awaiting_teleport.lock().await =
                             Some((teleport_id.into(), position));
-                        client
-                            .send_packet_now(&CPlayerPosition::new(
-                                teleport_id.into(),
-                                position,
-                                Vector3::new(0.0, 0.0, 0.0),
-                                yaw,
-                                pitch,
-                                // TODO
-                                Vec::new(),
-                            ))
-                            .await;
+                        let packet = CPlayerPosition::new(
+                            teleport_id.into(),
+                            position,
+                            Vector3::new(0.0, 0.0, 0.0),
+                            yaw,
+                            pitch,
+                            // TODO
+                            Vec::new(),
+                        );
+                        if let Ok(data) = client.serialize_packet(&packet) {
+                            client.send_packet_now(data).await;
+                        }
                     }
                     ClientPlatform::Bedrock(client) => {
-                        client
-                            .send_game_packet(&CBedrockMovePlayer::new(
-                                VarULong(self.entity_id() as u64),
-                                Vector3::new(
-                                    position.x as f32,
-                                    position.y as f32 + entity.entity_type.eye_height,
-                                    position.z as f32,
-                                ),
-                                pitch,
-                                yaw,
-                                yaw,
-                                CBedrockMovePlayer::MODE_TELEPORT,
-                                false,
-                                VarULong(0),
-                                0,
-                                0,
-                                VarULong(
-                                    self.tick_counter.load(Ordering::Relaxed).max(0) as u64,
-                                ),
-                            ))
-                            .await;
+                        let packet = CBedrockMovePlayer::new(
+                            VarULong(self.entity_id() as u64),
+                            Vector3::new(
+                                position.x as f32,
+                                position.y as f32 + entity.entity_type.eye_height,
+                                position.z as f32,
+                            ),
+                            pitch,
+                            yaw,
+                            yaw,
+                            CBedrockMovePlayer::MODE_TELEPORT,
+                            false,
+                            VarULong(0),
+                            0,
+                            0,
+                            VarULong(
+                                self.tick_counter.load(Ordering::Relaxed).max(0) as u64,
+                            ),
+                        );
+                        if let Ok(data) = client.serialize_packet(&packet) {
+                            client.send_game_packet(data).await;
+                        }
                     }
                 }
             }
@@ -3623,59 +3647,50 @@ impl Player {
             return;
         }
 
-        match self.client.as_ref() {
-            ClientPlatform::Java(client) => {
-                client
-                    .enqueue_packet(&CSetHealth::new(
+        let max_health = self.living_entity.get_max_health();
+        let attribute = |name: &str, current_value, max_value, default_value| BedrockAttribute {
+            min_value: 0.0,
+            max_value,
+            current_value,
+            default_min_value: 0.0,
+            default_max_value: max_value,
+            default_value,
+            name: name.to_string(),
+            modifiers_list_size: pumpkin_protocol::codec::var_uint::VarUInt(0),
+        };
+
+        self.enqueue_packet_editioned(
+            &CSetHealth::new(
+                self.living_entity.health.load(),
+                self.hunger_manager.level.load().into(),
+                self.hunger_manager.saturation.load(),
+            ),
+            &CBedrockAttributes {
+                runtime_id: VarULong(self.entity_id() as u64),
+                attributes: vec![
+                    attribute(
+                        "minecraft:health",
                         self.living_entity.health.load(),
+                        max_health,
+                        max_health,
+                    ),
+                    attribute(
+                        "minecraft:player.hunger",
                         self.hunger_manager.level.load().into(),
+                        20.0,
+                        20.0,
+                    ),
+                    attribute(
+                        "minecraft:player.saturation",
                         self.hunger_manager.saturation.load(),
-                    ))
-                    .await;
-            }
-            ClientPlatform::Bedrock(client) => {
-                let max_health = self.living_entity.get_max_health();
-                let attribute =
-                    |name: &str, current_value, max_value, default_value| BedrockAttribute {
-                        min_value: 0.0,
-                        max_value,
-                        current_value,
-                        default_min_value: 0.0,
-                        default_max_value: max_value,
-                        default_value,
-                        name: name.to_string(),
-                        modifiers_list_size: pumpkin_protocol::codec::var_uint::VarUInt(0),
-                    };
-                client
-                    .enqueue_packet(&CBedrockAttributes {
-                        runtime_id: VarULong(self.entity_id() as u64),
-                        attributes: vec![
-                            attribute(
-                                "minecraft:health",
-                                self.living_entity.health.load(),
-                                max_health,
-                                max_health,
-                            ),
-                            attribute(
-                                "minecraft:player.hunger",
-                                self.hunger_manager.level.load().into(),
-                                20.0,
-                                20.0,
-                            ),
-                            attribute(
-                                "minecraft:player.saturation",
-                                self.hunger_manager.saturation.load(),
-                                20.0,
-                                5.0,
-                            ),
-                        ],
-                        player_tick: VarULong(
-                            self.tick_counter.load(Ordering::Relaxed).max(0) as u64
-                        ),
-                    })
-                    .await;
-            }
-        }
+                        20.0,
+                        5.0,
+                    ),
+                ],
+                player_tick: VarULong(self.tick_counter.load(Ordering::Relaxed).max(0) as u64),
+            },
+        )
+        .await;
     }
 
     async fn send_bedrock_respawn_state(&self, state: RespawnState) {
@@ -3683,7 +3698,7 @@ impl Player {
             let entity = self.get_entity();
             let position = entity.pos.load();
             client
-                .send_game_packet(&CBedrockRespawn::new(
+                .send_packet(&CBedrockRespawn::new(
                     Vector3::new(
                         position.x as f32,
                         position.y as f32 + entity.entity_type.eye_height,
@@ -4034,7 +4049,7 @@ impl Player {
 
                 if gamemode != GameMode::Spectator && self.camera_target_id.load().is_some() {
                     self.camera_target_id.store(None);
-                    self.client.send_packet_now(&CSetCamera::new(
+                    self.send_client_packet(&CSetCamera::new(
                         self.entity_id().into()
                     )).await;
                 }
@@ -4165,14 +4180,13 @@ impl Player {
         sender_name: &TextComponent,
         target_name: Option<&TextComponent>,
     ) {
-        self.client
-            .enqueue_packet(&CDisguisedChatMessage::new(
-                message,
-                (chat_type + 1).into(),
-                sender_name,
-                target_name,
-            ))
-            .await;
+        self.send_client_packet(&CDisguisedChatMessage::new(
+            message,
+            (chat_type + 1).into(),
+            sender_name,
+            target_name,
+        ))
+        .await;
     }
 
     pub async fn drop_item(&self, item_stack: ItemStack) {
@@ -4283,32 +4297,24 @@ impl Player {
     }
 
     pub async fn send_system_message_raw(&self, text: &TextComponent, overlay: bool) {
-        match self.client.as_ref() {
-            ClientPlatform::Java(client) => {
-                client
-                    .enqueue_packet(&CSystemChatMessage::new(text, overlay))
-                    .await;
+        let je_packet = CSystemChatMessage::new(text, overlay);
+        let locale = Locale::from_str(&self.config.load().locale).unwrap_or(Locale::EnUs);
+        let be_packet = match &*text.0.content {
+            pumpkin_util::text::TextContent::Translate {
+                translate,
+                bedrock_translate,
+                with,
+            } => {
+                let key = bedrock_translate.as_deref().unwrap_or(translate.as_ref());
+                let parameters = with
+                    .iter()
+                    .map(pumpkin_util::text::TextComponentBase::to_bedrock_string)
+                    .collect();
+                SText::translation(key.to_string(), parameters)
             }
-            ClientPlatform::Bedrock(client) => {
-                let locale = Locale::from_str(&self.config.load().locale).unwrap_or(Locale::EnUs);
-                let packet = match &*text.0.content {
-                    pumpkin_util::text::TextContent::Translate {
-                        translate,
-                        bedrock_translate,
-                        with,
-                    } => {
-                        let key = bedrock_translate.as_deref().unwrap_or(translate.as_ref());
-                        let parameters = with
-                            .iter()
-                            .map(pumpkin_util::text::TextComponentBase::to_bedrock_string)
-                            .collect();
-                        SText::translation(key.to_string(), parameters)
-                    }
-                    _ => SText::system_message(text.0.to_bedrock_legacy(locale)),
-                };
-                client.enqueue_packet(&packet).await;
-            }
-        }
+            _ => SText::system_message(text.0.to_bedrock_legacy(locale)),
+        };
+        self.enqueue_packet_editioned(&je_packet, &be_packet).await;
     }
 
     pub async fn tick_experience(&self) {
@@ -4323,13 +4329,12 @@ impl Player {
 
             self.last_sent_xp.store(level, Ordering::Relaxed);
 
-            self.client
-                .send_packet_now(&CSetExperience::new(
-                    progress.clamp(0.0, 1.0),
-                    level.into(),
-                    points.into(),
-                ))
-                .await;
+            self.send_client_packet(&CSetExperience::new(
+                progress.clamp(0.0, 1.0),
+                level.into(),
+                points.into(),
+            ))
+            .await;
         }
     }
 
@@ -4396,15 +4401,14 @@ impl Player {
                             data: &*map_data.colors,
                         });
 
-                        self.client
-                            .enqueue_packet(&CMapItemData {
-                                map_id: VarInt(map_id),
-                                scale: map_data.scale,
-                                locked: map_data.locked,
-                                icons: Some(&icons),
-                                data,
-                            })
-                            .await;
+                        self.send_client_packet(&CMapItemData {
+                            map_id: VarInt(map_id),
+                            scale: map_data.scale,
+                            locked: map_data.locked,
+                            icons: Some(&icons),
+                            data,
+                        })
+                        .await;
                         map_data.dirty = false;
                     }
                 }
@@ -4434,13 +4438,12 @@ impl Player {
         self.tick_experience().await;
 
         if self.has_client_loaded() {
-            self.client
-                .enqueue_packet(&CSetExperience::new(
-                    progress.clamp(0.0, 1.0),
-                    level.into(),
-                    points.into(),
-                ))
-                .await;
+            self.send_client_packet(&CSetExperience::new(
+                progress.clamp(0.0, 1.0),
+                level.into(),
+                points.into(),
+            ))
+            .await;
         }
     }
 
@@ -4510,27 +4513,25 @@ impl Player {
         }
 
         let effect_id = VarInt(i32::from(effect.effect_type.id));
-        self.client
-            .enqueue_packet(&CUpdateMobEffect::new(
-                self.entity_id().into(),
-                effect_id,
-                effect.amplifier.into(),
-                effect.duration.into(),
-                flag,
-            ))
-            .await;
+        self.send_client_packet(&CUpdateMobEffect::new(
+            self.entity_id().into(),
+            effect_id,
+            effect.amplifier.into(),
+            effect.duration.into(),
+            flag,
+        ))
+        .await;
     }
 
     pub async fn remove_effect(&self, effect_type: &'static StatusEffect) -> bool {
         let effect_id = VarInt(i32::from(effect_type.id));
-        self.client
-            .enqueue_packet(
-                &pumpkin_protocol::java::client::play::CRemoveMobEffect::new(
-                    self.entity_id().into(),
-                    effect_id,
-                ),
-            )
-            .await;
+        self.send_client_packet(
+            &pumpkin_protocol::java::client::play::CRemoveMobEffect::new(
+                self.entity_id().into(),
+                effect_id,
+            ),
+        )
+        .await;
 
         self.living_entity.remove_effect(effect_type).await
 
@@ -4543,14 +4544,13 @@ impl Player {
         for effect in self.living_entity.active_effects.lock().await.keys() {
             effect_list.push(*effect);
             let effect_id = VarInt(i32::from(effect.id));
-            self.client
-                .enqueue_packet(
-                    &pumpkin_protocol::java::client::play::CRemoveMobEffect::new(
-                        self.entity_id().into(),
-                        effect_id,
-                    ),
-                )
-                .await;
+            self.send_client_packet(
+                &pumpkin_protocol::java::client::play::CRemoveMobEffect::new(
+                    self.entity_id().into(),
+                    effect_id,
+                ),
+            )
+            .await;
             succeeded = true;
         }
 
@@ -6342,7 +6342,9 @@ impl InventoryPlayer for Player {
         Box::pin(async move {
             match self.client.as_ref() {
                 ClientPlatform::Java(java) => {
-                    java.enqueue_packet(packet).await;
+                    if let Ok(data) = java.serialize_packet(packet) {
+                        java.enqueue_packet(data).await;
+                    }
                 }
                 ClientPlatform::Bedrock(bedrock) => {
                     use pumpkin_protocol::bedrock::{
@@ -6375,7 +6377,9 @@ impl InventoryPlayer for Player {
                             },
                             storage_item: NetworkItemStackDescriptor::default(),
                         };
-                        bedrock.enqueue_packet(&bedrock_packet).await;
+                        if let Ok(data) = bedrock.serialize_packet(&bedrock_packet) {
+                            bedrock.enqueue_packet(data).await;
+                        }
                     } else if matches!(
                         window_type,
                         Some(
@@ -6408,7 +6412,9 @@ impl InventoryPlayer for Player {
                             },
                             storage_item: NetworkItemStackDescriptor::default(),
                         };
-                        bedrock.enqueue_packet(&bedrock_packet).await;
+                        if let Ok(data) = bedrock.serialize_packet(&bedrock_packet) {
+                            bedrock.enqueue_packet(data).await;
+                        }
                     }
                 }
             }
@@ -6424,7 +6430,9 @@ impl InventoryPlayer for Player {
         Box::pin(async move {
             match self.client.as_ref() {
                 ClientPlatform::Java(java) => {
-                    java.enqueue_packet(packet).await;
+                    if let Ok(data) = java.serialize_packet(packet) {
+                        java.enqueue_packet(data).await;
+                    }
                 }
                 ClientPlatform::Bedrock(bedrock) => {
                     use pumpkin_protocol::bedrock::{
@@ -6449,7 +6457,9 @@ impl InventoryPlayer for Player {
                                 storage: None,
                                 item: item_desc,
                             };
-                            bedrock.enqueue_packet(&bedrock_packet).await;
+                            if let Ok(data) = bedrock.serialize_packet(&bedrock_packet) {
+                                bedrock.enqueue_packet(data).await;
+                            }
                         }
                     } else {
                         let slot_idx = packet.slot as usize;
@@ -6493,7 +6503,9 @@ impl InventoryPlayer for Player {
                                 storage: None,
                                 item: item_desc,
                             };
-                            bedrock.enqueue_packet(&bedrock_packet).await;
+                            if let Ok(data) = bedrock.serialize_packet(&bedrock_packet) {
+                                bedrock.enqueue_packet(data).await;
+                            }
                         }
                     }
                 }
@@ -6505,7 +6517,9 @@ impl InventoryPlayer for Player {
         Box::pin(async move {
             match self.client.as_ref() {
                 ClientPlatform::Java(java) => {
-                    java.enqueue_packet(packet).await;
+                    if let Ok(data) = java.serialize_packet(packet) {
+                        java.enqueue_packet(data).await;
+                    }
                 }
                 ClientPlatform::Bedrock(bedrock) => {
                     use pumpkin_protocol::bedrock::{
@@ -6526,7 +6540,9 @@ impl InventoryPlayer for Player {
                         },
                         storage_item: NetworkItemStackDescriptor::default(),
                     };
-                    bedrock.enqueue_packet(&bedrock_packet).await;
+                    if let Ok(data) = bedrock.serialize_packet(&bedrock_packet) {
+                        bedrock.enqueue_packet(data).await;
+                    }
                 }
             }
         })
@@ -6537,7 +6553,7 @@ impl InventoryPlayer for Player {
         packet: &'a CSetContainerProperty,
     ) -> PlayerFuture<'a, ()> {
         Box::pin(async move {
-            self.client.enqueue_packet(packet).await;
+            self.send_client_packet(packet).await;
         })
     }
 
@@ -6548,7 +6564,9 @@ impl InventoryPlayer for Player {
         Box::pin(async move {
             match self.client.as_ref() {
                 ClientPlatform::Java(java) => {
-                    java.enqueue_packet(packet).await;
+                    if let Ok(data) = java.serialize_packet(packet) {
+                        java.enqueue_packet(data).await;
+                    }
                 }
                 ClientPlatform::Bedrock(bedrock) => {
                     use pumpkin_protocol::bedrock::{
@@ -6576,7 +6594,9 @@ impl InventoryPlayer for Player {
                         storage: None,
                         item: item_desc,
                     };
-                    bedrock.enqueue_packet(&bedrock_packet).await;
+                    if let Ok(data) = bedrock.serialize_packet(&bedrock_packet) {
+                        bedrock.enqueue_packet(data).await;
+                    }
                 }
             }
         })

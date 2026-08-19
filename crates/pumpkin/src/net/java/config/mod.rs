@@ -9,7 +9,7 @@ use crate::{
     server::Server,
 };
 use core::str;
-use pumpkin_data::{registry::Registry, translation};
+use pumpkin_data::registry::Registry;
 use pumpkin_protocol::{
     ConnectionState, KnownPack,
     java::{

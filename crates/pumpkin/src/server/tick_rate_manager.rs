@@ -211,12 +211,10 @@ impl ServerTickRateManager {
     pub async fn update_joining_player(&self, player: &Player) {
         if player.client.java_version() >= pumpkin_util::version::JavaMinecraftVersion::V_1_20_3 {
             player
-                .client
-                .send_packet_now(&CTickingState::new(self.tickrate(), self.is_frozen()))
+                .send_client_packet(&CTickingState::new(self.tickrate(), self.is_frozen()))
                 .await;
             player
-                .client
-                .send_packet_now(&CTickingStep::new(
+                .send_client_packet(&CTickingStep::new(
                     self.frozen_ticks_to_run.load(Ordering::Relaxed).into(),
                 ))
                 .await;

@@ -30,7 +30,7 @@ impl BedrockClient {
                     return;
                 }
                 self.inventory_opened.store(true, Ordering::Relaxed);
-                self.enqueue_packet(&CContainerOpen {
+                self.enqueue_client_packet(&CContainerOpen {
                     container_id: 0,
                     container_type: 0xff,
                     position: BlockPos::ZERO,

@@ -31,6 +31,6 @@ impl JavaClient {
             suggestions.into(),
         );
 
-        self.enqueue_packet(&response).await;
+        self.enqueue_client_packet(&response).await;
     }
 }

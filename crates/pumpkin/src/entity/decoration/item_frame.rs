@@ -348,9 +348,10 @@ impl EntityBase for ItemFrameEntity {
         client: &'a crate::net::java::JavaClient,
     ) -> EntityBaseFuture<'a, ()> {
         Box::pin(async move {
-            client
-                .enqueue_packet(&self.entity.create_spawn_packet())
-                .await;
+            let spawn_packet = self.entity.create_spawn_packet();
+            if let Ok(data) = client.serialize_packet(&spawn_packet) {
+                client.enqueue_packet(data).await;
+            }
 
             let ver = client.version.load();
             if ver >= CURRENT_MC_VERSION {
@@ -370,12 +371,11 @@ impl EntityBase for ItemFrameEntity {
                     && meta_rot.write(&mut data, &ver).is_ok()
                 {
                     data.push(255);
-                    client
-                        .enqueue_packet(&CSetEntityMetadata::new(
-                            self.entity.entity_id.into(),
-                            data.into(),
-                        ))
-                        .await;
+                    let meta_packet =
+                        CSetEntityMetadata::new(self.entity.entity_id.into(), data.into());
+                    if let Ok(meta_data) = client.serialize_packet(&meta_packet) {
+                        client.enqueue_packet(meta_data).await;
+                    }
                 }
             }
         })

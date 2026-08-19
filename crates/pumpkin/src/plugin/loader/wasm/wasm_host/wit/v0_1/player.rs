@@ -1113,7 +1113,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         // Sync to client
         let stack_serializer = ItemStackSerializer::from(stack);
         let packet = CSetContainerSlot::new(0, 0, slot as i16, &stack_serializer);
-        player.client.enqueue_packet(&packet).await;
+        player.send_client_packet(&packet).await;
 
         Ok(())
     }
@@ -1139,7 +1139,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         // Sync to client
         let stack_serializer = ItemStackSerializer::from(stack);
         let packet = CSetContainerSlot::new(0, 0, slot as i16, &stack_serializer);
-        player.client.enqueue_packet(&packet).await;
+        player.send_client_packet(&packet).await;
 
         Ok(())
     }
@@ -1204,7 +1204,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
             let sync_id = handler.sync_id();
             let stack_serializer = ItemStackSerializer::from(stack);
             let packet = CSetContainerSlot::new(sync_id as i8, 0, slot as i16, &stack_serializer);
-            player.client.enqueue_packet(&packet).await;
+            player.send_client_packet(&packet).await;
         }
 
         Ok(())
@@ -1229,7 +1229,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
             for slot in 0..27 {
                 let packet =
                     CSetContainerSlot::new(sync_id as i8, 0, slot as i16, &empty_serializer);
-                player.client.enqueue_packet(&packet).await;
+                player.send_client_packet(&packet).await;
             }
         }
 
@@ -2215,7 +2215,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         let player = player_from_resource(self, &player)?;
         if let crate::net::ClientPlatform::Java(client) = player.client.as_ref() {
             client
-                .send_packet_now(&pumpkin_protocol::java::client::play::CTransfer::new(
+                .send_packet(&pumpkin_protocol::java::client::play::CTransfer::new(
                     &host,
                     pumpkin_protocol::codec::var_int::VarInt(i32::from(port)),
                 ))
@@ -2946,8 +2946,7 @@ impl pumpkin::plugin::player::HostJavaPlayer for PluginHostState {
 
         if let crate::net::ClientPlatform::Java(_) = player.client.as_ref() {
             player
-                .client
-                .send_packet_now(&pumpkin_protocol::java::client::play::CCustomPayload::new(
+                .send_client_packet(&pumpkin_protocol::java::client::play::CCustomPayload::new(
                     &channel, &data,
                 ))
                 .await;
@@ -3098,7 +3097,7 @@ impl pumpkin::plugin::player::HostJavaPlayer for PluginHostState {
             match client.connection_state.load() {
                 pumpkin_protocol::ConnectionState::Config => {
                     client
-                        .send_packet_now(
+                        .send_packet(
                             &pumpkin_protocol::java::client::config::CConfigShowDialog::new(
                                 pumpkin_protocol::IdOr::Value(DialogNBT::from_dialog(
                                     &protocol_dialog,
@@ -3109,13 +3108,9 @@ impl pumpkin::plugin::player::HostJavaPlayer for PluginHostState {
                 }
                 pumpkin_protocol::ConnectionState::Play => {
                     client
-                        .send_packet_now(
-                            &pumpkin_protocol::java::client::play::CPlayShowDialog::new(
-                                pumpkin_protocol::IdOr::Value(DialogNBT::from_dialog(
-                                    &protocol_dialog,
-                                )),
-                            ),
-                        )
+                        .send_packet(&pumpkin_protocol::java::client::play::CPlayShowDialog::new(
+                            pumpkin_protocol::IdOr::Value(DialogNBT::from_dialog(&protocol_dialog)),
+                        ))
                         .await;
                 }
                 _ => {}
@@ -3142,16 +3137,14 @@ impl pumpkin::plugin::player::HostJavaPlayer for PluginHostState {
             match client.connection_state.load() {
                 pumpkin_protocol::ConnectionState::Config => {
                     client
-                        .send_packet_now(
+                        .send_packet(
                             &pumpkin_protocol::java::client::config::CConfigClearDialog::new(),
                         )
                         .await;
                 }
                 pumpkin_protocol::ConnectionState::Play => {
                     client
-                        .send_packet_now(
-                            &pumpkin_protocol::java::client::play::CPlayClearDialog::new(),
-                        )
+                        .send_packet(&pumpkin_protocol::java::client::play::CPlayClearDialog::new())
                         .await;
                 }
                 _ => {}
@@ -3216,7 +3209,7 @@ impl pumpkin::plugin::player::HostJavaPlayer for PluginHostState {
 
         if let crate::net::ClientPlatform::Java(client) = player.client.as_ref() {
             client
-                .send_packet_now(
+                .send_packet(
                     &pumpkin_protocol::java::client::play::CAddResourcePack::new(
                         &uuid,
                         &pack.url,
@@ -3248,7 +3241,7 @@ impl pumpkin::plugin::player::HostJavaPlayer for PluginHostState {
 
         if let crate::net::ClientPlatform::Java(client) = player.client.as_ref() {
             client
-                .send_packet_now(
+                .send_packet(
                     &pumpkin_protocol::java::client::play::CRemoveResourcePack::new(Some(&uuid)),
                 )
                 .await;
@@ -3271,9 +3264,7 @@ impl pumpkin::plugin::player::HostJavaPlayer for PluginHostState {
 
         if let crate::net::ClientPlatform::Java(client) = player.client.as_ref() {
             client
-                .send_packet_now(
-                    &pumpkin_protocol::java::client::play::CRemoveResourcePack::new(None),
-                )
+                .send_packet(&pumpkin_protocol::java::client::play::CRemoveResourcePack::new(None))
                 .await;
         }
         Ok(())
@@ -3554,7 +3545,7 @@ impl pumpkin::plugin::player::HostBedrockPlayer for PluginHostState {
         };
 
         if let crate::net::ClientPlatform::Bedrock(client) = player.client.as_ref() {
-            client.send_game_packet(&packet).await;
+            client.send_packet(&packet).await;
         }
 
         Ok(())
@@ -3658,7 +3649,7 @@ impl pumpkin::plugin::player::HostBedrockPlayer for PluginHostState {
             };
 
             client
-                .send_game_packet(&CModalFormRequest {
+                .send_packet(&CModalFormRequest {
                     form_id: pumpkin_protocol::codec::var_uint::VarUInt(form_id),
                     form_data: form_json.to_string(),
                 })
@@ -3750,7 +3741,7 @@ impl pumpkin::plugin::player::HostBedrockPlayer for PluginHostState {
                     resource_packs: entries,
                 };
 
-            client.send_game_packet(&packs_info).await;
+            client.send_packet(&packs_info).await;
         }
         Ok(())
     }

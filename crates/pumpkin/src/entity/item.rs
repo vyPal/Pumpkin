@@ -656,7 +656,9 @@ impl EntityBase for ItemEntity {
                 metadata: entity.bedrock_metadata(),
                 from_fishing: false,
             };
-            client.send_game_packet(&packet).await;
+            if let Ok(data) = client.serialize_packet(&packet) {
+                client.send_game_packet(data).await;
+            }
         })
     }
 
@@ -665,9 +667,10 @@ impl EntityBase for ItemEntity {
         client: &'a crate::net::java::JavaClient,
     ) -> EntityBaseFuture<'a, ()> {
         Box::pin(async move {
-            client
-                .enqueue_packet(&self.entity.create_spawn_packet())
-                .await;
+            let spawn_packet = self.entity.create_spawn_packet();
+            if let Ok(data) = client.serialize_packet(&spawn_packet) {
+                client.enqueue_packet(data).await;
+            }
 
             if client.version.load() >= CURRENT_MC_VERSION {
                 let metadata = Metadata::new(
@@ -677,12 +680,11 @@ impl EntityBase for ItemEntity {
                 let mut data = Vec::new();
                 if metadata.write(&mut data, &client.version.load()).is_ok() {
                     data.push(255);
-                    client
-                        .enqueue_packet(&CSetEntityMetadata::new(
-                            self.entity.entity_id.into(),
-                            data.into(),
-                        ))
-                        .await;
+                    let meta_packet =
+                        CSetEntityMetadata::new(self.entity.entity_id.into(), data.into());
+                    if let Ok(meta_data) = client.serialize_packet(&meta_packet) {
+                        client.enqueue_packet(meta_data).await;
+                    }
                 }
             }
         })

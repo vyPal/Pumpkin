@@ -91,16 +91,50 @@ impl ClientPacket for CPlayerPosition {
 impl<'a> ServerPacket<'a> for CPlayerPosition {
     fn read(
         read: &mut &'a [u8],
-        _version: &JavaMinecraftVersion,
+        version: &JavaMinecraftVersion,
     ) -> Result<Self, crate::ser::ReadingError> {
-        Ok(Self {
-            teleport_id: read.get_var_int()?,
-            // TODO
-            position: Vector3::new(0.0, 0.0, 0.0),
-            delta: Vector3::new(0.0, 0.0, 0.0),
-            yaw: 0.0,
-            pitch: 0.0,
-            relatives: Vec::new(),
-        })
+        if version >= &JavaMinecraftVersion::V_1_21_2 {
+            let teleport_id = read.get_var_int()?;
+            let x = read.get_f64_be()?;
+            let y = read.get_f64_be()?;
+            let z = read.get_f64_be()?;
+            let dx = read.get_f64_be()?;
+            let dy = read.get_f64_be()?;
+            let dz = read.get_f64_be()?;
+            let yaw = read.get_f32_be()?;
+            let pitch = read.get_f32_be()?;
+            let relatives_bits = read.get_i32_be()?;
+            Ok(Self {
+                teleport_id,
+                position: Vector3::new(x, y, z),
+                delta: Vector3::new(dx, dy, dz),
+                yaw,
+                pitch,
+                relatives: PositionFlag::from_bitfield(relatives_bits),
+            })
+        } else {
+            let x = read.get_f64_be()?;
+            let y = read.get_f64_be()?;
+            let z = read.get_f64_be()?;
+            let yaw = read.get_f32_be()?;
+            let pitch = read.get_f32_be()?;
+            let relatives_bits = i32::from(read.get_u8()?);
+            let teleport_id = if version >= &JavaMinecraftVersion::V_1_9 {
+                read.get_var_int()?
+            } else {
+                VarInt(0)
+            };
+            if version >= &JavaMinecraftVersion::V_1_20_2 {
+                let _ = read.get_bool()?;
+            }
+            Ok(Self {
+                teleport_id,
+                position: Vector3::new(x, y, z),
+                delta: Vector3::new(0.0, 0.0, 0.0),
+                yaw,
+                pitch,
+                relatives: PositionFlag::from_bitfield(relatives_bits),
+            })
+        }
     }
 }

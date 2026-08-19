@@ -741,8 +741,8 @@ impl Server {
             for player in world.players.load().iter() {
                 *player.tab_list_header.lock().await = header.clone();
                 *player.tab_list_footer.lock().await = footer.clone();
-                player.client.enqueue_packet(&packet).await;
             }
+            world.broadcast_packet_all(&packet);
         }
     }
 
@@ -1063,13 +1063,15 @@ impl Server {
             pumpkin_protocol::codec::var_int::VarInt(0),
         );
         for world in self.worlds.load().iter() {
-            for player in world.players.load().iter() {
-                if player.subscribed_debug_sample.load(Ordering::Relaxed)
-                    && player.permission_lvl.load() >= pumpkin_util::PermissionLvl::Two
-                {
-                    player.client.try_enqueue_packet(&packet);
-                }
-            }
+            let players = world.players.load();
+            let recipients = players
+                .iter()
+                .filter(|player| {
+                    player.subscribed_debug_sample.load(Ordering::Relaxed)
+                        && player.permission_lvl.load() >= pumpkin_util::PermissionLvl::Two
+                })
+                .filter_map(|player| player.client.java());
+            World::broadcast_java_clients(&packet, recipients);
         }
     }
 

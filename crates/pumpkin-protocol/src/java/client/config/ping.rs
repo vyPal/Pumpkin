@@ -27,3 +27,15 @@ impl ClientPacket for CConfigPing {
         Ok(())
     }
 }
+
+impl<'a> crate::ServerPacket<'a> for CConfigPing {
+    fn read(
+        read: &mut &'a [u8],
+        _version: &JavaMinecraftVersion,
+    ) -> Result<Self, crate::ser::ReadingError> {
+        use crate::ser::NetworkReadExt;
+        Ok(Self {
+            id: read.get_i32_be()?,
+        })
+    }
+}
