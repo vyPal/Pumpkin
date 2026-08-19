@@ -228,7 +228,7 @@ fn path_failure(
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct CommandDispatcher {
     pub commands: FxHashMap<String, Command>,
     pub permissions: FxHashMap<String, String>,

@@ -175,12 +175,13 @@ impl Context {
             format!("{}:{permission}", self.metadata.name)
         };
 
-        {
-            let mut dispatcher_lock = self.server.command_dispatcher.write().await;
-            dispatcher_lock
+        self.server.command_dispatcher.rcu(|dispatcher| {
+            let mut new_dispatcher = (**dispatcher).clone();
+            new_dispatcher
                 .fallback_dispatcher
-                .register(tree, full_permission_node);
-        };
+                .register(tree.clone(), full_permission_node.clone());
+            Arc::new(new_dispatcher)
+        });
 
         self.reload_commands_for_everyone().await;
     }
@@ -190,10 +191,11 @@ impl Context {
     /// # Arguments
     /// - `name`: The name of the command to unregister.
     pub async fn unregister_command(&self, name: &str) {
-        {
-            let mut dispatcher_lock = self.server.command_dispatcher.write().await;
-            dispatcher_lock.fallback_dispatcher.unregister(name);
-        };
+        self.server.command_dispatcher.rcu(|dispatcher| {
+            let mut new_dispatcher = (**dispatcher).clone();
+            new_dispatcher.fallback_dispatcher.unregister(name);
+            Arc::new(new_dispatcher)
+        });
 
         self.reload_commands_for_everyone().await;
     }
@@ -212,7 +214,7 @@ impl Context {
     /// # Arguments
     /// - `player`: The player for which the commands will be reloaded.
     pub async fn reload_commands_for(&self, player: &Arc<Player>) {
-        let command_dispatcher = self.server.command_dispatcher.read().await;
+        let command_dispatcher = self.server.command_dispatcher.load();
         if let ClientPlatform::Bedrock(_) = player.client.as_ref() {
             client_suggestions::send_bedrock_commands_packet(
                 player,

@@ -1349,7 +1349,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         let player = player_from_resource(self, &player)?;
         let server = self.server.as_ref().expect("server not available");
         let level = from_wit_permission_level(level);
-        let command_dispatcher = server.command_dispatcher.read().await;
+        let command_dispatcher = server.command_dispatcher.load();
         player
             .set_permission_lvl(server, level, &command_dispatcher)
             .await;

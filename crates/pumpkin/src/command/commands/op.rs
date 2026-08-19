@@ -50,7 +50,7 @@ impl CommandExecutor for OpCommandExecutor {
                 }
 
                 if let Some(player) = server.get_player_by_uuid(profile.id) {
-                    let command_dispatcher = server.command_dispatcher.read().await;
+                    let command_dispatcher = server.command_dispatcher.load();
                     player
                         .set_permission_lvl(server, new_level, &command_dispatcher)
                         .await;
