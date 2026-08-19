@@ -1963,10 +1963,7 @@ impl pumpkin::plugin::context::HostContext for PluginHostState {
         let context_res = self
             .resource_table
             .get_mut::<ContextResource>(&Resource::new_own(context.rep()))?;
-        Ok(context_res
-            .provider
-            .register_permission(util_permission)
-            .await)
+        Ok(context_res.provider.register_permission(util_permission))
     }
 
     async fn get_data_folder(&mut self, _context: Resource<Context>) -> wasmtime::Result<String> {
