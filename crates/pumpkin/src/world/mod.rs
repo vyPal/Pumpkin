@@ -53,7 +53,10 @@ use crate::{
 use arc_swap::ArcSwap;
 use border::Worldborder;
 use bytes::{BufMut, Bytes};
-use explosion::Explosion;
+pub use explosion::{
+    BlockInteraction, DefaultExplosionDamageCalculator, Explosion, ExplosionDamageCalculator,
+    ExplosionInteraction, SimpleExplosionDamageCalculator,
+};
 use pumpkin_config::BasicConfiguration;
 use pumpkin_data::block_properties::{blocks_movement, is_air};
 use pumpkin_data::block_rotation::{Mirror, Rotation};
@@ -3797,14 +3800,66 @@ impl World {
         player.set_health(20.0).await;
     }
 
-    pub async fn explode(self: &Arc<Self>, position: Vector3<f64>, power: f32) {
-        let explosion = Explosion::new(power, position);
+    pub async fn explode(
+        self: &Arc<Self>,
+        position: Vector3<f64>,
+        power: f32,
+        interaction: ExplosionInteraction,
+    ) {
+        self.explode_with_calculator(position, power, interaction, None)
+            .await;
+    }
+
+    pub async fn explode_with_calculator(
+        self: &Arc<Self>,
+        position: Vector3<f64>,
+        power: f32,
+        interaction: ExplosionInteraction,
+        damage_calculator: Option<Arc<dyn ExplosionDamageCalculator>>,
+    ) {
+        let block_interaction = self.get_block_interaction(interaction);
+        let mut explosion = Explosion::new(power, position, block_interaction);
+        if let Some(calc) = damage_calculator {
+            explosion = explosion.with_damage_calculator(calc);
+        }
         self.run_explosion(explosion, position, power).await;
     }
 
     pub async fn explode_tnt_minecart(self: &Arc<Self>, position: Vector3<f64>, power: f32) {
-        let explosion = Explosion::new(power, position).preserving_rails();
+        let block_interaction = self.get_block_interaction(ExplosionInteraction::Tnt);
+        let explosion = Explosion::new(power, position, block_interaction).preserving_rails();
         self.run_explosion(explosion, position, power).await;
+    }
+
+    #[must_use]
+    pub fn get_block_interaction(&self, interaction: ExplosionInteraction) -> BlockInteraction {
+        let game_rules = &self.level_info.load().game_rules;
+        match interaction {
+            ExplosionInteraction::None => BlockInteraction::Keep,
+            ExplosionInteraction::Block => {
+                Self::get_destroy_type(game_rules.block_explosion_drop_decay)
+            }
+            ExplosionInteraction::Mob => {
+                if game_rules.mob_griefing {
+                    Self::get_destroy_type(game_rules.mob_explosion_drop_decay)
+                } else {
+                    BlockInteraction::Keep
+                }
+            }
+            ExplosionInteraction::Tnt => {
+                Self::get_destroy_type(game_rules.tnt_explosion_drop_decay)
+            }
+            ExplosionInteraction::Trigger => BlockInteraction::TriggerBlock,
+        }
+    }
+
+    #[must_use]
+    pub const fn get_destroy_type(drop_decay: bool) -> BlockInteraction {
+        if drop_decay {
+            BlockInteraction::DestroyWithDecay
+        } else {
+            BlockInteraction::Destroy
+        }
     }
 
     async fn run_explosion(
