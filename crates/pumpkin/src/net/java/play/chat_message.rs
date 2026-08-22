@@ -205,7 +205,7 @@ impl JavaClient {
         );
 
         server.broadcast_packet_all(&CPlayerInfoUpdate::new(
-            0x02,
+            PlayerInfoFlags::INITIALIZE_CHAT.bits(),
             &[pumpkin_protocol::java::client::play::Player {
                 uuid: player.gameprofile.id,
                 actions: &[PlayerAction::InitializeChat(Some(InitChat {

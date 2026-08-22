@@ -12,19 +12,20 @@ use bytes::Bytes;
 use crossbeam::atomic::AtomicCell;
 use pumpkin_data::translation;
 use pumpkin_protocol::java::server::play::{
-    SAttack, SBlockEntityTagQuery, SBundleItemSelected, SChangeGameMode, SChatAck, SChatCommand,
-    SChatMessage, SChunkBatch, SClickSlot, SClientCommand, SClientInformationPlay, SClientTickEnd,
-    SCloseContainer, SCommandSuggestion, SConfigurationAcknowledged, SConfirmTeleport,
-    SContainerButtonClick, SContainerSlotStateChanged, SCookieResponse as SPCookieResponse,
-    SCustomPayload, SDebugSampleSubscription, SDebugSubscriptionRequest, SEditBook,
-    SEntityTagQuery, SInteract, SJigsawGenerate, SLockDifficulty, SMoveVehicle, SPaddleBoat,
-    SPickItemFromBlock, SPlaceRecipe, SPlayPingRequest, SPlayPong, SPlayResourcePack,
-    SPlayerAbilities, SPlayerAction, SPlayerCommand, SPlayerInput, SPlayerLoaded, SPlayerPosition,
-    SPlayerPositionRotation, SPlayerRotation, SPlayerSession, SRecipeBookChangeSettings,
-    SRecipeBookSeenRecipe, SRenameItem, SSeenAdvancement, SSelectTrade, SSetCommandBlock,
-    SSetCommandMinecart, SSetCreativeSlot, SSetGameRule, SSetHeldItem, SSetJigsawBlock,
-    SSetPlayerGround, SSetStructureBlock, SSetTestBlock, SSpectateEntity, SSwingArm,
-    STeleportToEntity, STestInstanceBlockAction, SUpdateSign, SUseItem, SUseItemOn,
+    SAttack, SBlockEntityTagQuery, SBundleItemSelected, SChangeDifficulty, SChangeGameMode,
+    SChatAck, SChatCommand, SChatCommandSigned, SChatMessage, SChunkBatch, SClickSlot,
+    SClientCommand, SClientInformationPlay, SClientTickEnd, SCloseContainer, SCommandSuggestion,
+    SConfigurationAcknowledged, SConfirmTeleport, SContainerButtonClick,
+    SContainerSlotStateChanged, SCookieResponse as SPCookieResponse, SCustomPayload,
+    SDebugSampleSubscription, SDebugSubscriptionRequest, SEditBook, SEntityTagQuery, SInteract,
+    SJigsawGenerate, SLockDifficulty, SMoveVehicle, SPaddleBoat, SPickItemFromBlock, SPlaceRecipe,
+    SPlayPingRequest, SPlayPong, SPlayResourcePack, SPlayerAbilities, SPlayerAction,
+    SPlayerCommand, SPlayerInput, SPlayerLoaded, SPlayerPosition, SPlayerPositionRotation,
+    SPlayerRotation, SPlayerSession, SRecipeBookChangeSettings, SRecipeBookSeenRecipe, SRenameItem,
+    SSeenAdvancement, SSelectTrade, SSetBeacon, SSetCommandBlock, SSetCommandMinecart,
+    SSetCreativeSlot, SSetGameRule, SSetHeldItem, SSetJigsawBlock, SSetPlayerGround,
+    SSetStructureBlock, SSetTestBlock, SSpectateEntity, SSwingArm, STeleportToEntity,
+    STestInstanceBlockAction, SUpdateSign, SUseItem, SUseItemOn,
 };
 use pumpkin_protocol::packet::MultiVersionJavaPacket;
 use pumpkin_protocol::{
@@ -730,6 +731,17 @@ impl JavaClient {
                 )
                 .await;
             }
+            id if id == SChatCommandSigned::to_id(version) => {
+                let signed = SChatCommandSigned::read(&mut payload, &version)?;
+                self.handle_chat_command(
+                    player,
+                    server,
+                    &SChatCommand {
+                        command: signed.command,
+                    },
+                )
+                .await;
+            }
             id if id == SChatMessage::to_id(version) => {
                 self.handle_chat_message(
                     server,
@@ -1064,7 +1076,20 @@ impl JavaClient {
                     server,
                     player,
                     &SLockDifficulty::read(&mut payload, &version)?,
-                );
+                )
+                .await;
+            }
+            id if id == SChangeDifficulty::to_id(version) => {
+                self.handle_change_difficulty(
+                    server,
+                    player,
+                    &SChangeDifficulty::read(&mut payload, &version)?,
+                )
+                .await;
+            }
+            id if id == SSetBeacon::to_id(version) => {
+                self.handle_set_beacon(player, &SSetBeacon::read(&mut payload, &version)?)
+                    .await;
             }
             id if id == SContainerSlotStateChanged::to_id(version) => {
                 self.handle_container_slot_state_changed(

@@ -885,6 +885,24 @@ impl Server {
         }
     }
 
+    /// Sets the difficulty lock status of the server and broadcasts the update to all players.
+    pub async fn set_difficulty_locked(&self, locked: bool) {
+        let current_info = self.level_info.load();
+        let mut new_info = (**current_info).clone();
+        new_info.difficulty_locked = locked;
+        let difficulty = new_info.difficulty;
+        self.level_info.store(Arc::new(new_info));
+
+        for world in self.worlds.load().iter() {
+            world
+                .broadcast_editioned(
+                    &CChangeDifficulty::new(difficulty as u8, locked),
+                    &pumpkin_protocol::bedrock::client::CSetDifficulty::new(difficulty as u32),
+                )
+                .await;
+        }
+    }
+
     /// Searches for a player by their username across all worlds.
     ///
     /// This function iterates through each world managed by the server and attempts to find a player with the specified username.

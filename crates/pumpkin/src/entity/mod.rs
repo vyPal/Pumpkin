@@ -136,7 +136,34 @@ pub type EntityBaseFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 pub type TeleportFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
 
-pub trait EntityBase: Send + Sync + NBTStorage + std::any::Any {
+pub trait EntityBase: Send + Sync + std::any::Any {
+    fn write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
+        Box::pin(async move {
+            self.get_entity().write_nbt(nbt).await;
+            if let Some(living) = self.get_living_entity() {
+                living.write_living_nbt(nbt).await;
+            }
+            self.write_custom_nbt(nbt).await;
+        })
+    }
+
+    fn write_custom_nbt<'a>(&'a self, _nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
+        Box::pin(async {})
+    }
+
+    fn read_nbt_non_mut<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
+        Box::pin(async move {
+            self.get_entity().read_nbt_non_mut(nbt).await;
+            if let Some(living) = self.get_living_entity() {
+                living.read_living_nbt_non_mut(nbt).await;
+            }
+            self.read_custom_nbt(nbt).await;
+        })
+    }
+
+    fn read_custom_nbt<'a>(&'a self, _nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
+        Box::pin(async {})
+    }
     /// Called every tick for this entity.
     ///
     /// The `caller` parameter is a reference to the entity that initiated the tick.
@@ -760,9 +787,6 @@ pub trait EntityBase: Send + Sync + NBTStorage + std::any::Any {
             }
         })
     }
-
-    /// Returns itself as the nbt storage for saving and loading data.
-    fn as_nbt_storage(&self) -> &dyn NBTStorage;
 
     fn get_experience_reward(&self, _killer: Option<&dyn EntityBase>) -> u32 {
         0
@@ -3804,8 +3828,8 @@ impl Entity {
     }
 }
 
-impl NBTStorage for Entity {
-    fn write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
+impl Entity {
+    pub fn write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
         Box::pin(async move {
             let position = self.pos.load();
             nbt.put_string(
@@ -3870,7 +3894,7 @@ impl NBTStorage for Entity {
         })
     }
 
-    fn read_nbt_non_mut<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
+    pub fn read_nbt_non_mut<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
         Box::pin(async {
             if let Some(position) = nbt.get_list("Pos")
                 && position.len() >= 3
@@ -4028,9 +4052,15 @@ impl EntityBase for Entity {
     fn cast_any(&self) -> &dyn std::any::Any {
         self
     }
+}
 
-    fn as_nbt_storage(&self) -> &dyn NBTStorage {
-        self
+impl<T: EntityBase + ?Sized> NBTStorage for T {
+    fn write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
+        EntityBase::write_nbt(self, nbt)
+    }
+
+    fn read_nbt_non_mut<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
+        EntityBase::read_nbt_non_mut(self, nbt)
     }
 }
 
