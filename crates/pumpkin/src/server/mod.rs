@@ -106,6 +106,7 @@ pub struct Server {
     /// Assigns unique IDs to containers.
     container_id: AtomicU32,
     pub recipe_manager: Arc<recipe::RecipeManager>,
+    pub datapack_manager: Arc<crate::data::datapack::DatapackManager>,
     pub enchantment_manager: Arc<enchantment::EnchantmentManager>,
     /// Assigns unique IDs to maps.
     map_id: AtomicI32,
@@ -278,6 +279,7 @@ impl Server {
             permission_manager,
             container_id: 0.into(),
             recipe_manager: Arc::new(recipe::RecipeManager::new()),
+            datapack_manager: Arc::new(crate::data::datapack::DatapackManager::new()),
             enchantment_manager: Arc::new(enchantment::EnchantmentManager::new()),
             map_id: level_info.load().map_id.into(),
             worlds: ArcSwap::from_pointee(vec![]),
@@ -446,6 +448,24 @@ impl Server {
         server.worlds.store(Arc::new(worlds_vec));
 
         info!("All worlds loaded successfully.");
+
+        let enabled_packs = server.level_info.load().data_packs.enabled.clone();
+        server
+            .datapack_manager
+            .load_all(&world_path, &enabled_packs, &server.recipe_manager)
+            .await;
+
+        let server_for_load = server.clone();
+        tokio::spawn(async move {
+            let source = crate::command::CommandSender::Console
+                .into_source(&server_for_load)
+                .await;
+            let _ = server_for_load
+                .datapack_manager
+                .execute_function(&server_for_load, &source, "#minecraft:load")
+                .await;
+        });
+
         server
     }
 
@@ -559,7 +579,47 @@ impl Server {
         Ok(())
     }
 
+    pub fn save_world_info(&self) -> Result<(), WorldInfoError> {
+        let level_data = self.level_info.load();
+        self.world_info_writer
+            .write_world_info(&level_data, &self.basic_config.get_world_path())
+    }
+
+    pub async fn reload_datapacks(&self, server: &Arc<Self>) {
+        let enabled_packs = self.level_info.load().data_packs.enabled.clone();
+        let world_path = self.basic_config.get_world_path();
+        self.datapack_manager
+            .load_all(&world_path, &enabled_packs, &self.recipe_manager)
+            .await;
+
+        let source = crate::command::CommandSender::Console
+            .into_source(server)
+            .await;
+        let _ = self
+            .datapack_manager
+            .execute_function(server, &source, "#minecraft:load")
+            .await;
+
+        let dynamic_recipes = self.recipe_manager.get_dynamic_recipes_internal().await;
+        for player in self.get_all_players() {
+            if let crate::net::ClientPlatform::Java(java_client) = player.client.as_ref() {
+                let add_packet = pumpkin_protocol::java::client::play::CRecipeBookAdd::new(
+                    true,
+                    &dynamic_recipes,
+                );
+                if let Ok(data) = java_client.serialize_packet(&add_packet) {
+                    java_client.send_packet_now(data).await;
+                }
+            }
+        }
+    }
+
     pub async fn save_all(&self) -> Result<(), String> {
+        if let Err(err) = self.save_world_info() {
+            error!("Failed to save world info: {err}");
+            return Err(format!("Failed to save world info: {err}"));
+        }
+
         if let Err(err) = self.player_data_storage.save_all_players(self).await {
             error!("Failed to save player data: {err}");
             return Err(format!("Failed to save player data: {err}"));

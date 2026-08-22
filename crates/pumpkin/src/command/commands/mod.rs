@@ -17,6 +17,7 @@ mod clear;
 mod clone;
 mod damage;
 mod data;
+mod datapack;
 mod debug;
 pub mod defaultgamemode;
 mod deop;
@@ -30,6 +31,7 @@ mod fetchprofile;
 mod fill;
 mod fillbiome;
 mod forceload;
+mod function;
 mod gamemode;
 mod gamerule;
 mod give;
@@ -209,6 +211,8 @@ pub fn default_dispatcher(
     teammsg::register(&mut dispatcher, registry);
     clone::register(&mut dispatcher, registry);
     attribute::register(&mut dispatcher, registry);
+    datapack::register(&mut dispatcher, registry);
+    function::register(&mut dispatcher, registry);
     fetchprofile::register(&mut dispatcher, registry);
 
     apply_command_overrides(&mut dispatcher, registry, commands_config);

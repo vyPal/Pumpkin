@@ -765,6 +765,7 @@ pub struct JigsawGenerator {
     pub size: i32,
     pub start_jigsaw_name: Option<String>,
     pub use_expansion_hack: bool,
+    pub pool_aliases: &'static [pumpkin_data::structures::PoolAliasBinding],
 }
 
 impl JigsawGenerator {
@@ -775,6 +776,18 @@ impl JigsawGenerator {
             size,
             start_jigsaw_name: None,
             use_expansion_hack: false,
+            pool_aliases: &[],
+        }
+    }
+
+    #[must_use]
+    pub fn new_with_pool(start_pool: &str, size: i32) -> Self {
+        Self {
+            start_pool: start_pool.to_string(),
+            size,
+            start_jigsaw_name: None,
+            use_expansion_hack: false,
+            pool_aliases: &[],
         }
     }
 
@@ -789,6 +802,15 @@ impl JigsawGenerator {
         self.use_expansion_hack = use_hack;
         self
     }
+
+    #[must_use]
+    pub const fn with_pool_aliases(
+        mut self,
+        aliases: &'static [pumpkin_data::structures::PoolAliasBinding],
+    ) -> Self {
+        self.pool_aliases = aliases;
+        self
+    }
 }
 
 impl StructureGenerator for JigsawGenerator {
@@ -801,8 +823,11 @@ impl StructureGenerator for JigsawGenerator {
             .structure_key
             .map(|key| pumpkin_data::structures::Structure::get(&key));
 
+        let height = if context.min_y < 0 { 384 } else { 256 };
         let start_y = if let Some(s) = structure {
-            s.start_height.unwrap_or(context.sea_level as i16) as i32
+            s.start_height.map_or(context.sea_level, |hp| {
+                hp.get(&mut context.random, context.min_y as i8, height)
+            })
         } else {
             context.sea_level
         };
@@ -847,9 +872,27 @@ impl StructureGenerator for JigsawGenerator {
             .as_deref()
             .or_else(|| structure.and_then(|s| s.start_jigsaw_name));
 
+        let pool_aliases = if !self.pool_aliases.is_empty() {
+            self.pool_aliases
+        } else if let Some(s) = structure {
+            s.pool_aliases
+        } else {
+            &[]
+        };
+
+        let pool_alias_lookup = PoolAliasLookup::from_bindings(pool_aliases, &mut context.random);
+
+        let start_pool = if self.start_pool.is_empty() {
+            structure
+                .and_then(|s| s.start_pool)
+                .unwrap_or(&self.start_pool)
+        } else {
+            &self.start_pool
+        };
+
         JigsawPlacement::add_pieces(
             &mut context,
-            &self.start_pool,
+            start_pool,
             start_jigsaw,
             self.size,
             start_pos,
@@ -858,7 +901,7 @@ impl StructureGenerator for JigsawGenerator {
             &MaxDistance::new(max_distance),
             dimension_padding,
             liquid_settings,
-            &PoolAliasLookup::default(),
+            &pool_alias_lookup,
         )
     }
 }
