@@ -26,6 +26,7 @@ use pumpkin_data::entity::EntityType;
 use pumpkin_util::permission::PermissionManager;
 use pumpkin_util::text::color::NamedColor;
 use pumpkin_world::dimension::into_level;
+use pumpkin_world::generation::generator::GeneratorInit;
 use pumpkin_world::world::WorldPortalExt;
 use tracing::{debug, error, info, warn};
 
@@ -188,7 +189,12 @@ impl Server {
                     world_path.display(),
                     basic_config.seed.0 as i64
                 );
-                let default_data = LevelData::default(basic_config.seed);
+                let overworld_gen = pumpkin_world::generation::generator::VanillaGenerator::new(
+                    basic_config.seed,
+                    Dimension::OVERWORLD,
+                );
+                let default_data =
+                    LevelData::from_world_generator(basic_config.seed, &overworld_gen);
                 if let Err(err) = AnvilLevelInfo.write_world_info(&default_data, &world_path) {
                     error!("Failed to save level.dat: {err}");
                 }
