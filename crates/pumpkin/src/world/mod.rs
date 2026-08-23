@@ -4821,7 +4821,7 @@ impl World {
             let view_distance = get_view_distance(player).get() as i32;
 
             if is_within_view_distance(chunk_pos, center, view_distance) {
-                //  player.client.try_enqueue_spawn_packet(entity);
+                player.client.try_enqueue_spawn_packet(entity);
             }
         }
     }
