@@ -650,6 +650,10 @@ pub trait Mob: EntityBase + Send + Sync {
         None
     }
 
+    fn as_iron_golem(&self) -> Option<&crate::entity::passive::iron_golem::IronGolemEntity> {
+        None
+    }
+
     fn mob_write_nbt<'a>(&'a self, _nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
         Box::pin(async {})
     }
@@ -831,6 +835,11 @@ pub trait Mob: EntityBase + Send + Sync {
     fn is_sitting(&self) -> bool {
         self.as_tamable()
             .is_some_and(crate::entity::passive::tamable::TamableAnimal::is_in_sitting_pose)
+    }
+
+    fn is_tamed(&self) -> bool {
+        self.as_tamable()
+            .is_some_and(crate::entity::passive::tamable::TamableAnimal::is_tame)
     }
 
     fn get_base_experience_reward(&self) -> u32 {
