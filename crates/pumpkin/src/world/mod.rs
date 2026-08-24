@@ -24,6 +24,7 @@ pub mod explosion;
 pub mod loot;
 pub mod map;
 pub mod portal;
+pub mod raid;
 pub mod time;
 pub mod villager_poi;
 
@@ -274,6 +275,8 @@ pub struct World {
     pub portal_poi: Mutex<portal::PortalPoiStorage>,
     /// Villager job sites and their current owners.
     pub villager_poi: Mutex<villager_poi::VillagerPoiStorage>,
+    /// Active raids in this world.
+    pub raids: Mutex<raid::Raids>,
     /// End Dragon fight manager (only present in `THE_END` dimension).
     pub dragon_fight: Option<Mutex<dragon_fight::DragonFight>>,
     pub spawn_state: ArcSwap<SpawnState>,
@@ -393,6 +396,7 @@ impl World {
             unsent_block_changes: Mutex::new(HashMap::new()),
             portal_poi: Mutex::new(portal_poi),
             villager_poi: Mutex::new(villager_poi::VillagerPoiStorage::default()),
+            raids: Mutex::new(raid::Raids::default()),
             dragon_fight,
             spawn_state: ArcSwap::new(Arc::new(SpawnState::empty())),
             active_chunks: ArcSwap::new(Arc::new(FxHashSet::default())),
@@ -1203,6 +1207,7 @@ impl World {
         self.flush_synced_block_events().await;
         self.update_active_chunks();
         self.tick_environment().await;
+        self.raids.lock().await.tick(self).await;
 
         let world_for_chunks = self.clone();
         let chunk_future = async move {
@@ -3668,11 +3673,17 @@ impl World {
                 .await;
         }
 
-        // if let Some(bossbars) = self..lock().get_player_bars(&player.gameprofile.id) {
-        //     for bossbar in bossbars {
-        //         player.send_bossbar(bossbar);
-        //     }
-        // }
+        let player_bossbars = server
+            .bossbars
+            .lock()
+            .await
+            .get_player_bars(&player.gameprofile.id)
+            .map(|bars| bars.into_iter().cloned().collect::<Vec<_>>());
+        if let Some(bossbars) = player_bossbars {
+            for bossbar in &bossbars {
+                player.send_bossbar(bossbar).await;
+            }
+        }
 
         player.has_played_before.store(true, Ordering::Relaxed);
         player
