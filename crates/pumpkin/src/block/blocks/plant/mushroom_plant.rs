@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use pumpkin_data::block_properties::{BlockProperties, BrownMushroomBlockLikeProperties};
 use pumpkin_data::tag::Taggable;
-use pumpkin_data::{Block, BlockId, BlockStateId, tag};
+use pumpkin_data::{Block, BlockId, BlockState, BlockStateId, tag};
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_world::world::{BlockAccessor, BlockFlags};
 use rand::RngExt;
@@ -31,6 +31,11 @@ fn mushroom_tree_height(rng: &mut impl rand::Rng) -> i32 {
 }
 
 impl MushroomPlantBlock {
+    #[must_use]
+    pub const fn may_place_on(state: &BlockState) -> bool {
+        state.is_solid() && (state.is_full_cube() || state.is_solid_block())
+    }
+
     pub fn can_survive(
         block_accessor: &dyn BlockAccessor,
         world: Option<&World>,
@@ -42,20 +47,12 @@ impl MushroomPlantBlock {
             return true;
         }
 
-        let below_state = block_accessor.get_block_state(&below_pos);
-        let is_solid_render =
-            below_state.is_solid() && (below_state.is_full_cube() || below_state.is_solid_block());
-        if !is_solid_render {
-            return false;
-        }
+        let is_dark_enough = match world {
+            Some(world) => world.get_max_local_raw_brightness(pos) < 13,
+            None => true,
+        };
 
-        if let Some(world) = world
-            && world.get_max_local_raw_brightness(pos) >= 13
-        {
-            return false;
-        }
-
-        true
+        is_dark_enough && Self::may_place_on(block_accessor.get_block_state(&below_pos))
     }
 
     pub async fn grow_mushroom(
@@ -185,7 +182,7 @@ async fn place_huge_red_mushroom(world: &Arc<World>, pos: &BlockPos, tree_height
                 let on_x_edge = l == -j || l == j;
                 let on_z_edge = m == -j || m == j;
 
-                if i < tree_height && on_x_edge && on_z_edge {
+                if i < tree_height && on_x_edge == on_z_edge {
                     continue;
                 }
 
@@ -322,11 +319,11 @@ impl BlockBehaviour for MushroomPlantBlock {
 
 impl PlantBlockBase for MushroomPlantBlock {
     fn can_plant_on_top(&self, block_accessor: &dyn BlockAccessor, pos: &BlockPos) -> bool {
-        let block = block_accessor.get_block(pos);
-        if block.has_tag(&tag::Block::MINECRAFT_OVERRIDES_MUSHROOM_LIGHT_REQUIREMENT) {
-            return true;
-        }
         let state = block_accessor.get_block_state(pos);
-        state.is_solid() && (state.is_full_cube() || state.is_solid_block())
+        Self::may_place_on(state)
+    }
+
+    fn can_place_at(&self, block_accessor: &dyn BlockAccessor, block_pos: &BlockPos) -> bool {
+        Self::can_survive(block_accessor, None, block_pos)
     }
 }
