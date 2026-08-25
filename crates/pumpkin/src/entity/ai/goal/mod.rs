@@ -30,6 +30,7 @@ pub mod pathfind_to_raid;
 pub mod pick_up_block;
 pub mod place_block;
 pub mod ranged_attack;
+pub mod ranged_crossbow_attack;
 pub mod revenge;
 pub mod step_and_destroy_block;
 pub mod swim;

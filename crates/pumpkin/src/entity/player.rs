@@ -1784,8 +1784,29 @@ impl Player {
 
         let respawn_guard = self.respawn_point.lock().await;
         let respawn_point = respawn_guard.as_ref()?;
-        let world = self.world();
+        let world = if self.world().dimension == respawn_point.dimension {
+            self.world()
+        } else if let Some(server) = self.world().server.upgrade() {
+            server.get_world_from_dimension(&respawn_point.dimension)
+        } else {
+            self.world()
+        };
         let pos = &respawn_point.position;
+
+        // Ensure chunks around the spawn position are fetched
+        let min_chunk_x = (pos.0.x - 2) >> 4;
+        let max_chunk_x = (pos.0.x + 2) >> 4;
+        let min_chunk_z = (pos.0.z - 2) >> 4;
+        let max_chunk_z = (pos.0.z + 2) >> 4;
+        for cx in min_chunk_x..=max_chunk_x {
+            for cz in min_chunk_z..=max_chunk_z {
+                world
+                    .level
+                    .get_or_fetch_chunk(Vector2::new(cx, cz), |_| ())
+                    .await;
+            }
+        }
+
         let (block, state_id) = world.get_block_and_state_id(pos);
 
         // If force is set (from /spawnpoint command), validate position is safe
