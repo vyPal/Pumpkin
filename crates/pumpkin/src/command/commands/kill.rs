@@ -23,14 +23,14 @@ impl CommandExecutor for TargetsExecutor {
 
             let target_count = targets.len();
             for target in &targets {
-                target.kill(target.as_ref()).await;
+                target.kill(target.as_ref());
             }
 
             let msg = if target_count == 1 {
                 TextComponent::translate_cross(
                     translation::java::COMMANDS_KILL_SUCCESS_SINGLE,
                     translation::bedrock::COMMANDS_KILL_SUCCESSFUL,
-                    [targets[0].get_display_name().await],
+                    [targets[0].get_display_name()],
                 )
             } else {
                 TextComponent::translate_cross(
@@ -53,7 +53,7 @@ impl CommandExecutor for SelfExecutor {
     fn execute<'a>(&'a self, context: &'a CommandContext) -> CommandExecutorResult<'a> {
         Box::pin(async move {
             let target = context.source.entity_or_err()?;
-            target.kill(&*target).await;
+            target.kill(&*target);
 
             context
                 .source
@@ -61,7 +61,7 @@ impl CommandExecutor for SelfExecutor {
                     TextComponent::translate_cross(
                         translation::java::COMMANDS_KILL_SUCCESS_SINGLE,
                         translation::bedrock::COMMANDS_KILL_SUCCESSFUL,
-                        [target.get_display_name().await],
+                        [target.get_display_name()],
                     ),
                     true,
                 )

@@ -65,13 +65,9 @@ impl EntityBase for TNTEntity {
             let world = self.entity.world.load_full();
             let pos = self.entity.pos.load();
             let power = self.power;
-            tokio::spawn(async move {
-                if world.level_info.load().game_rules.tnt_explodes {
-                    world
-                        .explode(pos, power, crate::world::ExplosionInteraction::Tnt)
-                        .await;
-                }
-            });
+            if world.level_info.load().game_rules.tnt_explodes {
+                world.explode(pos, power, crate::world::ExplosionInteraction::Tnt);
+            }
         } else {
             // Safe decrement
             self.fuse.store(fuse - 1, Relaxed);

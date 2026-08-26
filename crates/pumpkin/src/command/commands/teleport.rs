@@ -70,7 +70,7 @@ async fn success_key_and_arg(
     multiple_key: &'static str,
 ) -> (&'static str, TextComponent) {
     if targets.len() == 1 {
-        (single_key, targets[0].get_display_name().await)
+        (single_key, targets[0].get_display_name())
     } else {
         (multiple_key, TextComponent::text(targets.len().to_string()))
     }
@@ -118,7 +118,7 @@ impl CommandExecutor for EntitiesToEntityExecutor {
                 .send_message(TextComponent::translate_cross(
                     key,
                     translation::bedrock::COMMANDS_TP_SUCCESSVICTIM,
-                    [target_arg, destination.get_display_name().await],
+                    [target_arg, destination.get_display_name()],
                 ))
                 .await;
 
@@ -383,10 +383,7 @@ impl CommandExecutor for SelfToEntityExecutor {
                         .send_message(TextComponent::translate_cross(
                             translation::java::COMMANDS_TELEPORT_SUCCESS_ENTITY_SINGLE,
                             translation::bedrock::COMMANDS_TP_SUCCESSVICTIM,
-                            [
-                                player.get_display_name().await,
-                                destination.get_display_name().await,
-                            ],
+                            [player.get_display_name(), destination.get_display_name()],
                         ))
                         .await;
 
@@ -433,7 +430,7 @@ impl CommandExecutor for SelfToPosExecutor {
                             translation::java::COMMANDS_TELEPORT_SUCCESS_LOCATION_SINGLE,
                             translation::bedrock::COMMANDS_TP_SUCCESS_COORDINATES,
                             [
-                                player.get_display_name().await,
+                                player.get_display_name(),
                                 TextComponent::text(pos.x.to_string()),
                                 TextComponent::text(pos.y.to_string()),
                                 TextComponent::text(pos.z.to_string()),

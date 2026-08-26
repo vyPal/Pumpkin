@@ -48,8 +48,8 @@ impl CommandExecutor for ChangeExecutor {
             for target in &targets {
                 let entity = target.get_entity();
                 let success = match self.0 {
-                    Action::Add => entity.add_scoreboard_tag(&tag).await,
-                    Action::Remove => entity.remove_scoreboard_tag(&tag).await,
+                    Action::Add => entity.add_scoreboard_tag(&tag),
+                    Action::Remove => entity.remove_scoreboard_tag(&tag),
                 };
                 if success {
                     changed += 1;
@@ -90,10 +90,7 @@ impl CommandExecutor for ChangeExecutor {
                 TextComponent::translate_cross(
                     single_key.0,
                     single_key.1,
-                    [
-                        TextComponent::text(tag),
-                        targets[0].get_display_name().await,
-                    ],
+                    [TextComponent::text(tag), targets[0].get_display_name()],
                 )
             } else {
                 TextComponent::translate_cross(
@@ -123,7 +120,11 @@ impl CommandExecutor for ListExecutor {
             // BTreeSet keeps the output deterministic.
             let mut all_tags = BTreeSet::new();
             for target in &targets {
-                let tags = target.get_entity().scoreboard_tags.lock().await;
+                let tags = target
+                    .get_entity()
+                    .scoreboard_tags
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 all_tags.extend(tags.iter().cloned());
             }
 
@@ -131,7 +132,7 @@ impl CommandExecutor for ListExecutor {
                 TextComponent::text(all_tags.iter().cloned().collect::<Vec<String>>().join(", "));
 
             let msg = if targets.len() == 1 {
-                let name = targets[0].get_display_name().await;
+                let name = targets[0].get_display_name();
                 if all_tags.is_empty() {
                     TextComponent::translate_cross(
                         translation::java::COMMANDS_TAG_LIST_SINGLE_EMPTY,

@@ -14,7 +14,7 @@ use pumpkin_protocol::codec::var_int::VarInt;
 use pumpkin_protocol::java::client::play::Metadata;
 
 use crate::entity::{
-    Entity, EntityBase, EntityBaseFuture, NbtFuture,
+    Entity, EntityBase,
     ageable::{AgeableData, AgeableMob},
     ai::goal::{
         breed::BreedGoal, escape_danger::EscapeDangerGoal, follow_parent::FollowParentGoal,
@@ -231,23 +231,21 @@ impl ArmadilloEntity {
         }
     }
 
-    pub fn brush_off_scute<'a>(&'a self, player: &'a Arc<Player>) -> EntityBaseFuture<'a, bool> {
-        Box::pin(async move {
-            if self.is_baby() {
-                return false;
-            }
-            let entity = self.get_entity();
-            let world = entity.world.load();
-            let pos = entity.pos.load();
-            let item_entity = Arc::new(ItemEntity::new(
-                Entity::new(world.clone(), pos, &EntityType::ITEM),
-                ItemStack::new(1, &Item::ARMADILLO_SCUTE),
-            ));
-            world.spawn_entity(item_entity);
-            world.play_sound(Sound::EntityArmadilloBrush, SoundCategory::Neutral, &pos);
-            player.damage_held_item(16).await;
-            true
-        })
+    pub fn brush_off_scute(&self, player: &Arc<Player>) -> bool {
+        if self.is_baby() {
+            return false;
+        }
+        let entity = self.get_entity();
+        let world = entity.world.load();
+        let pos = entity.pos.load();
+        let item_entity = Arc::new(ItemEntity::new(
+            Entity::new(world.clone(), pos, &EntityType::ITEM),
+            ItemStack::new(1, &Item::ARMADILLO_SCUTE),
+        ));
+        world.spawn_entity(item_entity);
+        world.play_sound(Sound::EntityArmadilloBrush, SoundCategory::Neutral, &pos);
+        player.damage_held_item(16);
+        true
     }
 
     pub fn is_scared_by(&self, living_entity: &dyn EntityBase) -> bool {
@@ -309,24 +307,20 @@ impl Mob for ArmadilloEntity {
         Some(self)
     }
 
-    fn mob_write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            nbt.put_string("state", self.get_state().name().to_string());
-            nbt.put_int("scute_time", self.scute_time.load(Ordering::Relaxed));
-        })
+    fn mob_write_nbt(&self, nbt: &mut NbtCompound) {
+        nbt.put_string("state", self.get_state().name().to_string());
+        nbt.put_int("scute_time", self.scute_time.load(Ordering::Relaxed));
     }
 
-    fn mob_read_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(state_name) = nbt.get_string("state") {
-                self.switch_to_state(ArmadilloState::from_name(state_name));
-            } else if let Some(state_id) = nbt.get_int("state") {
-                self.switch_to_state(ArmadilloState::from_id(state_id));
-            }
-            if let Some(scute_time) = nbt.get_int("scute_time") {
-                self.scute_time.store(scute_time, Ordering::Relaxed);
-            }
-        })
+    fn mob_read_nbt(&self, nbt: &NbtCompound) {
+        if let Some(state_name) = nbt.get_string("state") {
+            self.switch_to_state(ArmadilloState::from_name(state_name));
+        } else if let Some(state_id) = nbt.get_int("state") {
+            self.switch_to_state(ArmadilloState::from_id(state_id));
+        }
+        if let Some(scute_time) = nbt.get_int("scute_time") {
+            self.scute_time.store(scute_time, Ordering::Relaxed);
+        }
     }
 
     fn get_mob_entity(&self) -> &MobEntity {
@@ -435,20 +429,13 @@ impl Mob for ArmadilloEntity {
         );
     }
 
-    fn mob_interact<'a>(
-        &'a self,
-        player: &'a Arc<Player>,
-        item_stack: &'a mut ItemStack,
-    ) -> EntityBaseFuture<'a, bool> {
-        Box::pin(async move {
-            if item_stack.item == &Item::BRUSH && self.brush_off_scute(player).await {
-                return true;
-            }
-            if self.is_scared() {
-                return false;
-            }
-            self.animal_interact(player, item_stack, Sound::EntityArmadilloAmbient)
-                .await
-        })
+    fn mob_interact(&self, player: &Arc<Player>, item_stack: &mut ItemStack) -> bool {
+        if item_stack.item == &Item::BRUSH && self.brush_off_scute(player) {
+            return true;
+        }
+        if self.is_scared() {
+            return false;
+        }
+        self.animal_interact(player, item_stack, Sound::EntityArmadilloAmbient)
     }
 }

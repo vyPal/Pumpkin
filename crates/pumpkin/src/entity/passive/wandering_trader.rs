@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Weak};
-use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use pumpkin_data::data_component_impl::EquipmentSlot;
@@ -46,7 +45,7 @@ use crate::entity::ai::pathfinder::NavigatorGoal;
 use crate::entity::experience_orb::ExperienceOrbEntity;
 use crate::entity::mob::{Mob, MobEntity, NIGHT_END, NIGHT_START};
 use crate::entity::player::Player;
-use crate::entity::{Entity, EntityBase, EntityBaseFuture, NbtFuture};
+use crate::entity::{Entity, EntityBase};
 use crate::world::World;
 
 const DEFAULT_DESPAWN_DELAY: i32 = 0;
@@ -112,7 +111,7 @@ pub struct WanderingTraderEntity {
     pub mob_entity: MobEntity,
     pub despawn_delay: AtomicI32,
     pub wander_target: std::sync::Mutex<Option<BlockPos>>,
-    pub offers: Mutex<Vec<pumpkin_protocol::java::client::play::MerchantOffer>>,
+    pub offers: std::sync::Mutex<Vec<pumpkin_protocol::java::client::play::MerchantOffer>>,
     pub merchant_inventory: Arc<SimpleInventory>,
     pub trading_player: std::sync::Mutex<Option<(Uuid, u8)>>,
     pub is_trading: AtomicBool,
@@ -131,7 +130,7 @@ impl WanderingTraderEntity {
             mob_entity,
             despawn_delay: AtomicI32::new(DEFAULT_DESPAWN_DELAY),
             wander_target: std::sync::Mutex::new(None),
-            offers: Mutex::new(Vec::new()),
+            offers: std::sync::Mutex::new(Vec::new()),
             merchant_inventory: Arc::new(SimpleInventory::new(3)),
             trading_player: std::sync::Mutex::new(None),
             is_trading: AtomicBool::new(false),
@@ -286,8 +285,11 @@ impl WanderingTraderEntity {
             .unwrap_or_else(std::sync::PoisonError::into_inner) = target;
     }
 
-    pub async fn generate_trades(&self) {
-        let mut offers = self.offers.lock().await;
+    pub fn generate_trades(&self) {
+        let mut offers = self
+            .offers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         offers.clear();
         let mut rng = rand::rng();
         add_offers_from_trade_set(&mut offers, TRADES_WANDERING_TRADER_BUYING, 2, &mut rng);
@@ -297,7 +299,11 @@ impl WanderingTraderEntity {
 
     pub async fn open_trading_screen(&self, player: &Arc<Player>) {
         if let Some(sync_id) = player.open_handled_screen(self, None).await {
-            let offers = self.offers.lock().await.clone();
+            let offers = self
+                .offers
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
             self.send_trade_offers(player, sync_id, offers).await;
         }
     }
@@ -454,7 +460,10 @@ impl WanderingTraderEntity {
 
     async fn complete_trade(&self, offer_index: usize, world: &Arc<World>, player_uuid: Uuid) {
         let (reward_exp, reward_amount) = {
-            let mut offers = self.offers.lock().await;
+            let mut offers = self
+                .offers
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let Some(offer) = offers.get_mut(offer_index) else {
                 return;
             };
@@ -495,7 +504,11 @@ impl ScreenHandlerFactory for WanderingTraderEntity {
             let player_uuid =
                 server_player.map_or_else(uuid::Uuid::nil, |p| p.get_entity().entity_uuid);
 
-            let offers = self.offers.lock().await.clone();
+            let offers = self
+                .offers
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
             let world = self.get_entity().world.load().clone();
 
             let mut handler = MerchantScreenHandler::new(
@@ -607,172 +620,184 @@ impl Mob for WanderingTraderEntity {
         Some(self)
     }
 
-    fn mob_write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            nbt.put_int("DespawnDelay", self.despawn_delay.load(Ordering::Relaxed));
-            let wander_target = *self
+    fn mob_write_nbt(&self, nbt: &mut NbtCompound) {
+        nbt.put_int("DespawnDelay", self.despawn_delay.load(Ordering::Relaxed));
+        let wander_target = *self
+            .wander_target
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(target) = wander_target {
+            nbt.put(
+                "wander_target",
+                pumpkin_nbt::tag::NbtTag::IntArray(vec![target.0.x, target.0.y, target.0.z]),
+            );
+        }
+
+        let offers = self
+            .offers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !offers.is_empty() {
+            let mut recipes = Vec::with_capacity(offers.len());
+            for offer in offers.iter() {
+                let mut recipe = NbtCompound::new();
+                let mut buy = NbtCompound::new();
+                offer.base_cost_a.0.write_item_stack(&mut buy);
+                recipe.put_compound("buy", buy);
+
+                if let Some(cost_b) = &offer.cost_b {
+                    let mut buy_b = NbtCompound::new();
+                    cost_b.0.write_item_stack(&mut buy_b);
+                    recipe.put_compound("buyB", buy_b);
+                }
+
+                let mut sell_item = NbtCompound::new();
+                offer.output.0.write_item_stack(&mut sell_item);
+                recipe.put_compound("sell", sell_item);
+
+                recipe.put_int("uses", offer.uses);
+                recipe.put_int("maxUses", offer.max_uses);
+                recipe.put_bool("rewardExp", offer.reward_exp);
+                recipe.put_int("xp", offer.xp);
+                recipe.put_float("priceMultiplier", offer.price_multiplier);
+                recipe.put_int("specialPrice", offer.special_price);
+                recipe.put_int("demand", offer.demand);
+
+                recipes.push(pumpkin_nbt::tag::NbtTag::Compound(recipe));
+            }
+            let mut offers_compound = NbtCompound::new();
+            offers_compound.put("Recipes", pumpkin_nbt::tag::NbtTag::List(recipes));
+            nbt.put_compound("Offers", offers_compound);
+        }
+    }
+
+    fn mob_read_nbt(&self, nbt: &NbtCompound) {
+        if let Some(delay) = nbt.get_int("DespawnDelay") {
+            self.despawn_delay.store(delay, Ordering::Relaxed);
+        }
+        if let Some(target_arr) = nbt.get_int_array("wander_target")
+            && target_arr.len() >= 3
+        {
+            *self
                 .wander_target
                 .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) =
+                Some(BlockPos::new(target_arr[0], target_arr[1], target_arr[2]));
+        } else if let (Some(x), Some(y), Some(z)) = (
+            nbt.get_int("wander_target_x"),
+            nbt.get_int("wander_target_y"),
+            nbt.get_int("wander_target_z"),
+        ) {
+            *self
+                .wander_target
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(BlockPos::new(x, y, z));
+        }
+
+        if let Some(offers_compound) = nbt.get_compound("Offers")
+            && let Some(recipes) = offers_compound.get_list("Recipes")
+        {
+            let mut offers = self
+                .offers
+                .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            if let Some(target) = wander_target {
-                nbt.put(
-                    "wander_target",
-                    pumpkin_nbt::tag::NbtTag::IntArray(vec![target.0.x, target.0.y, target.0.z]),
-                );
-            }
+            offers.clear();
+            for tag in recipes {
+                if let Some(recipe) = tag.extract_compound() {
+                    let buy = recipe
+                        .get_compound("buy")
+                        .and_then(ItemStack::read_item_stack);
+                    let buy_b = recipe
+                        .get_compound("buyB")
+                        .and_then(ItemStack::read_item_stack);
+                    let sell_item = recipe
+                        .get_compound("sell")
+                        .and_then(ItemStack::read_item_stack);
 
-            let offers = self.offers.lock().await;
-            if !offers.is_empty() {
-                let mut recipes = Vec::with_capacity(offers.len());
-                for offer in offers.iter() {
-                    let mut recipe = NbtCompound::new();
-                    let mut buy = NbtCompound::new();
-                    offer.base_cost_a.0.write_item_stack(&mut buy);
-                    recipe.put_compound("buy", buy);
+                    if let (Some(buy), Some(sell_item)) = (buy, sell_item)
+                        && !buy.is_empty()
+                        && !sell_item.is_empty()
+                        && buy_b.as_ref().is_none_or(|stack| !stack.is_empty())
+                    {
+                        let uses = recipe.get_int("uses").unwrap_or(0);
+                        let max_uses = recipe.get_int("maxUses").unwrap_or(12);
+                        let reward_exp = recipe.get_bool("rewardExp").unwrap_or(true);
+                        let xp = recipe.get_int("xp").unwrap_or(2);
+                        let price_multiplier = recipe.get_float("priceMultiplier").unwrap_or(0.05);
+                        let special_price = recipe.get_int("specialPrice").unwrap_or(0);
+                        let demand = recipe.get_int("demand").unwrap_or(0);
 
-                    if let Some(cost_b) = &offer.cost_b {
-                        let mut buy_b = NbtCompound::new();
-                        cost_b.0.write_item_stack(&mut buy_b);
-                        recipe.put_compound("buyB", buy_b);
-                    }
-
-                    let mut sell_item = NbtCompound::new();
-                    offer.output.0.write_item_stack(&mut sell_item);
-                    recipe.put_compound("sell", sell_item);
-
-                    recipe.put_int("uses", offer.uses);
-                    recipe.put_int("maxUses", offer.max_uses);
-                    recipe.put_bool("rewardExp", offer.reward_exp);
-                    recipe.put_int("xp", offer.xp);
-                    recipe.put_float("priceMultiplier", offer.price_multiplier);
-                    recipe.put_int("specialPrice", offer.special_price);
-                    recipe.put_int("demand", offer.demand);
-
-                    recipes.push(pumpkin_nbt::tag::NbtTag::Compound(recipe));
-                }
-                let mut offers_compound = NbtCompound::new();
-                offers_compound.put("Recipes", pumpkin_nbt::tag::NbtTag::List(recipes));
-                nbt.put_compound("Offers", offers_compound);
-            }
-        })
-    }
-
-    fn mob_read_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(delay) = nbt.get_int("DespawnDelay") {
-                self.despawn_delay.store(delay, Ordering::Relaxed);
-            }
-            if let Some(target_arr) = nbt.get_int_array("wander_target")
-                && target_arr.len() >= 3
-            {
-                *self
-                    .wander_target
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner) =
-                    Some(BlockPos::new(target_arr[0], target_arr[1], target_arr[2]));
-            } else if let (Some(x), Some(y), Some(z)) = (
-                nbt.get_int("wander_target_x"),
-                nbt.get_int("wander_target_y"),
-                nbt.get_int("wander_target_z"),
-            ) {
-                *self
-                    .wander_target
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner) =
-                    Some(BlockPos::new(x, y, z));
-            }
-
-            if let Some(offers_compound) = nbt.get_compound("Offers")
-                && let Some(recipes) = offers_compound.get_list("Recipes")
-            {
-                let mut offers = self.offers.lock().await;
-                offers.clear();
-                for tag in recipes {
-                    if let Some(recipe) = tag.extract_compound() {
-                        let buy = recipe
-                            .get_compound("buy")
-                            .and_then(ItemStack::read_item_stack);
-                        let buy_b = recipe
-                            .get_compound("buyB")
-                            .and_then(ItemStack::read_item_stack);
-                        let sell_item = recipe
-                            .get_compound("sell")
-                            .and_then(ItemStack::read_item_stack);
-
-                        if let (Some(buy), Some(sell_item)) = (buy, sell_item)
-                            && !buy.is_empty()
-                            && !sell_item.is_empty()
-                            && buy_b.as_ref().is_none_or(|stack| !stack.is_empty())
-                        {
-                            let uses = recipe.get_int("uses").unwrap_or(0);
-                            let max_uses = recipe.get_int("maxUses").unwrap_or(12);
-                            let reward_exp = recipe.get_bool("rewardExp").unwrap_or(true);
-                            let xp = recipe.get_int("xp").unwrap_or(2);
-                            let price_multiplier =
-                                recipe.get_float("priceMultiplier").unwrap_or(0.05);
-                            let special_price = recipe.get_int("specialPrice").unwrap_or(0);
-                            let demand = recipe.get_int("demand").unwrap_or(0);
-
-                            offers.push(pumpkin_protocol::java::client::play::MerchantOffer {
-                                base_cost_a: buy.into(),
-                                output: sell_item.into(),
-                                cost_b: buy_b.map(Into::into),
-                                reward_exp,
-                                uses,
-                                max_uses,
-                                xp,
-                                special_price,
-                                price_multiplier,
-                                demand,
-                            });
-                        }
+                        offers.push(pumpkin_protocol::java::client::play::MerchantOffer {
+                            base_cost_a: buy.into(),
+                            output: sell_item.into(),
+                            cost_b: buy_b.map(Into::into),
+                            reward_exp,
+                            uses,
+                            max_uses,
+                            xp,
+                            special_price,
+                            price_multiplier,
+                            demand,
+                        });
                     }
                 }
             }
+        }
 
-            let current_age = self.get_age();
-            if current_age < 0 {
-                self.set_age(0);
-            }
-        })
+        let current_age = self.get_age();
+        if current_age < 0 {
+            self.set_age(0);
+        }
     }
 
-    fn mob_interact<'a>(
-        &'a self,
-        player: &'a Arc<Player>,
-        item_stack: &'a mut ItemStack,
-    ) -> EntityBaseFuture<'a, bool> {
-        let player = player.clone();
-        Box::pin(async move {
-            if item_stack.item == &Item::VILLAGER_SPAWN_EGG
-                || self.mob_entity.living_entity.health.load() <= 0.0
-                || self.is_trading.load(Ordering::Relaxed)
-                || self.is_baby()
-            {
-                return false;
-            }
+    fn mob_interact(&self, player: &Arc<Player>, item_stack: &mut ItemStack) -> bool {
+        if item_stack.item == &Item::VILLAGER_SPAWN_EGG
+            || self.mob_entity.living_entity.health.load() <= 0.0
+            || self.is_trading.load(Ordering::Relaxed)
+            || self.is_baby()
+        {
+            return false;
+        }
 
-            player.increment_stat(
-                StatisticCategory::Custom,
-                CustomStatistic::TalkedToVillager as i32,
-                1,
-            );
+        player.increment_stat(
+            StatisticCategory::Custom,
+            CustomStatistic::TalkedToVillager as i32,
+            1,
+        );
 
-            let mut offers = self.offers.lock().await;
+        let has_offers = {
+            let mut offers = self
+                .offers
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             if offers.is_empty() {
                 drop(offers);
-                self.generate_trades().await;
-                offers = self.offers.lock().await;
+                self.generate_trades();
+                offers = self
+                    .offers
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
             }
+            !offers.is_empty()
+        };
 
-            if offers.is_empty() {
-                return true;
-            }
-            drop(offers);
+        if !has_offers {
+            return true;
+        }
 
-            self.open_trading_screen(&player).await;
-            true
-        })
+        if let Some(trader) = self
+            .self_weak
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+            .and_then(Weak::upgrade)
+        {
+            let player = player.clone();
+            tokio::spawn(async move {
+                trader.open_trading_screen(&player).await;
+            });
+        }
+        true
     }
 
     fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) {

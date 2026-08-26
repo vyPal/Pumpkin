@@ -1,7 +1,7 @@
 use core::f32;
 use std::sync::atomic::Ordering;
 
-use crate::entity::{Entity, EntityBase, NbtFuture, living::LivingEntity};
+use crate::entity::{Entity, EntityBase, living::LivingEntity};
 use pumpkin_data::damage::DamageType;
 use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_util::math::vector3::Vector3;
@@ -17,17 +17,13 @@ impl PaintingEntity {
 }
 
 impl EntityBase for PaintingEntity {
-    fn write_custom_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async {
-            nbt.put_byte("facing", self.entity.data.load(Ordering::Relaxed) as i8);
-        })
+    fn write_custom_nbt(&self, nbt: &mut NbtCompound) {
+        nbt.put_byte("facing", self.entity.data.load(Ordering::Relaxed) as i8);
     }
 
-    fn read_custom_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async {
-            let facing = nbt.get_byte("facing").unwrap_or(3);
-            self.entity.data.store(facing as i32, Ordering::Relaxed);
-        })
+    fn read_custom_nbt(&self, nbt: &NbtCompound) {
+        let facing = nbt.get_byte("facing").unwrap_or(3);
+        self.entity.data.store(facing as i32, Ordering::Relaxed);
     }
 
     fn get_entity(&self) -> &Entity {

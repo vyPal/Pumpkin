@@ -401,7 +401,7 @@ pub struct BlockEvent {
     pub data: u8,
 }
 
-pub async fn drop_loot(
+pub fn drop_loot(
     world: &Arc<World>,
     block: &Block,
     pos: &BlockPos,
@@ -419,7 +419,7 @@ pub async fn drop_loot(
                 cancelled: false,
             };
             if let Some(server) = world.server.upgrade() {
-                server.plugin_manager.fire(&server, &mut event).await;
+                server.plugin_manager.fire_blocking(&server, &mut event);
             }
             if !event.cancelled {
                 for stack in event.items {
@@ -440,7 +440,7 @@ pub async fn drop_loot(
                 exp: amount,
             };
             if let Some(server) = world.server.upgrade() {
-                server.plugin_manager.fire(&server, &mut event).await;
+                server.plugin_manager.fire_blocking(&server, &mut event);
             }
             if event.exp > 0 {
                 ExperienceOrbEntity::spawn(world, pos.to_f64(), event.exp as u32);

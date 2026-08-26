@@ -54,7 +54,7 @@ impl ServerPlayerData {
         player.on_handled_screen_closed().await;
 
         let mut nbt = NbtCompound::new();
-        player.write_nbt(&mut nbt).await;
+        player.write_nbt(&mut nbt);
 
         let storage = self.storage.clone();
         let uuid = player.gameprofile.id;
@@ -84,7 +84,7 @@ impl ServerPlayerData {
             for world in server.worlds.load().iter() {
                 for player in world.players.load().iter() {
                     let mut nbt = NbtCompound::new();
-                    player.write_nbt(&mut nbt).await;
+                    player.write_nbt(&mut nbt);
 
                     let storage = self.storage.clone();
                     let uuid = player.gameprofile.id;
@@ -194,7 +194,7 @@ impl ServerPlayerData {
 
         let uuid = player.gameprofile.id;
         let mut nbt = NbtCompound::new();
-        player.write_nbt(&mut nbt).await;
+        player.write_nbt(&mut nbt);
 
         let storage = self.storage.clone();
         tokio::task::spawn_blocking(move || storage.save_player_data(&uuid, nbt))

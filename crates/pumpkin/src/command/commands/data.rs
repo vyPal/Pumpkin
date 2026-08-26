@@ -32,7 +32,7 @@ impl CommandExecutor for GetEntityDataExecutor {
             let Some(Arg::Entity(entity)) = args.get(&ARG_ENTITY) else {
                 return Err(InvalidConsumption(Some(ARG_ENTITY.into())));
             };
-            display_data(entity.as_ref(), entity.get_display_name().await, sender).await
+            display_data(entity.as_ref(), entity.get_display_name(), sender).await
         })
     }
 }
@@ -222,7 +222,7 @@ async fn display_data(
     sender: &CommandSender,
 ) -> Result<i32, CommandError> {
     let mut nbt = NbtCompound::new();
-    entity.write_nbt(&mut nbt).await;
+    entity.write_nbt(&mut nbt);
     let tag = NbtTag::Compound(nbt);
 
     let result = get_i32_result(&tag)?;

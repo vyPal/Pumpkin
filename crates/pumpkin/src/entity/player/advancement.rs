@@ -410,12 +410,7 @@ impl PlayerAdvancement {
 
     /// Grants the rewards (like experience) associated with completing an advancement.
     pub fn grant_reward(player: Arc<Player>, reward: &'static AdvancementReward) {
-        tokio::spawn(async move {
-            tokio::join!(
-                player.add_experience_points(reward.experience),
-                // more reward later
-            );
-        });
+        player.add_experience_points(reward.experience);
     }
 
     /// award a criterion of an advancement to the player, updating its status to complete and granting rewards if applicable.
@@ -454,7 +449,7 @@ impl PlayerAdvancement {
                         .show_advancement_messages
                 {
                     tokio::spawn(async move {
-                        let player_name = player.get_display_name().await;
+                        let player_name = player.get_display_name();
                         let je_component = TextComponent::translate(
                             display.frame_type.get_translation(),
                             [player_name.clone(), advancement.name()],

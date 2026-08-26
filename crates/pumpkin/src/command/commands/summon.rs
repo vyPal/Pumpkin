@@ -66,7 +66,7 @@ impl CommandExecutor for Executor {
                 }
             };
             let entity = from_type(entity_type, pos, &world, Uuid::new_v4());
-            let name = entity.get_display_name().await;
+            let name = entity.get_display_name();
             world.spawn_entity(entity);
             sender
                 .send_message(TextComponent::translate_cross(

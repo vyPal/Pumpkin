@@ -203,7 +203,7 @@ impl CommandSource {
     #[must_use]
     pub async fn with_entity(self, entity: Arc<dyn EntityBase>) -> Self {
         let name = entity.get_name().get_text();
-        let display_name = entity.get_display_name().await;
+        let display_name = entity.get_display_name();
         Self {
             output: self.output,
             world: self.world,

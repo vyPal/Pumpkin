@@ -1,8 +1,7 @@
 use std::sync::{
-    Arc, Weak,
+    Arc, Mutex, Weak,
     atomic::{AtomicBool, AtomicI32, Ordering},
 };
-use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use pumpkin_data::{
@@ -26,7 +25,7 @@ use pumpkin_world::world::BlockFlags;
 
 use crate::{
     entity::{
-        Entity, EntityBase, NbtFuture,
+        Entity, EntityBase,
         ai::goal::{
             look_around::RandomLookAroundGoal, look_at_entity::LookAtEntityGoal,
             revenge::RevengeGoal,
@@ -259,7 +258,7 @@ impl WitherEntity {
         }
     }
 
-    async fn update_bossbar(&self, world: &Arc<crate::world::World>, progress: f32) {
+    fn update_bossbar(&self, world: &Arc<crate::world::World>, progress: f32) {
         let pos = self.mob_entity.living_entity.entity.pos.load();
         let tracking_radius_sq = 50.0 * 50.0;
         let players = world.players.load();
@@ -273,7 +272,10 @@ impl WitherEntity {
             .map(|p| p.gameprofile.id)
             .collect();
 
-        let mut bossbar_players = self.bossbar_players.lock().await;
+        let mut bossbar_players = self
+            .bossbar_players
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
 
         for &uid in &current {
             if !bossbar_players.contains(&uid) {
@@ -306,8 +308,11 @@ impl WitherEntity {
         }
     }
 
-    async fn remove_all_bossbar(&self, world: &Arc<crate::world::World>) {
-        let mut bossbar_players = self.bossbar_players.lock().await;
+    fn remove_all_bossbar(&self, world: &Arc<crate::world::World>) {
+        let mut bossbar_players = self
+            .bossbar_players
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let players = world.players.load();
         for player in players.iter() {
             if bossbar_players.contains(&player.gameprofile.id) {
@@ -318,18 +323,18 @@ impl WitherEntity {
     }
 
     #[expect(clippy::too_many_lines)]
-    async fn async_mob_tick(&self) {
+    fn tick_wither(&self) {
         let entity = &self.mob_entity.living_entity.entity;
         let world = entity.world.load();
 
         if world.level_info.load().difficulty == Difficulty::Peaceful {
-            self.remove_all_bossbar(&world).await;
+            self.remove_all_bossbar(&world);
             entity.remove();
             return;
         }
 
         if !entity.is_alive() || self.mob_entity.living_entity.health.load() <= 0.0 {
-            self.remove_all_bossbar(&world).await;
+            self.remove_all_bossbar(&world);
             if !self.dropped_loot.swap(true, Ordering::SeqCst) {
                 let pos = entity.block_pos.load();
                 world.drop_stack(&pos, ItemStack::new(1, &Item::NETHER_STAR));
@@ -343,18 +348,16 @@ impl WitherEntity {
         if invul > 0 {
             let new_count = invul - 1;
             let progress = (1.0 - (new_count as f32) / 220.0).clamp(0.0, 1.0);
-            self.update_bossbar(&world, progress).await;
+            self.update_bossbar(&world, progress);
 
             if new_count <= 0 {
                 let pos = entity.pos.load();
                 let eye_y = pos.y + entity.get_eye_height();
-                world
-                    .explode(
-                        Vector3::new(pos.x, eye_y, pos.z),
-                        7.0,
-                        ExplosionInteraction::Mob,
-                    )
-                    .await;
+                world.explode(
+                    Vector3::new(pos.x, eye_y, pos.z),
+                    7.0,
+                    ExplosionInteraction::Mob,
+                );
 
                 if !entity.silent.load(Ordering::Relaxed) {
                     world.sync_world_event(
@@ -378,7 +381,7 @@ impl WitherEntity {
             } else {
                 0.0
             };
-            self.update_bossbar(&world, progress).await;
+            self.update_bossbar(&world, progress);
 
             if tick_count % 20 == 0 {
                 living.heal(1.0);
@@ -604,17 +607,7 @@ impl Mob for WitherEntity {
     }
 
     fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) {
-        let entity_id = self.mob_entity.living_entity.entity.entity_id;
-        let world = self.mob_entity.living_entity.entity.world.load_full();
-        tokio::spawn(async move {
-            let Some(entity) = world.get_entity_by_id(entity_id) else {
-                return;
-            };
-            let Some(wither) = entity.cast_any().downcast_ref::<Self>() else {
-                return;
-            };
-            wither.async_mob_tick().await;
-        });
+        self.tick_wither();
     }
 
     fn pre_damage(&self, damage_type: DamageType, source: Option<&dyn EntityBase>) -> bool {
@@ -662,35 +655,22 @@ impl Mob for WitherEntity {
     fn post_tick(&self) {
         let entity = &self.mob_entity.living_entity.entity;
         if !entity.is_alive() || self.mob_entity.living_entity.health.load() <= 0.0 {
-            let entity_id = entity.entity_id;
             let world = entity.world.load_full();
-            tokio::spawn(async move {
-                let Some(entity) = world.get_entity_by_id(entity_id) else {
-                    return;
-                };
-                let Some(wither) = entity.cast_any().downcast_ref::<Self>() else {
-                    return;
-                };
-                wither.remove_all_bossbar(&world).await;
-                if !wither.dropped_loot.swap(true, Ordering::SeqCst) {
-                    let pos = entity.get_entity().block_pos.load();
-                    world.drop_stack(&pos, ItemStack::new(1, &Item::NETHER_STAR));
-                }
-            });
+            self.remove_all_bossbar(&world);
+            if !self.dropped_loot.swap(true, Ordering::SeqCst) {
+                let pos = entity.get_entity().block_pos.load();
+                world.drop_stack(&pos, ItemStack::new(1, &Item::NETHER_STAR));
+            }
         }
     }
 
-    fn mob_write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            nbt.put_int("Invul", self.get_invulnerable_ticks());
-        })
+    fn mob_write_nbt(&self, nbt: &mut NbtCompound) {
+        nbt.put_int("Invul", self.get_invulnerable_ticks());
     }
 
-    fn mob_read_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(invul) = nbt.get_int("Invul") {
-                self.set_invulnerable_ticks(invul);
-            }
-        })
+    fn mob_read_nbt(&self, nbt: &NbtCompound) {
+        if let Some(invul) = nbt.get_int("Invul") {
+            self.set_invulnerable_ticks(invul);
+        }
     }
 }

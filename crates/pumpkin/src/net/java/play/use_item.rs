@@ -72,7 +72,7 @@ impl JavaClient {
             server;
             event;
             'after: {
-                server.item_registry.on_use(&stack_for_use, player).await;
+                server.item_registry.on_use(&stack_for_use, player);
             }
         }}
     }
@@ -90,7 +90,7 @@ impl JavaClient {
                 .cooldown_group
                 .clone()
                 .unwrap_or_else(|| held.item.registry_key.to_string());
-            if player.is_on_cooldown(&group).await {
+            if player.is_on_cooldown(&group) {
                 return;
             }
         }
@@ -100,7 +100,11 @@ impl JavaClient {
         {
             // If its food we want to make sure we can actually consume it
             if let Some(food) = held.get_data_component::<FoodImpl>() {
-                if player.abilities.lock().await.invulnerable
+                if player
+                    .abilities
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .invulnerable
                     || food.can_always_eat
                     || player.hunger_manager.level.load() < 20
                 {

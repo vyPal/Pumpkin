@@ -155,7 +155,7 @@ impl CommandExecutor for Executor {
                             translation::bedrock::COMMANDS_PLAYSOUND_SUCCESS,
                             [
                                 TextComponent::text(sound_name),
-                                targets[0].get_display_name().await,
+                                targets[0].get_display_name(),
                             ],
                         ))
                         .await;

@@ -15,7 +15,7 @@ use crate::entity::ai::goal::active_target::ActiveTargetGoal;
 use crate::entity::living::LivingEntity;
 use crate::entity::projectile::fireball::FireballEntity;
 use crate::entity::{
-    Entity, EntityBase, NbtFuture,
+    Entity, EntityBase,
     ai::goal::{Controls, Goal},
     mob::{Mob, MobEntity},
 };
@@ -151,21 +151,15 @@ impl Mob for GhastEntity {
         }
     }
 
-    fn mob_write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            let power = self.get_explosion_power();
-            nbt.put_byte("ExplosionPower", i8::try_from(power).unwrap_or(1));
-        })
+    fn mob_write_nbt(&self, nbt: &mut NbtCompound) {
+        let power = self.get_explosion_power();
+        nbt.put_byte("ExplosionPower", i8::try_from(power).unwrap_or(1));
     }
 
-    fn mob_read_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(power) = nbt.get_byte("ExplosionPower") {
-                self.set_explosion_power(
-                    u8::try_from(power).unwrap_or(Self::DEFAULT_EXPLOSION_POWER),
-                );
-            }
-        })
+    fn mob_read_nbt(&self, nbt: &NbtCompound) {
+        if let Some(power) = nbt.get_byte("ExplosionPower") {
+            self.set_explosion_power(u8::try_from(power).unwrap_or(Self::DEFAULT_EXPLOSION_POWER));
+        }
     }
 
     fn modify_incoming_damage(&self, amount: f32, damage_type: DamageType) -> f32 {

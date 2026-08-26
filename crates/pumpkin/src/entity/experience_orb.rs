@@ -115,14 +115,11 @@ impl EntityBase for ExperienceOrbEntity {
             if can_pickup {
                 player.living_entity.pickup(&self.entity, 1);
                 self.entity.remove();
-                let player_clone = player.clone();
                 let amount = self.amount as i32;
-                tokio::spawn(async move {
-                    let remaining = player_clone.apply_mending_from_xp(amount).await;
-                    if remaining > 0 {
-                        player_clone.add_experience_points(remaining).await;
-                    }
-                });
+                let remaining = player.apply_mending_from_xp(amount);
+                if remaining > 0 {
+                    player.add_experience_points(remaining);
+                }
             }
         }
     }

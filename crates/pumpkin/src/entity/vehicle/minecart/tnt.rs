@@ -95,16 +95,11 @@ impl TntMinecart {
         let pos = entity.pos.load();
         let primed = self.fuse.load(Ordering::Relaxed) > -1;
         entity.remove();
-        let world_clone = world.clone();
-        tokio::spawn(async move {
-            if primed {
-                world_clone.explode_tnt_minecart(pos, power).await;
-            } else {
-                world_clone
-                    .explode(pos, power, crate::world::ExplosionInteraction::Tnt)
-                    .await;
-            }
-        });
+        if primed {
+            world.explode_tnt_minecart(pos, power);
+        } else {
+            world.explode(pos, power, crate::world::ExplosionInteraction::Tnt);
+        }
     }
 
     pub(super) fn set_fuse(&self, fuse: i32) {

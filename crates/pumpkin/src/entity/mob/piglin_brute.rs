@@ -13,7 +13,7 @@ use pumpkin_protocol::java::client::play::Metadata;
 use pumpkin_util::math::position::BlockPos;
 
 use crate::entity::{
-    Entity, EntityBase, NbtFuture,
+    Entity, EntityBase,
     ai::goal::{
         active_target::ActiveTargetGoal, look_around::RandomLookAroundGoal,
         look_at_entity::LookAtEntityGoal, melee_attack::MeleeAttackGoal, open_door::OpenDoorGoal,
@@ -196,28 +196,24 @@ impl Mob for PiglinBruteEntity {
         }
     }
 
-    fn mob_write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            if self.is_immune_to_zombification() {
-                nbt.put_bool("IsImmuneToZombification", true);
-            }
-            let time_in_overworld = self.time_in_overworld.load(Ordering::Relaxed);
-            if time_in_overworld > 0 {
-                nbt.put_int("TimeInOverworld", time_in_overworld);
-            }
-            nbt.put_bool("CanPickUpLoot", true);
-        })
+    fn mob_write_nbt(&self, nbt: &mut NbtCompound) {
+        if self.is_immune_to_zombification() {
+            nbt.put_bool("IsImmuneToZombification", true);
+        }
+        let time_in_overworld = self.time_in_overworld.load(Ordering::Relaxed);
+        if time_in_overworld > 0 {
+            nbt.put_int("TimeInOverworld", time_in_overworld);
+        }
+        nbt.put_bool("CanPickUpLoot", true);
     }
 
-    fn mob_read_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(immune) = nbt.get_bool("IsImmuneToZombification") {
-                self.set_immune_to_zombification(immune);
-            }
-            if let Some(time) = nbt.get_int("TimeInOverworld") {
-                self.time_in_overworld.store(time, Ordering::Relaxed);
-            }
-        })
+    fn mob_read_nbt(&self, nbt: &NbtCompound) {
+        if let Some(immune) = nbt.get_bool("IsImmuneToZombification") {
+            self.set_immune_to_zombification(immune);
+        }
+        if let Some(time) = nbt.get_int("TimeInOverworld") {
+            self.time_in_overworld.store(time, Ordering::Relaxed);
+        }
     }
 
     fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) {

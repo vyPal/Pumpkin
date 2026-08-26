@@ -24,6 +24,7 @@ use tracing::warn;
 use super::experience_orb::ExperienceOrbEntity;
 use super::{Entity, EntityBase, NBTStorageInit};
 use crate::block::OnLandedUponArgs;
+use crate::entity::NBTStorage;
 use crate::entity::attributes::AttributeInstance;
 use crate::entity::attributes::Modifier;
 use crate::entity::attributes::ModifierOperation;
@@ -31,7 +32,6 @@ use crate::entity::combat::knockback_after_resistance;
 use crate::entity::mob::equipment::DEFAULT_EQUIPMENT_DROP_CHANCE;
 use crate::entity::mob::slime::SlimeEntity;
 use crate::entity::player::statistics::{CustomStatistic, StatisticCategory};
-use crate::entity::{NBTStorage, NbtFuture};
 use crate::server::Server;
 use crate::world::loot::{LootContextParameters, LootTableExt};
 use crossbeam::atomic::AtomicCell;
@@ -1443,9 +1443,13 @@ impl LivingEntity {
         fall_distance: f32,
         damage_per_distance: f32,
     ) {
-        let may_fly = caller
-            .get_player()
-            .is_some_and(|player| player.abilities.blocking_lock().allow_flying);
+        let may_fly = caller.get_player().is_some_and(|player| {
+            player
+                .abilities
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .allow_flying
+        });
         if may_fly || self.is_immune_to_fall_damage() {
             return;
         }
@@ -1472,7 +1476,7 @@ impl LivingEntity {
         }
     }
 
-    pub async fn get_death_message(
+    pub fn get_death_message(
         dyn_self: &dyn EntityBase,
         damage_type: DamageType,
         source: Option<&dyn EntityBase>,
@@ -1486,16 +1490,13 @@ impl LivingEntity {
                     TextComponent::translate_cross(
                         format!("death.attack.{}.player", damage_type.message_id),
                         format!("death.attack.{}.player", damage_type.message_id),
-                        [
-                            dyn_self.get_display_name().await,
-                            cause.get_display_name().await,
-                        ],
+                        [dyn_self.get_display_name(), cause.get_display_name()],
                     )
                 } else {
                     TextComponent::translate_cross(
                         format!("death.attack.{}", damage_type.message_id),
                         format!("death.attack.{}", damage_type.message_id),
-                        [dyn_self.get_display_name().await],
+                        [dyn_self.get_display_name()],
                     )
                 }
             }
@@ -1504,14 +1505,14 @@ impl LivingEntity {
                 TextComponent::translate_cross(
                     translation::java::DEATH_FELL_ACCIDENT_GENERIC,
                     translation::bedrock::DEATH_FELL_ACCIDENT_GENERIC,
-                    [dyn_self.get_display_name().await],
+                    [dyn_self.get_display_name()],
                 )
             }
             DeathMessageType::IntentionalGameDesign => TextComponent::text("[")
                 .add_child(TextComponent::translate_cross(
                     format!("death.attack.{}.message", damage_type.message_id),
                     format!("death.attack.{}.message", damage_type.message_id),
-                    [dyn_self.get_display_name().await],
+                    [dyn_self.get_display_name()],
                 ))
                 .add_child(TextComponent::text("]")),
         }
@@ -1618,7 +1619,7 @@ impl LivingEntity {
             };
             for (effect_type, amplifier) in active_effects_vec {
                 if let Some(mob_effect) = crate::entity::effect::get_mob_effect(effect_type) {
-                    mob_effect.on_mob_death(self, amplifier, &damage_type).await;
+                    mob_effect.on_mob_death(self, amplifier, &damage_type);
                 }
             }
 
@@ -1687,7 +1688,7 @@ impl LivingEntity {
         let show_death_messages = { world.level_info.load().game_rules.show_death_messages };
         if self.entity.entity_type == &EntityType::PLAYER && show_death_messages {
             //TODO: KillCredit
-            let death_message = Self::get_death_message(dyn_self, damage_type, source, cause).await;
+            let death_message = Self::get_death_message(dyn_self, damage_type, source, cause);
             if let Some(server) = world.server.upgrade() {
                 for player in server.get_all_players() {
                     player.send_system_message(&death_message).await;
@@ -1816,15 +1817,7 @@ impl LivingEntity {
         }
 
         for (mob_effect, amplifier) in effects_to_apply {
-            let entity_id = self.entity.entity_id;
-            let world = self.entity.world.load_full();
-            tokio::spawn(async move {
-                if let Some(entity) = world.get_entity_by_id(entity_id)
-                    && let Some(living) = entity.get_living_entity()
-                {
-                    mob_effect.apply_effect_tick(living, amplifier).await;
-                }
-            });
+            mob_effect.apply_effect_tick(self, amplifier);
         }
     }
 
@@ -2093,103 +2086,97 @@ impl LivingEntity {
 }
 
 impl LivingEntity {
-    pub fn write_living_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            nbt.put("Health", NbtTag::Float(self.health.load()));
-            // Avoid persisting a lethal fall distance when the entity is dead to prevent death loops
-            let fall_distance = if self.dead.load(Relaxed) {
-                0.0
-            } else {
-                self.fall_distance.load()
+    pub fn write_living_nbt(&self, nbt: &mut NbtCompound) {
+        nbt.put("Health", NbtTag::Float(self.health.load()));
+        // Avoid persisting a lethal fall distance when the entity is dead to prevent death loops
+        let fall_distance = if self.dead.load(Relaxed) {
+            0.0
+        } else {
+            self.fall_distance.load()
+        };
+        // Persist current absorption amount
+        nbt.put("AbsorptionAmount", NbtTag::Float(self.absorption.load()));
+        nbt.put("FallDistance", NbtTag::Float(fall_distance));
+        nbt.put_short("HurtTime", self.hurt_cooldown.load(Relaxed).max(0) as i16);
+        nbt.put_short("DeathTime", i16::from(self.death_time.load(Relaxed)));
+        nbt.put_bool("FallFlying", self.entity.is_fall_flying());
+        {
+            let effects_vec: Vec<pumpkin_data::potion::Effect> = {
+                let effects = self
+                    .active_effects
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                effects.values().cloned().collect()
             };
-            // Persist current absorption amount
-            nbt.put("AbsorptionAmount", NbtTag::Float(self.absorption.load()));
-            nbt.put("FallDistance", NbtTag::Float(fall_distance));
-            nbt.put_short("HurtTime", self.hurt_cooldown.load(Relaxed).max(0) as i16);
-            nbt.put_short("DeathTime", i16::from(self.death_time.load(Relaxed)));
-            nbt.put_bool("FallFlying", self.entity.is_fall_flying());
-            {
-                let effects_vec: Vec<pumpkin_data::potion::Effect> = {
-                    let effects = self
+            if !effects_vec.is_empty() {
+                // Iterate effects and create Box<[NbtTag]>
+                let mut effects_list = Vec::with_capacity(effects_vec.len());
+                for effect in effects_vec {
+                    let mut effect_nbt = pumpkin_nbt::compound::NbtCompound::new();
+                    effect.write_nbt(&mut effect_nbt);
+                    effects_list.push(NbtTag::Compound(effect_nbt));
+                }
+                nbt.put("active_effects", NbtTag::List(effects_list));
+            }
+        }
+        //TODO: write equipment
+        // todo more...
+    }
+
+    pub fn read_living_nbt_non_mut(&self, nbt: &NbtCompound) {
+        self.health.store(nbt.get_float("Health").unwrap_or(20.0));
+
+        // Clamp any persisted absorption to the entity's configured max
+        let raw_abs = nbt.get_float("AbsorptionAmount").unwrap_or(0.0);
+        let max_abs = self.get_attribute_value(&Attributes::MAX_ABSORPTION) as f32;
+        let clamped_abs = raw_abs.max(0.0).min(max_abs);
+        self.absorption.store(clamped_abs);
+
+        // Load fall distance, but if this entity is currently marked dead ensure we don't restore
+        // a lethal fall distance that would immediately re-kill on spawn.
+        let fd = nbt
+            .get_float("FallDistance")
+            .or_else(|| nbt.get_float("fall_distance"))
+            .unwrap_or(0.0);
+        if self.dead.load(Relaxed) {
+            self.fall_distance.store(0.0);
+        } else {
+            self.fall_distance.store(fd);
+        }
+        if let Some(hurt_time) = nbt.get_short("HurtTime") {
+            self.hurt_cooldown.store(i32::from(hurt_time), Relaxed);
+        }
+        if let Some(death_time) = nbt.get_short("DeathTime") {
+            self.death_time.store(death_time as u8, Relaxed);
+        }
+        self.entity
+            .fall_flying
+            .store(nbt.get_bool("FallFlying").unwrap_or(false), Relaxed);
+        {
+            let nbt_effects = nbt.get_list("active_effects");
+            if let Some(nbt_effects) = nbt_effects {
+                let mut read_effects = Vec::new();
+                for effect in nbt_effects {
+                    if let NbtTag::Compound(effect_nbt) = effect {
+                        if let Some(mut effect) = Effect::create_from_nbt(&mut effect_nbt.clone()) {
+                            effect.blend = true; // TODO: change, is taken from effect give command
+                            read_effects.push(effect);
+                        } else {
+                            warn!("Unable to read effect from nbt");
+                        }
+                    }
+                }
+                if !read_effects.is_empty() {
+                    let mut active_effects = self
                         .active_effects
                         .lock()
                         .unwrap_or_else(std::sync::PoisonError::into_inner);
-                    effects.values().cloned().collect()
-                };
-                if !effects_vec.is_empty() {
-                    // Iterate effects and create Box<[NbtTag]>
-                    let mut effects_list = Vec::with_capacity(effects_vec.len());
-                    for effect in effects_vec {
-                        let mut effect_nbt = pumpkin_nbt::compound::NbtCompound::new();
-                        effect.write_nbt(&mut effect_nbt).await;
-                        effects_list.push(NbtTag::Compound(effect_nbt));
-                    }
-                    nbt.put("active_effects", NbtTag::List(effects_list));
-                }
-            }
-            //TODO: write equipment
-            // todo more...
-        })
-    }
-
-    pub fn read_living_nbt_non_mut<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async {
-            self.health.store(nbt.get_float("Health").unwrap_or(20.0));
-
-            // Clamp any persisted absorption to the entity's configured max
-            let raw_abs = nbt.get_float("AbsorptionAmount").unwrap_or(0.0);
-            let max_abs = self.get_attribute_value(&Attributes::MAX_ABSORPTION) as f32;
-            let clamped_abs = raw_abs.max(0.0).min(max_abs);
-            self.absorption.store(clamped_abs);
-
-            // Load fall distance, but if this entity is currently marked dead ensure we don't restore
-            // a lethal fall distance that would immediately re-kill on spawn.
-            let fd = nbt
-                .get_float("FallDistance")
-                .or_else(|| nbt.get_float("fall_distance"))
-                .unwrap_or(0.0);
-            if self.dead.load(Relaxed) {
-                self.fall_distance.store(0.0);
-            } else {
-                self.fall_distance.store(fd);
-            }
-            if let Some(hurt_time) = nbt.get_short("HurtTime") {
-                self.hurt_cooldown.store(i32::from(hurt_time), Relaxed);
-            }
-            if let Some(death_time) = nbt.get_short("DeathTime") {
-                self.death_time.store(death_time as u8, Relaxed);
-            }
-            self.entity
-                .fall_flying
-                .store(nbt.get_bool("FallFlying").unwrap_or(false), Relaxed);
-            {
-                let nbt_effects = nbt.get_list("active_effects");
-                if let Some(nbt_effects) = nbt_effects {
-                    let mut read_effects = Vec::new();
-                    for effect in nbt_effects {
-                        if let NbtTag::Compound(effect_nbt) = effect {
-                            if let Some(mut effect) =
-                                Effect::create_from_nbt(&mut effect_nbt.clone()).await
-                            {
-                                effect.blend = true; // TODO: change, is taken from effect give command
-                                read_effects.push(effect);
-                            } else {
-                                warn!("Unable to read effect from nbt");
-                            }
-                        }
-                    }
-                    if !read_effects.is_empty() {
-                        let mut active_effects = self
-                            .active_effects
-                            .lock()
-                            .unwrap_or_else(std::sync::PoisonError::into_inner);
-                        for effect in read_effects {
-                            active_effects.insert(effect.effect_type, effect);
-                        }
+                    for effect in read_effects {
+                        active_effects.insert(effect.effect_type, effect);
                     }
                 }
             }
-        })
+        }
         // todo more...
     }
 
@@ -2828,9 +2815,7 @@ impl EntityBase for LivingEntity {
                                     .cooldown_group
                                     .clone()
                                     .unwrap_or_else(|| item.item.registry_key.to_string());
-                                player
-                                    .start_cooldown(group, (cooldown.seconds * 20.0) as i32)
-                                    .await;
+                                player.start_cooldown(group, (cooldown.seconds * 20.0) as i32);
                             }
                         }
 
@@ -2932,7 +2917,12 @@ impl LivingEntity {
                 }
                 ConsumeEffect::TeleportRandomly(diameter) => {
                     // Java Edition dismounts the consumer before random teleport attempts.
-                    let vehicle = caller.get_entity().vehicle.lock().await.clone();
+                    let vehicle = caller
+                        .get_entity()
+                        .vehicle
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .clone();
                     if let Some(vehicle) = vehicle {
                         vehicle
                             .get_entity()
@@ -2959,7 +2949,7 @@ impl LivingEntity {
                         self.fall_distance.store(0.0);
                         // Vanilla broadcasts entity event 46 (teleport particles) on success.
                         world.send_entity_status(&self.entity, EntityStatus::Teleport, None);
-                        world.emit_game_event("teleport", center).await;
+                        world.emit_game_event("teleport", center);
                         world.play_sound(
                             Sound::ItemChorusFruitTeleport,
                             SoundCategory::Players,

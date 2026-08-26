@@ -82,7 +82,7 @@ impl CommandExecutor for TargetExecutor {
                             .send_message(TextComponent::translate_cross(
                                 translation::java::COMMANDS_GAMEMODE_SUCCESS_OTHER,
                                 translation::bedrock::COMMANDS_GAMEMODE_SUCCESS_OTHER,
-                                [target.get_display_name().await, gamemode_comp],
+                                [target.get_display_name(), gamemode_comp],
                             ))
                             .await;
                     }

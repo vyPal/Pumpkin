@@ -68,7 +68,7 @@ impl PortalType {
     }
 
     #[expect(clippy::too_many_lines)]
-    pub async fn get_portal_destination(
+    pub fn get_portal_destination(
         &self,
         current_level: &World,
         dest_world: Arc<World>,
@@ -90,12 +90,8 @@ impl PortalType {
                         let y = if is_player { 49.0 } else { 50.0 };
 
                         // Ensure chunks covering the platform are loaded/generated
-                        dest_world
-                            .get_block_state_async(&BlockPos::new(98, 49, -2))
-                            .await;
-                        dest_world
-                            .get_block_state_async(&BlockPos::new(102, 49, 2))
-                            .await;
+                        dest_world.get_block_state(&BlockPos::new(98, 49, -2));
+                        dest_world.get_block_state(&BlockPos::new(102, 49, 2));
 
                         // Generate/regenerate the obsidian platform (5x5 obsidian at Y=48, and 5x5x3 air above it)
                         let platform_pos = BlockPos::new(100, 49, 0);
@@ -134,24 +130,24 @@ impl PortalType {
                         {
                             match player.client.as_ref() {
                                 crate::net::ClientPlatform::Java(client) => {
-                                    client
-                                        .enqueue_client_packet(&pumpkin_protocol::java::client::play::CGameEvent::new(
-                                            pumpkin_protocol::java::client::play::GameEvent::WinGame,
-                                            1.0,
-                                        ))
-                                        .await;
+                                    if let Ok(data) = client.serialize_packet(&pumpkin_protocol::java::client::play::CGameEvent::new(
+                                        pumpkin_protocol::java::client::play::GameEvent::WinGame,
+                                        1.0,
+                                    )) {
+                                        client.try_enqueue_packet(data);
+                                    }
                                 }
                                 crate::net::ClientPlatform::Bedrock(client) => {
-                                    client
-                                        .send_packet(
-                                            &pumpkin_protocol::bedrock::client::CShowCredits {
-                                                player_runtime_id: (caller.get_entity().entity_id
-                                                    as u64)
-                                                    .into(),
-                                                credits_state: 0.into(),
-                                            },
-                                        )
-                                        .await;
+                                    if let Ok(data) = client.serialize_packet(
+                                        &pumpkin_protocol::bedrock::client::CShowCredits {
+                                            player_runtime_id: (caller.get_entity().entity_id
+                                                as u64)
+                                                .into(),
+                                            credits_state: 0.into(),
+                                        },
+                                    ) {
+                                        client.try_enqueue_packet(data);
+                                    }
                                 }
                             }
                         }
@@ -186,7 +182,7 @@ impl PortalType {
                 let source_axis = source_portal.as_ref().map(|p| p.axis);
 
                 let (final_pos, yaw) = if let Some(dest_result) =
-                    NetherPortal::search_for_portal(&dest_world, target_pos).await
+                    NetherPortal::search_for_portal(&dest_world, target_pos)
                 {
                     let base_pos = source_portal.as_ref().map_or_else(
                         || dest_result.get_teleport_position(),
@@ -211,7 +207,6 @@ impl PortalType {
                         target_pos,
                         pumpkin_data::block_properties::HorizontalAxis::X,
                     )
-                    .await
                 {
                     NetherPortal::build_portal_frame(&dest_world, build_pos, axis, is_fallback);
                     let new_portal = PortalSearchResult {

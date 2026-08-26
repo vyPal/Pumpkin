@@ -39,13 +39,23 @@ static ERROR_GENERIC: CommandErrorType<2> = CommandErrorType::new(
 );
 
 #[allow(clippy::assigning_clones)]
-async fn is_riding_recursive(entity: &dyn EntityBase, possible_vehicle: &dyn EntityBase) -> bool {
-    let mut current = possible_vehicle.get_entity().vehicle.lock().await.clone();
+fn is_riding_recursive(entity: &dyn EntityBase, possible_vehicle: &dyn EntityBase) -> bool {
+    let mut current = possible_vehicle
+        .get_entity()
+        .vehicle
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
     while let Some(vehicle) = current {
         if vehicle.get_entity().entity_id == entity.get_entity().entity_id {
             return true;
         }
-        current = vehicle.get_entity().vehicle.lock().await.clone();
+        current = vehicle
+            .get_entity()
+            .vehicle
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
     }
     false
 }
@@ -79,17 +89,22 @@ impl CommandExecutor for RideMountExecutor {
                     continue;
                 }
 
-                if is_riding_recursive(target.as_ref(), vehicle.as_ref()).await {
+                if is_riding_recursive(target.as_ref(), vehicle.as_ref()) {
                     last_error = Some(ERROR_LOOP.create_without_context());
                     continue;
                 }
 
-                let current_vehicle = target.get_entity().vehicle.lock().await.clone();
+                let current_vehicle = target
+                    .get_entity()
+                    .vehicle
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .clone();
                 if let Some(ref curr_veh) = current_vehicle {
                     if curr_veh.get_entity().entity_id == vehicle.get_entity().entity_id {
                         last_error = Some(ERROR_ALREADY_RIDING.create_without_context(
-                            target.get_display_name().await,
-                            vehicle.get_display_name().await,
+                            target.get_display_name(),
+                            vehicle.get_display_name(),
                         ));
                         continue;
                     }
@@ -102,17 +117,13 @@ impl CommandExecutor for RideMountExecutor {
 
                 vehicle
                     .get_entity()
-                    .add_passenger(vehicle.clone(), target.clone())
-                    .await;
+                    .add_passenger(vehicle.clone(), target.clone());
                 success_count += 1;
 
                 let msg = TextComponent::translate_cross(
                     translation::java::COMMANDS_RIDE_MOUNT_SUCCESS,
                     translation::java::COMMANDS_RIDE_MOUNT_SUCCESS,
-                    [
-                        target.get_display_name().await,
-                        vehicle.get_display_name().await,
-                    ],
+                    [target.get_display_name(), vehicle.get_display_name()],
                 );
                 context.source.send_feedback(msg, true).await;
             }
@@ -122,8 +133,8 @@ impl CommandExecutor for RideMountExecutor {
                     return Err(err);
                 }
                 return Err(ERROR_GENERIC.create_without_context(
-                    targets[0].get_display_name().await,
-                    vehicle.get_display_name().await,
+                    targets[0].get_display_name(),
+                    vehicle.get_display_name(),
                 ));
             }
 
@@ -143,7 +154,12 @@ impl CommandExecutor for RideDismountExecutor {
             let mut last_error = None;
 
             for target in &targets {
-                let current_vehicle = target.get_entity().vehicle.lock().await.clone();
+                let current_vehicle = target
+                    .get_entity()
+                    .vehicle
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .clone();
                 if let Some(vehicle) = current_vehicle {
                     vehicle
                         .get_entity()
@@ -154,13 +170,12 @@ impl CommandExecutor for RideDismountExecutor {
                     let msg = TextComponent::translate_cross(
                         translation::java::COMMANDS_RIDE_DISMOUNT_SUCCESS,
                         translation::java::COMMANDS_RIDE_DISMOUNT_SUCCESS,
-                        [target.get_display_name().await],
+                        [target.get_display_name()],
                     );
                     context.source.send_feedback(msg, true).await;
                 } else {
-                    last_error = Some(
-                        ERROR_NOT_RIDING.create_without_context(target.get_display_name().await),
-                    );
+                    last_error =
+                        Some(ERROR_NOT_RIDING.create_without_context(target.get_display_name()));
                 }
             }
 
@@ -168,9 +183,7 @@ impl CommandExecutor for RideDismountExecutor {
                 if let Some(err) = last_error {
                     return Err(err);
                 }
-                return Err(
-                    ERROR_NOT_RIDING.create_without_context(targets[0].get_display_name().await)
-                );
+                return Err(ERROR_NOT_RIDING.create_without_context(targets[0].get_display_name()));
             }
 
             Ok(success_count)

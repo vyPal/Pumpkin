@@ -13,7 +13,7 @@ use pumpkin_protocol::{
 use pumpkin_util::{math::vector3::Vector3, text::TextComponent};
 
 use crate::{
-    entity::{Entity, EntityBase, NbtFuture, living::LivingEntity},
+    entity::{Entity, EntityBase, living::LivingEntity},
     server::Server,
 };
 
@@ -796,20 +796,16 @@ impl BlockDisplayEntity {
 }
 
 impl EntityBase for BlockDisplayEntity {
-    fn write_custom_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            self.display.write_display_nbt(nbt);
-            nbt.put_int("block_state", self.block_state.load(Ordering::Relaxed));
-        })
+    fn write_custom_nbt(&self, nbt: &mut NbtCompound) {
+        self.display.write_display_nbt(nbt);
+        nbt.put_int("block_state", self.block_state.load(Ordering::Relaxed));
     }
 
-    fn read_custom_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            self.display.read_display_nbt(nbt);
-            if let Some(state) = nbt.get_int("block_state") {
-                self.block_state.store(state, Ordering::Relaxed);
-            }
-        })
+    fn read_custom_nbt(&self, nbt: &NbtCompound) {
+        self.display.read_display_nbt(nbt);
+        if let Some(state) = nbt.get_int("block_state") {
+            self.block_state.store(state, Ordering::Relaxed);
+        }
     }
 
     fn tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>, _server: &'a Server) {}
@@ -919,42 +915,38 @@ impl ItemDisplayEntity {
 }
 
 impl EntityBase for ItemDisplayEntity {
-    fn write_custom_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            self.display.write_display_nbt(nbt);
-            let display_mode_str = match self.item_display.load(Ordering::Relaxed) {
-                1 => "thirdperson_lefthand",
-                2 => "thirdperson_righthand",
-                3 => "firstperson_lefthand",
-                4 => "firstperson_righthand",
-                5 => "head",
-                6 => "gui",
-                7 => "ground",
-                8 => "fixed",
-                _ => "none",
-            };
-            nbt.put_string("item_display", display_mode_str.to_string());
-        })
+    fn write_custom_nbt(&self, nbt: &mut NbtCompound) {
+        self.display.write_display_nbt(nbt);
+        let display_mode_str = match self.item_display.load(Ordering::Relaxed) {
+            1 => "thirdperson_lefthand",
+            2 => "thirdperson_righthand",
+            3 => "firstperson_lefthand",
+            4 => "firstperson_righthand",
+            5 => "head",
+            6 => "gui",
+            7 => "ground",
+            8 => "fixed",
+            _ => "none",
+        };
+        nbt.put_string("item_display", display_mode_str.to_string());
     }
 
-    fn read_custom_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            self.display.read_display_nbt(nbt);
-            if let Some(mode_str) = nbt.get_string("item_display") {
-                let mode = match mode_str {
-                    "thirdperson_lefthand" => 1,
-                    "thirdperson_righthand" => 2,
-                    "firstperson_lefthand" => 3,
-                    "firstperson_righthand" => 4,
-                    "head" => 5,
-                    "gui" => 6,
-                    "ground" => 7,
-                    "fixed" => 8,
-                    _ => 0,
-                };
-                self.item_display.store(mode, Ordering::Relaxed);
-            }
-        })
+    fn read_custom_nbt(&self, nbt: &NbtCompound) {
+        self.display.read_display_nbt(nbt);
+        if let Some(mode_str) = nbt.get_string("item_display") {
+            let mode = match mode_str {
+                "thirdperson_lefthand" => 1,
+                "thirdperson_righthand" => 2,
+                "firstperson_lefthand" => 3,
+                "firstperson_righthand" => 4,
+                "head" => 5,
+                "gui" => 6,
+                "ground" => 7,
+                "fixed" => 8,
+                _ => 0,
+            };
+            self.item_display.store(mode, Ordering::Relaxed);
+        }
     }
 
     fn tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>, _server: &'a Server) {}
@@ -1203,77 +1195,73 @@ impl TextDisplayEntity {
 }
 
 impl EntityBase for TextDisplayEntity {
-    fn write_custom_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            self.display.write_display_nbt(nbt);
-            let text_json_res = pumpkin_util::serde_json::to_string(
-                &*self
-                    .text
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner),
-            );
-            if let Ok(text_json) = text_json_res {
-                nbt.put_string("text", text_json);
-            }
-            nbt.put_int("line_width", self.line_width.load(Ordering::Relaxed));
-            nbt.put_int("background", self.background.load(Ordering::Relaxed));
-            nbt.put_byte("text_opacity", self.text_opacity.load(Ordering::Relaxed));
+    fn write_custom_nbt(&self, nbt: &mut NbtCompound) {
+        self.display.write_display_nbt(nbt);
+        let text_json_res = pumpkin_util::serde_json::to_string(
+            &*self
+                .text
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
+        if let Ok(text_json) = text_json_res {
+            nbt.put_string("text", text_json);
+        }
+        nbt.put_int("line_width", self.line_width.load(Ordering::Relaxed));
+        nbt.put_int("background", self.background.load(Ordering::Relaxed));
+        nbt.put_byte("text_opacity", self.text_opacity.load(Ordering::Relaxed));
 
-            let flags = self.flags.load(Ordering::Relaxed);
-            nbt.put_bool("shadow", flags & 1 != 0);
-            nbt.put_bool("see_through", flags & 2 != 0);
-            nbt.put_bool("default_background", flags & 4 != 0);
-            let align_str = if flags & 8 != 0 {
-                "left"
-            } else if flags & 16 != 0 {
-                "right"
-            } else {
-                "center"
-            };
-            nbt.put_string("alignment", align_str.to_string());
-        })
+        let flags = self.flags.load(Ordering::Relaxed);
+        nbt.put_bool("shadow", flags & 1 != 0);
+        nbt.put_bool("see_through", flags & 2 != 0);
+        nbt.put_bool("default_background", flags & 4 != 0);
+        let align_str = if flags & 8 != 0 {
+            "left"
+        } else if flags & 16 != 0 {
+            "right"
+        } else {
+            "center"
+        };
+        nbt.put_string("alignment", align_str.to_string());
     }
 
-    fn read_custom_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            self.display.read_display_nbt(nbt);
-            if let Some(text_json) = nbt.get_string("text")
-                && let Ok(component) = pumpkin_util::serde_json::from_str(text_json)
-            {
-                *self
-                    .text
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner) = component;
-            }
-            if let Some(lw) = nbt.get_int("line_width") {
-                self.line_width.store(lw, Ordering::Relaxed);
-            }
-            if let Some(bg) = nbt.get_int("background") {
-                self.background.store(bg, Ordering::Relaxed);
-            }
-            if let Some(opacity) = nbt.get_byte("text_opacity") {
-                self.text_opacity.store(opacity, Ordering::Relaxed);
-            }
+    fn read_custom_nbt(&self, nbt: &NbtCompound) {
+        self.display.read_display_nbt(nbt);
+        if let Some(text_json) = nbt.get_string("text")
+            && let Ok(component) = pumpkin_util::serde_json::from_str(text_json)
+        {
+            *self
+                .text
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = component;
+        }
+        if let Some(lw) = nbt.get_int("line_width") {
+            self.line_width.store(lw, Ordering::Relaxed);
+        }
+        if let Some(bg) = nbt.get_int("background") {
+            self.background.store(bg, Ordering::Relaxed);
+        }
+        if let Some(opacity) = nbt.get_byte("text_opacity") {
+            self.text_opacity.store(opacity, Ordering::Relaxed);
+        }
 
-            let mut flags = 0u8;
-            if nbt.get_bool("shadow").unwrap_or(false) {
-                flags |= 1;
+        let mut flags = 0u8;
+        if nbt.get_bool("shadow").unwrap_or(false) {
+            flags |= 1;
+        }
+        if nbt.get_bool("see_through").unwrap_or(false) {
+            flags |= 2;
+        }
+        if nbt.get_bool("default_background").unwrap_or(false) {
+            flags |= 4;
+        }
+        if let Some(align) = nbt.get_string("alignment") {
+            match align {
+                "left" => flags |= 8,
+                "right" => flags |= 16,
+                _ => {}
             }
-            if nbt.get_bool("see_through").unwrap_or(false) {
-                flags |= 2;
-            }
-            if nbt.get_bool("default_background").unwrap_or(false) {
-                flags |= 4;
-            }
-            if let Some(align) = nbt.get_string("alignment") {
-                match align {
-                    "left" => flags |= 8,
-                    "right" => flags |= 16,
-                    _ => {}
-                }
-            }
-            self.flags.store(flags, Ordering::Relaxed);
-        })
+        }
+        self.flags.store(flags, Ordering::Relaxed);
     }
 
     fn tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>, _server: &'a Server) {}

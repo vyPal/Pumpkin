@@ -62,7 +62,7 @@ impl Executor {
                 translation_key,
                 translation_key,
                 [
-                    target.get_display_name().await,
+                    target.get_display_name(),
                     TextComponent::text(val.to_string()),
                 ],
             ))
@@ -126,20 +126,20 @@ impl Executor {
         match self.exp_type {
             ExpType::Levels => {
                 if self.mode == Mode::Add {
-                    target.add_experience_levels(amount).await;
+                    target.add_experience_levels(amount);
                 } else {
-                    target.set_experience_level(amount, true).await;
+                    target.set_experience_level(amount, true);
                 }
             }
             ExpType::Points => {
                 if self.mode == Mode::Add {
-                    target.add_experience_points(amount).await;
+                    target.add_experience_points(amount);
                 } else {
                     let current_lvl = target.experience_level.load(Ordering::Relaxed);
                     if amount > experience::points_in_level(current_lvl) {
                         return false;
                     }
-                    target.set_experience_points(amount).await;
+                    target.set_experience_points(amount);
                 }
             }
         }
@@ -195,7 +195,7 @@ impl CommandExecutor for Executor {
             }
 
             // Safe to access first() because successes > 0
-            let first_name = targets[0].get_display_name().await;
+            let first_name = targets[0].get_display_name();
             let msg = self.get_success_message(amount, targets, first_name);
             sender.send_message(msg).await;
 

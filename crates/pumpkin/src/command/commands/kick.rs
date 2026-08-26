@@ -51,13 +51,13 @@ impl CommandExecutor for Executor {
                     TextComponent::translate_cross(
                         translation::java::COMMANDS_KICK_SUCCESS,
                         translation::bedrock::COMMANDS_KICK_SUCCESS_REASON,
-                        [target.get_display_name().await, reason.clone()],
+                        [target.get_display_name(), reason.clone()],
                     )
                 } else {
                     TextComponent::translate_cross(
                         translation::java::COMMANDS_KICK_SUCCESS,
                         translation::bedrock::COMMANDS_KICK_SUCCESS,
-                        [target.get_display_name().await, reason.clone()],
+                        [target.get_display_name(), reason.clone()],
                     )
                 };
 

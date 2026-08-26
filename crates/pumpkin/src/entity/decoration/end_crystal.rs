@@ -52,11 +52,7 @@ impl EntityBase for EndCrystalEntity {
         if !damage_type.has_tag(&tag::DamageType::MINECRAFT_IS_EXPLOSION) {
             let world = self.entity.world.load();
             let pos = self.entity.pos.load();
-            tokio::spawn(async move {
-                world
-                    .explode(pos, 6.0, crate::world::ExplosionInteraction::Block)
-                    .await;
-            });
+            world.explode(pos, 6.0, crate::world::ExplosionInteraction::Block);
         }
 
         // TODO

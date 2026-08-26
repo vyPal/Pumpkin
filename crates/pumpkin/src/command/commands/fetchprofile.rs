@@ -353,12 +353,12 @@ impl CommandExecutor for PrintForEntityExecutor {
                     &context.source,
                     &player.gameprofile,
                     translation::java::COMMANDS_FETCHPROFILE_ENTITY_SUCCESS,
-                    player.get_display_name().await,
+                    player.get_display_name(),
                 )
                 .await;
                 Ok(1)
             } else {
-                Err(NO_PROFILE_ERROR_TYPE.create_without_context(entity.get_display_name().await))
+                Err(NO_PROFILE_ERROR_TYPE.create_without_context(entity.get_display_name()))
             }
         })
     }

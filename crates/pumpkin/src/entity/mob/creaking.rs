@@ -18,7 +18,7 @@ use pumpkin_util::math::vector3::Vector3;
 
 use crate::block::entities::creaking_heart::CreakingHeartBlockEntity;
 use crate::entity::{
-    Entity, EntityBase, NbtFuture,
+    Entity, EntityBase,
     ai::goal::{
         active_target::ActiveTargetGoal, look_around::RandomLookAroundGoal,
         look_at_entity::LookAtEntityGoal, melee_attack::MeleeAttackGoal, swim::SwimGoal,
@@ -397,28 +397,24 @@ impl CreakingEntity {
 }
 
 impl Mob for CreakingEntity {
-    fn mob_write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(pos) = self.get_home_pos() {
-                let mut sub = NbtCompound::new();
-                sub.put_int("x", pos.0.x);
-                sub.put_int("y", pos.0.y);
-                sub.put_int("z", pos.0.z);
-                nbt.put_compound("home_pos", sub);
-            }
-        })
+    fn mob_write_nbt(&self, nbt: &mut NbtCompound) {
+        if let Some(pos) = self.get_home_pos() {
+            let mut sub = NbtCompound::new();
+            sub.put_int("x", pos.0.x);
+            sub.put_int("y", pos.0.y);
+            sub.put_int("z", pos.0.z);
+            nbt.put_compound("home_pos", sub);
+        }
     }
 
-    fn mob_read_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(sub) = nbt.get_compound("home_pos")
-                && let (Some(x), Some(y), Some(z)) =
-                    (sub.get_int("x"), sub.get_int("y"), sub.get_int("z"))
-            {
-                let pos = BlockPos::new(x, y, z);
-                self.set_transient(pos);
-            }
-        })
+    fn mob_read_nbt(&self, nbt: &NbtCompound) {
+        if let Some(sub) = nbt.get_compound("home_pos")
+            && let (Some(x), Some(y), Some(z)) =
+                (sub.get_int("x"), sub.get_int("y"), sub.get_int("z"))
+        {
+            let pos = BlockPos::new(x, y, z);
+            self.set_transient(pos);
+        }
     }
 
     fn get_mob_entity(&self) -> &MobEntity {

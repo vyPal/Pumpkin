@@ -12,15 +12,16 @@ use pumpkin_util::text::TextComponent;
 
 use super::container::{self, MinecartInventory};
 
+#[derive(Clone)]
 pub(super) struct HopperMinecart {
-    enabled: AtomicBool,
+    enabled: Arc<AtomicBool>,
     inventory: Arc<MinecartInventory>,
 }
 
 impl HopperMinecart {
     pub(super) fn new() -> Self {
         Self {
-            enabled: AtomicBool::new(true),
+            enabled: Arc::new(AtomicBool::new(true)),
             inventory: Arc::new(MinecartInventory::new(5)),
         }
     }
@@ -119,9 +120,13 @@ impl HopperMinecart {
         false
     }
 
-    pub(super) async fn interact(&self, entity: &Entity, player: &Arc<Player>) -> bool {
+    pub(super) async fn interact(
+        &self,
+        custom_name: Option<TextComponent>,
+        player: &Arc<Player>,
+    ) -> bool {
         container::open(
-            entity,
+            custom_name,
             player,
             &self.inventory,
             TextComponent::translate_cross(
@@ -134,13 +139,13 @@ impl HopperMinecart {
         .await
     }
 
-    pub(super) async fn write_nbt(&self, nbt: &mut NbtCompound) {
-        self.inventory.write_nbt(nbt).await;
+    pub(super) fn write_nbt(&self, nbt: &mut NbtCompound) {
+        self.inventory.write_nbt(nbt);
         nbt.put_bool("Enabled", self.enabled.load(Ordering::Relaxed));
     }
 
-    pub(super) async fn read_nbt(&self, nbt: &NbtCompound) {
-        self.inventory.read_nbt(nbt).await;
+    pub(super) fn read_nbt(&self, nbt: &NbtCompound) {
+        self.inventory.read_nbt(nbt);
         self.enabled
             .store(nbt.get_bool("Enabled").unwrap_or(true), Ordering::Relaxed);
     }

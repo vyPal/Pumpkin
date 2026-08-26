@@ -10,7 +10,7 @@ use pumpkin_protocol::codec::var_int::VarInt;
 use rand::RngExt;
 
 use crate::entity::{
-    Entity, EntityBase, EntityBaseFuture, NbtFuture,
+    Entity, EntityBase,
     ageable::AgeableMob,
     ai::goal::{
         breed::BreedGoal, escape_danger::EscapeDangerGoal, follow_parent::FollowParentGoal,
@@ -107,34 +107,30 @@ impl Mob for ChickenEntity {
         Some(self)
     }
 
-    fn mob_write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async {
-            nbt.put_int("EggLayTime", self.egg_lay_time.load(Ordering::Relaxed));
-            let variant_str = match self.variant.load(Ordering::Relaxed) {
-                0 => "minecraft:cold",
-                2 => "minecraft:warm",
-                _ => "minecraft:temperate",
-            };
-            nbt.put_string("variant", variant_str.to_string());
-        })
+    fn mob_write_nbt(&self, nbt: &mut NbtCompound) {
+        nbt.put_int("EggLayTime", self.egg_lay_time.load(Ordering::Relaxed));
+        let variant_str = match self.variant.load(Ordering::Relaxed) {
+            0 => "minecraft:cold",
+            2 => "minecraft:warm",
+            _ => "minecraft:temperate",
+        };
+        nbt.put_string("variant", variant_str.to_string());
     }
 
-    fn mob_read_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async {
-            self.egg_lay_time
-                .store(nbt.get_int("EggLayTime").unwrap_or(6000), Ordering::Relaxed);
-            if let Some(variant_str) = nbt.get_string("variant") {
-                let variant = match variant_str
-                    .strip_prefix("minecraft:")
-                    .unwrap_or(variant_str)
-                {
-                    "cold" => 0,
-                    "warm" => 2,
-                    _ => 1,
-                };
-                self.variant.store(variant, Ordering::Relaxed);
-            }
-        })
+    fn mob_read_nbt(&self, nbt: &NbtCompound) {
+        self.egg_lay_time
+            .store(nbt.get_int("EggLayTime").unwrap_or(6000), Ordering::Relaxed);
+        if let Some(variant_str) = nbt.get_string("variant") {
+            let variant = match variant_str
+                .strip_prefix("minecraft:")
+                .unwrap_or(variant_str)
+            {
+                "cold" => 0,
+                "warm" => 2,
+                _ => 1,
+            };
+            self.variant.store(variant, Ordering::Relaxed);
+        }
     }
 
     fn get_mob_entity(&self) -> &MobEntity {
@@ -206,11 +202,7 @@ impl Mob for ChickenEntity {
         }
     }
 
-    fn mob_interact<'a>(
-        &'a self,
-        player: &'a Arc<Player>,
-        item_stack: &'a mut ItemStack,
-    ) -> EntityBaseFuture<'a, bool> {
+    fn mob_interact(&self, player: &Arc<Player>, item_stack: &mut ItemStack) -> bool {
         use super::animal::Animal;
         self.animal_interact(player, item_stack, Sound::EntityChickenAmbient)
     }

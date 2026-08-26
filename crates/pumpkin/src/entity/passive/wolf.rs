@@ -12,7 +12,7 @@ use pumpkin_protocol::codec::var_int::VarInt;
 use pumpkin_protocol::java::client::play::Metadata;
 
 use crate::entity::{
-    Entity, EntityBase, NbtFuture,
+    Entity, EntityBase,
     ageable::AgeableMob,
     ai::goal::{
         active_target::ActiveTargetGoal, avoid_entity::AvoidEntityGoal, beg::BegGoal,
@@ -223,52 +223,48 @@ impl Mob for WolfEntity {
         true
     }
 
-    fn mob_write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async {
-            let variant_str = match self.variant.load(Ordering::Relaxed) {
-                0 => "minecraft:ashen",
-                1 => "minecraft:black",
-                2 => "minecraft:chestnut",
-                4 => "minecraft:rusty",
-                5 => "minecraft:snowy",
-                6 => "minecraft:spotted",
-                7 => "minecraft:striped",
-                8 => "minecraft:woods",
-                _ => "minecraft:pale",
-            };
-            nbt.put_string("variant", variant_str.to_string());
-            nbt.put_byte(
-                "CollarColor",
-                self.collar_color.load(Ordering::Relaxed) as i8,
-            );
-        })
+    fn mob_write_nbt(&self, nbt: &mut NbtCompound) {
+        let variant_str = match self.variant.load(Ordering::Relaxed) {
+            0 => "minecraft:ashen",
+            1 => "minecraft:black",
+            2 => "minecraft:chestnut",
+            4 => "minecraft:rusty",
+            5 => "minecraft:snowy",
+            6 => "minecraft:spotted",
+            7 => "minecraft:striped",
+            8 => "minecraft:woods",
+            _ => "minecraft:pale",
+        };
+        nbt.put_string("variant", variant_str.to_string());
+        nbt.put_byte(
+            "CollarColor",
+            self.collar_color.load(Ordering::Relaxed) as i8,
+        );
     }
 
-    fn mob_read_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async {
-            if let Some(variant_str) = nbt.get_string("variant") {
-                let variant = match variant_str
-                    .strip_prefix("minecraft:")
-                    .unwrap_or(variant_str)
-                {
-                    "ashen" => 0,
-                    "black" => 1,
-                    "chestnut" => 2,
-                    "rusty" => 4,
-                    "snowy" => 5,
-                    "spotted" => 6,
-                    "striped" => 7,
-                    "woods" => 8,
-                    _ => 3,
-                };
-                self.variant.store(variant, Ordering::Relaxed);
-            }
-            if let Some(collar) = nbt.get_byte("CollarColor") {
-                self.collar_color.store(collar as u8, Ordering::Relaxed);
-            } else if let Some(collar_int) = nbt.get_int("CollarColor") {
-                self.collar_color.store(collar_int as u8, Ordering::Relaxed);
-            }
-        })
+    fn mob_read_nbt(&self, nbt: &NbtCompound) {
+        if let Some(variant_str) = nbt.get_string("variant") {
+            let variant = match variant_str
+                .strip_prefix("minecraft:")
+                .unwrap_or(variant_str)
+            {
+                "ashen" => 0,
+                "black" => 1,
+                "chestnut" => 2,
+                "rusty" => 4,
+                "snowy" => 5,
+                "spotted" => 6,
+                "striped" => 7,
+                "woods" => 8,
+                _ => 3,
+            };
+            self.variant.store(variant, Ordering::Relaxed);
+        }
+        if let Some(collar) = nbt.get_byte("CollarColor") {
+            self.collar_color.store(collar as u8, Ordering::Relaxed);
+        } else if let Some(collar_int) = nbt.get_int("CollarColor") {
+            self.collar_color.store(collar_int as u8, Ordering::Relaxed);
+        }
     }
 
     fn get_mob_entity(&self) -> &MobEntity {

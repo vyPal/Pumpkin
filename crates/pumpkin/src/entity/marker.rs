@@ -1,8 +1,7 @@
-use std::sync::{Arc, atomic::Ordering};
-use tokio::sync::Mutex;
+use std::sync::{Arc, Mutex, atomic::Ordering};
 
 use crate::{
-    entity::{Entity, EntityBase, EntityBaseFuture, NbtFuture, living::LivingEntity},
+    entity::{Entity, EntityBase, EntityBaseFuture, living::LivingEntity},
     net::{bedrock::BedrockClient, java::JavaClient},
     server::Server,
 };
@@ -26,21 +25,23 @@ impl MarkerEntity {
 }
 
 impl EntityBase for MarkerEntity {
-    fn write_custom_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            let data = self.data.lock().await;
-            if !data.is_empty() {
-                nbt.put("data", NbtTag::Compound(data.clone()));
-            }
-        })
+    fn write_custom_nbt(&self, nbt: &mut NbtCompound) {
+        let data = self
+            .data
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !data.is_empty() {
+            nbt.put("data", NbtTag::Compound(data.clone()));
+        }
     }
 
-    fn read_custom_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(data) = nbt.get_compound("data") {
-                *self.data.lock().await = data.clone();
-            }
-        })
+    fn read_custom_nbt(&self, nbt: &NbtCompound) {
+        if let Some(data) = nbt.get_compound("data") {
+            *self
+                .data
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = data.clone();
+        }
     }
 
     fn tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>, _server: &'a Server) {}

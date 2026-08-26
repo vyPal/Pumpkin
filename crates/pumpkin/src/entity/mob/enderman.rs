@@ -27,7 +27,7 @@ use pumpkin_util::math::{boundingbox::BoundingBox, position::BlockPos, vector3::
 use rand::RngExt;
 
 use crate::entity::{
-    Entity, EntityBase, NbtFuture,
+    Entity, EntityBase,
     ai::{
         goal::{
             active_target::ActiveTargetGoal, chase_player::ChasePlayerGoal,
@@ -412,20 +412,16 @@ impl EndermanEntity {
 }
 
 impl Mob for EndermanEntity {
-    fn mob_write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async {
-            if let Some(block_state) = self.carried_block.load() {
-                nbt.put_int("carriedBlockState", block_state.as_u16() as i32);
-            }
-        })
+    fn mob_write_nbt(&self, nbt: &mut NbtCompound) {
+        if let Some(block_state) = self.carried_block.load() {
+            nbt.put_int("carriedBlockState", block_state.as_u16() as i32);
+        }
     }
 
-    fn mob_read_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async {
-            if let Some(block_state) = nbt.get_int("carriedBlockState") {
-                self.set_carried_block(BlockStateId::new(block_state as u16));
-            }
-        })
+    fn mob_read_nbt(&self, nbt: &NbtCompound) {
+        if let Some(block_state) = nbt.get_int("carriedBlockState") {
+            self.set_carried_block(BlockStateId::new(block_state as u16));
+        }
     }
 
     fn get_mob_entity(&self) -> &MobEntity {
@@ -437,7 +433,7 @@ impl Mob for EndermanEntity {
     }
 
     // TODO: sunlight avoidance, carried block drop on death, angerable system, ambient sound override
-    fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) {
+    fn mob_tick<'a>(&'a self, caller: &'a Arc<dyn EntityBase>) {
         let entity = &self.mob_entity.living_entity.entity;
         if !entity.is_alive() {
             return;
@@ -447,13 +443,7 @@ impl Mob for EndermanEntity {
         let raining_at_feet = world.is_raining_at(&entity.block_pos.load());
         let raining_at_head = world.is_raining_at(&entity.bounding_box.load().max_block_pos());
         if entity.touching_water.load(Ordering::SeqCst) || raining_at_feet || raining_at_head {
-            let entity_id = entity.entity_id;
-            let world_full = entity.world.load_full();
-            tokio::spawn(async move {
-                if let Some(entity) = world_full.get_entity_by_id(entity_id) {
-                    entity.damage(entity.as_ref(), 1.0, DamageType::DROWN);
-                }
-            });
+            caller.damage(caller.as_ref(), 1.0, DamageType::DROWN);
         }
     }
 

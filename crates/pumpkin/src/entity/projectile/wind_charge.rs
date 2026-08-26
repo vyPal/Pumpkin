@@ -88,21 +88,17 @@ impl WindChargeEntity {
         }
     }
 
-    pub async fn create_explosion(&self, position: Vector3<f64>) {
+    pub fn create_explosion(&self, position: Vector3<f64>) {
         let calculator = match self.kind {
             WindChargeKind::Normal { .. } => WIND_CHARGE_EXPLOSION_DAMAGE_CALCULATOR.clone(),
             WindChargeKind::Breeze => BREEZE_WIND_CHARGE_EXPLOSION_DAMAGE_CALCULATOR.clone(),
         };
-        self.get_entity()
-            .world
-            .load()
-            .explode_with_calculator(
-                position,
-                EXPLOSION_POWER,
-                crate::world::ExplosionInteraction::Trigger,
-                Some(calculator),
-            )
-            .await;
+        self.get_entity().world.load().explode_with_calculator(
+            position,
+            EXPLOSION_POWER,
+            crate::world::ExplosionInteraction::Trigger,
+            Some(calculator),
+        );
     }
 
     pub fn deflect(

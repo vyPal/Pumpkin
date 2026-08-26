@@ -12,9 +12,7 @@ use pumpkin_protocol::java::server::play::SPlayerInput;
 use rand::RngExt;
 
 use crate::{
-    entity::{
-        Entity, EntityBase, EntityBaseFuture, NbtFuture, living::LivingEntity, player::Player,
-    },
+    entity::{Entity, EntityBase, living::LivingEntity, player::Player},
     server::Server,
 };
 use pumpkin_data::Block;
@@ -113,28 +111,24 @@ impl MinecartEntity {
 }
 
 impl EntityBase for MinecartEntity {
-    fn write_custom_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            match &self.kind {
-                MinecartKind::Chest(minecart) => minecart.write_nbt(nbt).await,
-                MinecartKind::Furnace(minecart) => minecart.write_nbt(nbt),
-                MinecartKind::Hopper(minecart) => minecart.write_nbt(nbt).await,
-                MinecartKind::Tnt(minecart) => minecart.write_nbt(nbt),
-                MinecartKind::Rideable(_) | MinecartKind::Other => {}
-            }
-        })
+    fn write_custom_nbt(&self, nbt: &mut NbtCompound) {
+        match &self.kind {
+            MinecartKind::Chest(minecart) => minecart.write_nbt(nbt),
+            MinecartKind::Furnace(minecart) => minecart.write_nbt(nbt),
+            MinecartKind::Hopper(minecart) => minecart.write_nbt(nbt),
+            MinecartKind::Tnt(minecart) => minecart.write_nbt(nbt),
+            MinecartKind::Rideable(_) | MinecartKind::Other => {}
+        }
     }
 
-    fn read_custom_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            match &self.kind {
-                MinecartKind::Chest(minecart) => minecart.read_nbt(nbt).await,
-                MinecartKind::Furnace(minecart) => minecart.read_nbt(nbt),
-                MinecartKind::Hopper(minecart) => minecart.read_nbt(nbt).await,
-                MinecartKind::Tnt(minecart) => minecart.read_nbt(nbt),
-                MinecartKind::Rideable(_) | MinecartKind::Other => {}
-            }
-        })
+    fn read_custom_nbt(&self, nbt: &NbtCompound) {
+        match &self.kind {
+            MinecartKind::Chest(minecart) => minecart.read_nbt(nbt),
+            MinecartKind::Furnace(minecart) => minecart.read_nbt(nbt),
+            MinecartKind::Hopper(minecart) => minecart.read_nbt(nbt),
+            MinecartKind::Tnt(minecart) => minecart.read_nbt(nbt),
+            MinecartKind::Rideable(_) | MinecartKind::Other => {}
+        }
     }
 
     #[allow(clippy::too_many_lines)]
@@ -509,144 +503,148 @@ impl EntityBase for MinecartEntity {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn push<'a>(&'a self, entity: &'a Arc<dyn EntityBase>) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            let self_entity = self.get_entity();
-            let other_entity = entity.get_entity();
+    fn push(&self, entity: &Arc<dyn EntityBase>) {
+        let self_entity = self.get_entity();
+        let other_entity = entity.get_entity();
 
-            if self_entity.no_physics.load(Ordering::Relaxed)
-                || other_entity.no_physics.load(Ordering::Relaxed)
+        if self_entity.no_physics.load(Ordering::Relaxed)
+            || other_entity.no_physics.load(Ordering::Relaxed)
+        {
+            return;
+        }
+
+        {
+            let passengers = self_entity
+                .passengers
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if passengers
+                .iter()
+                .any(|p| p.get_entity().entity_id == other_entity.entity_id)
             {
                 return;
             }
-
+        }
+        {
+            let passengers = other_entity
+                .passengers
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if passengers
+                .iter()
+                .any(|p| p.get_entity().entity_id == self_entity.entity_id)
             {
-                let passengers = self_entity.passengers.lock().await;
-                if passengers
-                    .iter()
-                    .any(|p| p.get_entity().entity_id == other_entity.entity_id)
-                {
-                    return;
-                }
+                return;
             }
-            {
-                let passengers = other_entity.passengers.lock().await;
-                if passengers
-                    .iter()
-                    .any(|p| p.get_entity().entity_id == self_entity.entity_id)
-                {
-                    return;
-                }
+        }
+
+        let mut xa = other_entity.pos.load().x - self_entity.pos.load().x;
+        let mut za = other_entity.pos.load().z - self_entity.pos.load().z;
+        let mut dd = xa * xa + za * za;
+        if dd >= 1.0E-4 {
+            dd = dd.sqrt();
+            xa /= dd;
+            za /= dd;
+            let mut pow = 1.0 / dd;
+            if pow > 1.0 {
+                pow = 1.0;
             }
+            xa *= pow;
+            za *= pow;
+            xa *= 0.1;
+            za *= 0.1;
+            xa *= 0.5;
+            za *= 0.5;
 
-            let mut xa = other_entity.pos.load().x - self_entity.pos.load().x;
-            let mut za = other_entity.pos.load().z - self_entity.pos.load().z;
-            let mut dd = xa * xa + za * za;
-            if dd >= 1.0E-4 {
-                dd = dd.sqrt();
-                xa /= dd;
-                za /= dd;
-                let mut pow = 1.0 / dd;
-                if pow > 1.0 {
-                    pow = 1.0;
-                }
-                xa *= pow;
-                za *= pow;
-                xa *= 0.1;
-                za *= 0.1;
-                xa *= 0.5;
-                za *= 0.5;
+            let is_other_minecart = other_entity.entity_type.id == EntityType::MINECART.id
+                || other_entity.entity_type.id == EntityType::CHEST_MINECART.id
+                || other_entity.entity_type.id == EntityType::COMMAND_BLOCK_MINECART.id
+                || other_entity.entity_type.id == EntityType::FURNACE_MINECART.id
+                || other_entity.entity_type.id == EntityType::HOPPER_MINECART.id
+                || other_entity.entity_type.id == EntityType::SPAWNER_MINECART.id
+                || other_entity.entity_type.id == EntityType::TNT_MINECART.id;
 
-                let is_other_minecart = other_entity.entity_type.id == EntityType::MINECART.id
-                    || other_entity.entity_type.id == EntityType::CHEST_MINECART.id
-                    || other_entity.entity_type.id == EntityType::COMMAND_BLOCK_MINECART.id
-                    || other_entity.entity_type.id == EntityType::FURNACE_MINECART.id
-                    || other_entity.entity_type.id == EntityType::HOPPER_MINECART.id
-                    || other_entity.entity_type.id == EntityType::SPAWNER_MINECART.id
-                    || other_entity.entity_type.id == EntityType::TNT_MINECART.id;
+            if is_other_minecart {
+                let xo = self_entity.velocity.load().x;
+                let zo = self_entity.velocity.load().z;
 
-                if is_other_minecart {
-                    let xo = self_entity.velocity.load().x;
-                    let zo = self_entity.velocity.load().z;
+                let dir = Vector3::new(xo, 0.0, zo).normalize();
+                let facing = Vector3::new(
+                    f64::from(self_entity.yaw.load().to_radians().cos()),
+                    0.0,
+                    f64::from(self_entity.yaw.load().to_radians().sin()),
+                )
+                .normalize();
 
-                    let dir = Vector3::new(xo, 0.0, zo).normalize();
-                    let facing = Vector3::new(
-                        f64::from(self_entity.yaw.load().to_radians().cos()),
-                        0.0,
-                        f64::from(self_entity.yaw.load().to_radians().sin()),
-                    )
-                    .normalize();
+                let dot = dir.dot(&facing).abs();
+                if dot >= 0.8 {
+                    let vel = self_entity.velocity.load();
+                    let ovel = other_entity.velocity.load();
 
-                    let dot = dir.dot(&facing).abs();
-                    if dot >= 0.8 {
-                        let vel = self_entity.velocity.load();
-                        let ovel = other_entity.velocity.load();
+                    let is_self_furnace =
+                        self_entity.entity_type.id == EntityType::FURNACE_MINECART.id;
+                    let is_other_furnace =
+                        other_entity.entity_type.id == EntityType::FURNACE_MINECART.id;
 
-                        let is_self_furnace =
-                            self_entity.entity_type.id == EntityType::FURNACE_MINECART.id;
-                        let is_other_furnace =
-                            other_entity.entity_type.id == EntityType::FURNACE_MINECART.id;
-
-                        if is_other_furnace && !is_self_furnace {
-                            self_entity.velocity.store(vel.multiply(0.2, 1.0, 0.2));
-                            let mut new_self_vel = self_entity.velocity.load();
-                            new_self_vel.x += ovel.x - xa;
-                            new_self_vel.z += ovel.z - za;
-                            self_entity.velocity.store(new_self_vel);
-                            self_entity.send_velocity();
-
-                            other_entity.velocity.store(ovel.multiply(0.95, 1.0, 0.95));
-                            other_entity.send_velocity();
-                        } else if !is_other_furnace && is_self_furnace {
-                            other_entity.velocity.store(ovel.multiply(0.2, 1.0, 0.2));
-                            let mut new_other_vel = other_entity.velocity.load();
-                            new_other_vel.x += vel.x + xa;
-                            new_other_vel.z += vel.z + za;
-                            other_entity.velocity.store(new_other_vel);
-                            other_entity.send_velocity();
-
-                            self_entity.velocity.store(vel.multiply(0.95, 1.0, 0.95));
-                            self_entity.send_velocity();
-                        } else {
-                            #[allow(clippy::manual_midpoint)]
-                            let xdd = (ovel.x + vel.x) / 2.0;
-                            #[allow(clippy::manual_midpoint)]
-                            let zdd = (ovel.z + vel.z) / 2.0;
-
-                            self_entity.velocity.store(vel.multiply(0.2, 1.0, 0.2));
-                            let mut new_self_vel = self_entity.velocity.load();
-                            new_self_vel.x += xdd - xa;
-                            new_self_vel.z += zdd - za;
-                            self_entity.velocity.store(new_self_vel);
-                            self_entity.send_velocity();
-
-                            other_entity.velocity.store(ovel.multiply(0.2, 1.0, 0.2));
-                            let mut new_other_vel = other_entity.velocity.load();
-                            new_other_vel.x += xdd + xa;
-                            new_other_vel.z += zdd + za;
-                            other_entity.velocity.store(new_other_vel);
-                            other_entity.send_velocity();
-                        }
-                    }
-                } else {
-                    if !self_entity.has_passengers() && self.is_pushable() {
-                        let mut vel = self_entity.velocity.load();
-                        vel.x -= xa;
-                        vel.z -= za;
-                        self_entity.velocity.store(vel);
+                    if is_other_furnace && !is_self_furnace {
+                        self_entity.velocity.store(vel.multiply(0.2, 1.0, 0.2));
+                        let mut new_self_vel = self_entity.velocity.load();
+                        new_self_vel.x += ovel.x - xa;
+                        new_self_vel.z += ovel.z - za;
+                        self_entity.velocity.store(new_self_vel);
                         self_entity.send_velocity();
-                    }
 
-                    if !other_entity.has_passengers() && entity.is_pushable() {
-                        let mut vel = other_entity.velocity.load();
-                        vel.x += xa / 4.0;
-                        vel.z += za / 4.0;
-                        other_entity.velocity.store(vel);
+                        other_entity.velocity.store(ovel.multiply(0.95, 1.0, 0.95));
+                        other_entity.send_velocity();
+                    } else if !is_other_furnace && is_self_furnace {
+                        other_entity.velocity.store(ovel.multiply(0.2, 1.0, 0.2));
+                        let mut new_other_vel = other_entity.velocity.load();
+                        new_other_vel.x += vel.x + xa;
+                        new_other_vel.z += vel.z + za;
+                        other_entity.velocity.store(new_other_vel);
+                        other_entity.send_velocity();
+
+                        self_entity.velocity.store(vel.multiply(0.95, 1.0, 0.95));
+                        self_entity.send_velocity();
+                    } else {
+                        #[allow(clippy::manual_midpoint)]
+                        let xdd = (ovel.x + vel.x) / 2.0;
+                        #[allow(clippy::manual_midpoint)]
+                        let zdd = (ovel.z + vel.z) / 2.0;
+
+                        self_entity.velocity.store(vel.multiply(0.2, 1.0, 0.2));
+                        let mut new_self_vel = self_entity.velocity.load();
+                        new_self_vel.x += xdd - xa;
+                        new_self_vel.z += zdd - za;
+                        self_entity.velocity.store(new_self_vel);
+                        self_entity.send_velocity();
+
+                        other_entity.velocity.store(ovel.multiply(0.2, 1.0, 0.2));
+                        let mut new_other_vel = other_entity.velocity.load();
+                        new_other_vel.x += xdd + xa;
+                        new_other_vel.z += zdd + za;
+                        other_entity.velocity.store(new_other_vel);
                         other_entity.send_velocity();
                     }
                 }
+            } else {
+                if !self_entity.has_passengers() && self.is_pushable() {
+                    let mut vel = self_entity.velocity.load();
+                    vel.x -= xa;
+                    vel.z -= za;
+                    self_entity.velocity.store(vel);
+                    self_entity.send_velocity();
+                }
+
+                if !other_entity.has_passengers() && entity.is_pushable() {
+                    let mut vel = other_entity.velocity.load();
+                    vel.x += xa / 4.0;
+                    vel.z += za / 4.0;
+                    other_entity.velocity.store(vel);
+                    other_entity.send_velocity();
+                }
             }
-        })
+        }
     }
 
     fn is_collidable(&self, _entity: Option<Box<dyn EntityBase>>) -> bool {
@@ -749,28 +747,32 @@ impl EntityBase for MinecartEntity {
         damaged
     }
 
-    fn interact<'a>(
-        &'a self,
-        player: &'a Arc<Player>,
-        item_stack: &'a mut ItemStack,
-    ) -> EntityBaseFuture<'a, bool> {
-        Box::pin(async move {
-            match &self.kind {
-                MinecartKind::Chest(minecart) => {
-                    minecart.interact(&self.vehicle.entity, player).await
-                }
-                MinecartKind::Furnace(minecart) => {
-                    minecart.interact(&self.vehicle.entity, player, item_stack)
-                }
-                MinecartKind::Hopper(minecart) => {
-                    minecart.interact(&self.vehicle.entity, player).await
-                }
-                MinecartKind::Rideable(minecart) => {
-                    minecart.interact(&self.vehicle.entity, player).await
-                }
-                MinecartKind::Tnt(_) | MinecartKind::Other => false,
+    fn interact(&self, player: &Arc<Player>, item_stack: &mut ItemStack) -> bool {
+        match &self.kind {
+            MinecartKind::Chest(minecart) => {
+                let minecart = minecart.clone();
+                let custom_name = self.vehicle.entity.custom_name.load().as_ref().clone();
+                let player = player.clone();
+                tokio::spawn(async move {
+                    minecart.interact(custom_name, &player).await;
+                });
+                true
             }
-        })
+            MinecartKind::Furnace(minecart) => {
+                minecart.interact(&self.vehicle.entity, player, item_stack)
+            }
+            MinecartKind::Hopper(minecart) => {
+                let minecart = minecart.clone();
+                let custom_name = self.vehicle.entity.custom_name.load().as_ref().clone();
+                let player = player.clone();
+                tokio::spawn(async move {
+                    minecart.interact(custom_name, &player).await;
+                });
+                true
+            }
+            MinecartKind::Rideable(minecart) => minecart.interact(&self.vehicle.entity, player),
+            MinecartKind::Tnt(_) | MinecartKind::Other => false,
+        }
     }
 
     fn on_player_collision(&self, player: &Arc<Player>) {
@@ -813,21 +815,16 @@ impl EntityBase for MinecartEntity {
     fn move_entity(&self, caller: &Arc<dyn EntityBase>, motion: Vector3<f64>) {
         let to_position = self.vehicle.entity.pos.load().add(&motion);
         self.vehicle.entity.move_entity(caller, motion);
-        let caller_clone = caller.clone();
         let entity_id = self.vehicle.entity.entity_id;
         let world = self.vehicle.entity.world.load().clone();
-        tokio::spawn(async move {
-            if let Some(dyn_self) = world.get_entity_by_id(entity_id) {
-                let should_continue = dyn_self.push_entities(&caller_clone).await;
-                if should_continue {
-                    let current_pos = dyn_self.get_entity().pos.load();
-                    let back_motion = to_position.sub(&current_pos);
-                    dyn_self
-                        .get_entity()
-                        .move_entity(&caller_clone, back_motion);
-                }
+        if let Some(dyn_self) = world.get_entity_by_id(entity_id) {
+            let should_continue = dyn_self.push_entities(caller);
+            if should_continue {
+                let current_pos = dyn_self.get_entity().pos.load();
+                let back_motion = to_position.sub(&current_pos);
+                dyn_self.get_entity().move_entity(caller, back_motion);
             }
-        });
+        }
     }
 
     fn cast_any(&self) -> &dyn std::any::Any {

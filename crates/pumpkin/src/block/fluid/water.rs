@@ -36,12 +36,7 @@ impl FluidBehaviour for FlowingWater {
     }
 
     fn on_scheduled_tick(&self, world: &Arc<World>, _fluid: &Fluid, block_pos: &BlockPos) {
-        let world = world.clone();
-        let block_pos = *block_pos;
-        tokio::spawn(async move {
-            Self.on_scheduled_tick_internal(&world, &Fluid::FLOWING_WATER, &block_pos)
-                .await;
-        });
+        Self.on_scheduled_tick_internal(world, &Fluid::FLOWING_WATER, block_pos);
     }
 
     fn on_neighbor_update(

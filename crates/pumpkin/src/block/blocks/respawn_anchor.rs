@@ -54,13 +54,9 @@ impl BlockBehaviour for RespawnAnchorBlock {
         if args.world.dimension != Dimension::THE_NETHER {
             args.world
                 .break_block(args.position, None, BlockFlags::SKIP_DROPS);
-            let world = Arc::clone(args.world);
             let center_pos = args.position.to_centered_f64();
-            tokio::spawn(async move {
-                world
-                    .explode(center_pos, 5.0, crate::world::ExplosionInteraction::Block)
-                    .await;
-            });
+            args.world
+                .explode(center_pos, 5.0, crate::world::ExplosionInteraction::Block);
             return BlockActionResult::SuccessServer;
         }
 

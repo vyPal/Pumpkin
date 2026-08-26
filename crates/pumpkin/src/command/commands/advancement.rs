@@ -314,7 +314,7 @@ async fn perform(
                 }
                 .create_without_context_args_slice(&[
                     first_advancement.name(),
-                    first_player.get_display_name().await,
+                    first_player.get_display_name(),
                 ]))
             } else {
                 Err(match action {
@@ -333,7 +333,7 @@ async fn perform(
             }
             .create_without_context_args_slice(&[
                 TextComponent::text(advancements.len().to_string()),
-                first_player.get_display_name().await,
+                first_player.get_display_name(),
             ]))
         } else {
             Err(match action {
@@ -350,10 +350,7 @@ async fn perform(
         if let [first_player] = targets {
             TextComponent::translate(
                 format!("{}.one.to.one.success", action.get_key()),
-                [
-                    first_advancement.name(),
-                    first_player.get_display_name().await,
-                ],
+                [first_advancement.name(), first_player.get_display_name()],
             )
         } else {
             TextComponent::translate(
@@ -369,7 +366,7 @@ async fn perform(
             format!("{}.many.to.one.success", action.get_key()),
             [
                 TextComponent::text(advancements.len().to_string()),
-                first.get_display_name().await,
+                first.get_display_name(),
             ],
         )
     } else {
@@ -431,7 +428,7 @@ pub async fn perform_criterion(
                 .create_without_context_args_slice(&[
                     TextComponent::text(criterion.to_owned()),
                     advancement.name(),
-                    first_player.get_display_name().await,
+                    first_player.get_display_name(),
                 ]))
             } else {
                 Err(match action {
@@ -451,7 +448,7 @@ pub async fn perform_criterion(
                     [
                         TextComponent::text(criterion.to_owned()),
                         advancement.name(),
-                        first_player.get_display_name().await,
+                        first_player.get_display_name(),
                     ],
                 )
             } else {

@@ -15,7 +15,7 @@ use pumpkin_util::math::position::BlockPos;
 use pumpkin_util::math::vector3::Vector3;
 
 use crate::entity::{
-    Entity, EntityBase, EntityBaseFuture, NbtFuture,
+    Entity, EntityBase,
     ageable::{AgeableData, AgeableMob},
     ai::goal::{
         breed::BreedGoal, follow_parent::FollowParentGoal, look_around::RandomLookAroundGoal,
@@ -336,25 +336,21 @@ impl Mob for SnifferEntity {
         Some(self)
     }
 
-    fn mob_write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            nbt.put_int("State", self.get_state().id());
-            nbt.put_int(
-                "DropSeedAtTick",
-                self.drop_seed_at_tick.load(Ordering::Relaxed),
-            );
-        })
+    fn mob_write_nbt(&self, nbt: &mut NbtCompound) {
+        nbt.put_int("State", self.get_state().id());
+        nbt.put_int(
+            "DropSeedAtTick",
+            self.drop_seed_at_tick.load(Ordering::Relaxed),
+        );
     }
 
-    fn mob_read_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(state_id) = nbt.get_int("State") {
-                self.state.store(state_id, Ordering::Relaxed);
-            }
-            if let Some(drop_tick) = nbt.get_int("DropSeedAtTick") {
-                self.drop_seed_at_tick.store(drop_tick, Ordering::Relaxed);
-            }
-        })
+    fn mob_read_nbt(&self, nbt: &NbtCompound) {
+        if let Some(state_id) = nbt.get_int("State") {
+            self.state.store(state_id, Ordering::Relaxed);
+        }
+        if let Some(drop_tick) = nbt.get_int("DropSeedAtTick") {
+            self.drop_seed_at_tick.store(drop_tick, Ordering::Relaxed);
+        }
     }
 
     fn get_mob_entity(&self) -> &MobEntity {
@@ -411,14 +407,7 @@ impl Mob for SnifferEntity {
         );
     }
 
-    fn mob_interact<'a>(
-        &'a self,
-        player: &'a Arc<Player>,
-        item_stack: &'a mut ItemStack,
-    ) -> EntityBaseFuture<'a, bool> {
-        Box::pin(async move {
-            self.animal_interact(player, item_stack, Sound::EntitySnifferEat)
-                .await
-        })
+    fn mob_interact(&self, player: &Arc<Player>, item_stack: &mut ItemStack) -> bool {
+        self.animal_interact(player, item_stack, Sound::EntitySnifferEat)
     }
 }

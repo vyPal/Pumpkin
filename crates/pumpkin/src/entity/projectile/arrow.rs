@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering};
 
 use crate::entity::projectile::ProjectileHit;
 use crate::{
-    entity::{Entity, EntityBase, NbtFuture, living::LivingEntity, player::Player},
+    entity::{Entity, EntityBase, living::LivingEntity, player::Player},
     server::Server,
 };
 use pumpkin_data::damage::DamageType;
@@ -269,31 +269,21 @@ impl ArrowEntity {
 }
 
 impl EntityBase for ArrowEntity {
-    fn write_custom_nbt<'a>(
-        &'a self,
-        nbt: &'a mut pumpkin_nbt::compound::NbtCompound,
-    ) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            let item_stack = self
-                .item_stack
-                .read()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            Self::write_item_stack_nbt(&item_stack, nbt);
-        })
+    fn write_custom_nbt(&self, nbt: &mut pumpkin_nbt::compound::NbtCompound) {
+        let item_stack = self
+            .item_stack
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        Self::write_item_stack_nbt(&item_stack, nbt);
     }
 
-    fn read_custom_nbt<'a>(
-        &'a self,
-        nbt: &'a pumpkin_nbt::compound::NbtCompound,
-    ) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(item_stack) = Self::read_item_stack_nbt(nbt) {
-                *self
-                    .item_stack
-                    .write()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner) = item_stack;
-            }
-        })
+    fn read_custom_nbt(&self, nbt: &pumpkin_nbt::compound::NbtCompound) {
+        if let Some(item_stack) = Self::read_item_stack_nbt(nbt) {
+            *self
+                .item_stack
+                .write()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = item_stack;
+        }
     }
     #[allow(clippy::too_many_lines)]
     fn tick<'a>(&'a self, caller: &'a Arc<dyn EntityBase>, _server: &'a Server) {

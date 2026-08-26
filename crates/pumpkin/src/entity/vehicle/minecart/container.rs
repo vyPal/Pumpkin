@@ -40,7 +40,7 @@ impl MinecartInventory {
         !self.drops_claimed.swap(true, Ordering::AcqRel)
     }
 
-    pub(super) async fn read_nbt(&self, nbt: &NbtCompound) {
+    pub(super) fn read_nbt(&self, nbt: &NbtCompound) {
         let loot_table = nbt.get_string("LootTable").map(|loot_table| {
             (
                 loot_table.to_owned(),
@@ -48,24 +48,40 @@ impl MinecartInventory {
             )
         });
         let has_loot_table = loot_table.is_some();
-        *self.loot_table.lock().await = loot_table;
+        if let Ok(mut guard) = self.loot_table.try_lock() {
+            *guard = loot_table;
+        }
 
         if !has_loot_table {
-            let mut items = self.items.write().await;
-            items.fill_with(|| ItemStack::EMPTY.clone());
-            self.read_data(nbt, &mut items);
+            if let Ok(mut items) = self.items.try_write() {
+                items.fill_with(|| ItemStack::EMPTY.clone());
+                self.read_data(nbt, &mut items);
+            }
         }
     }
 
-    pub(super) async fn write_nbt(&self, nbt: &mut NbtCompound) {
-        let loot_table = self.loot_table.lock().await.clone();
+    pub(super) fn write_nbt(&self, nbt: &mut NbtCompound) {
+        let loot_table = self
+            .loot_table
+            .try_lock()
+            .ok()
+            .and_then(|guard| guard.clone());
         if let Some((loot_table, seed)) = loot_table {
             nbt.put_string("LootTable", loot_table);
             if seed != 0 {
                 nbt.put_long("LootTableSeed", seed);
             }
-        } else {
-            self.write_inventory_nbt(nbt, true).await;
+        } else if let Ok(items) = self.items.try_read() {
+            let mut list: Vec<pumpkin_nbt::tag::NbtTag> = Vec::new();
+            for (slot, stack) in items.iter().enumerate() {
+                if !stack.is_empty() {
+                    let mut compound = NbtCompound::new();
+                    compound.put_byte("Slot", slot as i8);
+                    stack.write_item_stack(&mut compound);
+                    list.push(pumpkin_nbt::tag::NbtTag::Compound(compound));
+                }
+            }
+            nbt.put("Items", pumpkin_nbt::tag::NbtTag::List(list));
         }
     }
 
@@ -174,7 +190,7 @@ impl ScreenHandlerFactory for MinecartScreenFactory {
 }
 
 pub(super) async fn open(
-    entity: &Entity,
+    custom_name: Option<TextComponent>,
     player: &Arc<Player>,
     inventory: &Arc<MinecartInventory>,
     title: TextComponent,
@@ -191,7 +207,7 @@ pub(super) async fn open(
         .open_handled_screen(
             &MinecartScreenFactory {
                 inventory: inventory.clone(),
-                title: entity.custom_name.load().as_ref().clone().unwrap_or(title),
+                title: custom_name.unwrap_or(title),
                 hopper,
             },
             None,
@@ -261,10 +277,10 @@ mod tests {
             "minecraft:chests/abandoned_mineshaft".to_string(),
         );
         source.put_long("LootTableSeed", 1234);
-        inventory.read_nbt(&source).await;
+        inventory.read_nbt(&source);
 
         let mut deferred = NbtCompound::new();
-        inventory.write_nbt(&mut deferred).await;
+        inventory.write_nbt(&mut deferred);
         assert_eq!(
             deferred.get_string("LootTable"),
             Some("minecraft:chests/abandoned_mineshaft")
@@ -276,7 +292,7 @@ mod tests {
         assert!(!inventory.is_empty().await);
 
         let mut unpacked = NbtCompound::new();
-        inventory.write_nbt(&mut unpacked).await;
+        inventory.write_nbt(&mut unpacked);
         assert!(unpacked.get_string("LootTable").is_none());
         assert!(unpacked.get_list("Items").is_some());
     }
@@ -289,10 +305,10 @@ mod tests {
             .await;
 
         let mut nbt = NbtCompound::new();
-        inventory.write_nbt(&mut nbt).await;
+        inventory.write_nbt(&mut nbt);
 
         let restored = MinecartInventory::new(27);
-        restored.read_nbt(&nbt).await;
+        restored.read_nbt(&nbt);
         let stack = restored.get_stack(8).await;
         assert_eq!(stack.get_item().id, Item::POWERED_RAIL.id);
         assert_eq!(stack.item_count, 3);

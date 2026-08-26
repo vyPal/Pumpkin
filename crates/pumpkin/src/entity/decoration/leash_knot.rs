@@ -1,5 +1,5 @@
 use crate::entity::player::Player;
-use crate::entity::{Entity, EntityBase, EntityBaseFuture, living::LivingEntity};
+use crate::entity::{Entity, EntityBase, living::LivingEntity};
 use crate::world::World;
 use pumpkin_data::entity::EntityType;
 use pumpkin_data::item_stack::ItemStack;
@@ -135,66 +135,60 @@ impl EntityBase for LeashKnotEntity {
         }
     }
 
-    fn interact<'a>(
-        &'a self,
-        player: &'a Arc<Player>,
-        _item_stack: &'a mut ItemStack,
-    ) -> EntityBaseFuture<'a, bool> {
-        Box::pin(async move {
-            let world = player.world();
-            let knot_id = self.entity.entity_id;
-            let player_id = player.entity_id();
+    fn interact(&self, player: &Arc<Player>, _item_stack: &mut ItemStack) -> bool {
+        let world = player.world();
+        let knot_id = self.entity.entity_id;
+        let player_id = player.entity_id();
 
-            let search_dim = EntityDimensions {
-                width: 32.0,
-                height: 32.0,
-                eye_height: 16.0,
-            };
-            let pos = self.entity.pos.load();
-            let search_box = BoundingBox::new_from_pos(pos.x, pos.y, pos.z, &search_dim);
-            let entities = world.get_entities_at_box(&search_box);
+        let search_dim = EntityDimensions {
+            width: 32.0,
+            height: 32.0,
+            eye_height: 16.0,
+        };
+        let pos = self.entity.pos.load();
+        let search_box = BoundingBox::new_from_pos(pos.x, pos.y, pos.z, &search_dim);
+        let entities = world.get_entities_at_box(&search_box);
 
-            let mut attached_mob = false;
-            let mut player_leashed_mobs = Vec::new();
+        let mut attached_mob = false;
+        let mut player_leashed_mobs = Vec::new();
 
+        for entity_base in &entities {
+            let ent = entity_base.get_entity();
+            if let Ok(guard) = ent.leashed_to.try_lock()
+                && let Some(holder) = guard.as_ref()
+                && holder.get_entity().entity_id == player_id
+            {
+                player_leashed_mobs.push(ent);
+            }
+        }
+
+        if let Some(self_knot) = Self::get_knot(&world, self.pos) {
+            for mob in player_leashed_mobs {
+                mob.leash_to(self_knot.clone() as Arc<dyn EntityBase>);
+                attached_mob = true;
+            }
+        }
+
+        let mut any_dropped = false;
+        if !attached_mob {
             for entity_base in &entities {
                 let ent = entity_base.get_entity();
                 if let Ok(guard) = ent.leashed_to.try_lock()
                     && let Some(holder) = guard.as_ref()
-                    && holder.get_entity().entity_id == player_id
+                    && holder.get_entity().entity_id == knot_id
                 {
-                    player_leashed_mobs.push(ent);
+                    ent.leash_to(player.clone() as Arc<dyn EntityBase>);
+                    any_dropped = true;
                 }
             }
+        }
 
-            if let Some(self_knot) = Self::get_knot(&world, self.pos) {
-                for mob in player_leashed_mobs {
-                    mob.leash_to(self_knot.clone() as Arc<dyn EntityBase>);
-                    attached_mob = true;
-                }
-            }
-
-            let mut any_dropped = false;
-            if !attached_mob {
-                for entity_base in &entities {
-                    let ent = entity_base.get_entity();
-                    if let Ok(guard) = ent.leashed_to.try_lock()
-                        && let Some(holder) = guard.as_ref()
-                        && holder.get_entity().entity_id == knot_id
-                    {
-                        ent.leash_to(player.clone() as Arc<dyn EntityBase>);
-                        any_dropped = true;
-                    }
-                }
-            }
-
-            if attached_mob || any_dropped {
-                self.play_placement_sound(&world);
-                true
-            } else {
-                false
-            }
-        })
+        if attached_mob || any_dropped {
+            self.play_placement_sound(&world);
+            true
+        } else {
+            false
+        }
     }
     fn cast_any(&self) -> &dyn std::any::Any {
         self

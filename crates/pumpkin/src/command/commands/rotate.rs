@@ -87,7 +87,7 @@ async fn rotate_entity(
 
 /// Sends success message for the rotate command.
 async fn send_success_message(sender: &CommandSender, target: &dyn crate::entity::EntityBase) {
-    let target_name = target.get_display_name().await;
+    let target_name = target.get_display_name();
     sender
         .send_message(TextComponent::translate_cross(
             translation::java::COMMANDS_ROTATE_SUCCESS,

@@ -39,7 +39,7 @@ fn execute_as_modifier<'a>(
         let mut sources = Vec::new();
         for target in targets {
             let mut source = context.source.as_ref().clone();
-            let display_name = target.get_display_name().await;
+            let display_name = target.get_display_name();
             let name = target.get_name().get_text();
             source.entity = Some(target.clone());
             source.name = name;

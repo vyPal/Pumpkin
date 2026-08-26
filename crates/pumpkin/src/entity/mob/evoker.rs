@@ -10,7 +10,7 @@ use pumpkin_protocol::java::client::play::Metadata;
 use pumpkin_util::math::vector3::Vector3;
 
 use crate::entity::{
-    Entity, EntityBase, NbtFuture,
+    Entity, EntityBase,
     ai::goal::{
         Controls, Goal, active_target::ActiveTargetGoal, look_around::RandomLookAroundGoal,
         look_at_entity::LookAtEntityGoal, swim::SwimGoal, wander_around::WanderAroundGoal,
@@ -161,20 +161,16 @@ impl Mob for EvokerEntity {
         Some(self)
     }
 
-    fn mob_write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            self.write_raider_nbt(nbt);
-            nbt.put_int("SpellTicks", self.get_spell_casting_time());
-        })
+    fn mob_write_nbt(&self, nbt: &mut NbtCompound) {
+        self.write_raider_nbt(nbt);
+        nbt.put_int("SpellTicks", self.get_spell_casting_time());
     }
 
-    fn mob_read_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            self.read_raider_nbt(nbt);
-            if let Some(ticks) = nbt.get_int("SpellTicks") {
-                self.set_spell_casting_time(ticks);
-            }
-        })
+    fn mob_read_nbt(&self, nbt: &NbtCompound) {
+        self.read_raider_nbt(nbt);
+        if let Some(ticks) = nbt.get_int("SpellTicks") {
+            self.set_spell_casting_time(ticks);
+        }
     }
 
     fn get_mob_entity(&self) -> &MobEntity {

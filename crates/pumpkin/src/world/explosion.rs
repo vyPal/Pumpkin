@@ -499,7 +499,7 @@ impl Explosion {
     }
 
     /// Returns the removed block count
-    pub async fn explode(&self, world: &Arc<World>) -> u32 {
+    pub fn explode(&self, world: &Arc<World>) -> u32 {
         self.damage_entities(world);
 
         match self.block_interaction {
@@ -530,7 +530,7 @@ impl Explosion {
                         },
                     );
                 if let Some(server) = world.server.upgrade() {
-                    server.plugin_manager.fire(&server, &mut event).await;
+                    server.plugin_manager.fire_blocking(&server, &mut event);
                 }
                 if event.cancelled {
                     return 0;
@@ -542,7 +542,7 @@ impl Explosion {
 
                 for (pos, (block, state)) in &blocks {
                     world.set_block_state(pos, BlockStateId::AIR, BlockFlags::NOTIFY_ALL);
-                    world.close_container_screens_at(pos).await;
+                    world.close_container_screens_at(pos);
 
                     let pumpkin_block = world.block_registry.get_pumpkin_block(block.id);
 
@@ -562,7 +562,7 @@ impl Explosion {
                             is_thundering: Some(is_thundering),
                             ..Default::default()
                         };
-                        drop_loot(world, block, pos, false, params).await;
+                        drop_loot(world, block, pos, false, params);
                     }
                     if let Some(pumpkin_block) = pumpkin_block {
                         pumpkin_block.explode(ExplodeArgs {

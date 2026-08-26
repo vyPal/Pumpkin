@@ -74,9 +74,7 @@ impl BreathManager {
                         player.entity_id(),
                         new_air,
                     );
-                    tokio::spawn(async move {
-                        server.plugin_manager.fire(&server, &mut event).await;
-                    });
+                    server.plugin_manager.fire_blocking(&server, &mut event);
                 }
                 self.send_air_supply(player);
             }

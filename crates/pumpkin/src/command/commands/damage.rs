@@ -87,7 +87,7 @@ impl CommandExecutor for LocationExecutor {
                 None,
             );
 
-            send_damage_result(sender, success, amount, target.get_display_name().await).await
+            send_damage_result(sender, success, amount, target.get_display_name()).await
         })
     }
 }
@@ -127,7 +127,7 @@ impl CommandExecutor for EntityExecutor {
                 cause.as_ref().map(|e| e.as_ref() as &dyn EntityBase),
             );
 
-            send_damage_result(sender, success, amount, target.get_display_name().await).await
+            send_damage_result(sender, success, amount, target.get_display_name()).await
         })
     }
 }

@@ -35,7 +35,7 @@ impl ScreenHandlerFactory for EnderChestScreenFactory {
     ) -> BoxFuture<'a, Option<SharedScreenHandler>> {
         Box::pin(async move {
             if let Some(tracker) = &self.tracker {
-                self.inventory.set_tracker(tracker.clone()).await;
+                self.inventory.set_tracker(tracker.clone());
             }
             let handler =
                 create_generic_9x3(sync_id, player_inventory, self.inventory.clone()).await;

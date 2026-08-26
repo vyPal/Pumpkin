@@ -259,7 +259,7 @@ impl CommandExecutor for EntityReplaceExecutor {
                     translation::java::COMMANDS_ITEM_ENTITY_SET_SUCCESS_SINGLE,
                     translation::java::COMMANDS_ITEM_ENTITY_SET_SUCCESS_SINGLE,
                     [
-                        targets[0].get_display_name().await,
+                        targets[0].get_display_name(),
                         TextComponent::text("[")
                             .add_child(item.translated_name())
                             .add_child(TextComponent::text("]"))

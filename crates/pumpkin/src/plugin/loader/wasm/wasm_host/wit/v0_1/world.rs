@@ -816,10 +816,7 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
     }
 
     async fn set_raining(&mut self, world: Resource<World>, raining: bool) -> wasmtime::Result<()> {
-        self.get_world_res(&world)?
-            .provider
-            .set_raining(raining)
-            .await;
+        self.get_world_res(&world)?.provider.set_raining(raining);
         Ok(())
     }
 
@@ -834,8 +831,7 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
     ) -> wasmtime::Result<()> {
         self.get_world_res(&world)?
             .provider
-            .set_thundering(thundering)
-            .await;
+            .set_thundering(thundering);
         Ok(())
     }
 
@@ -966,14 +962,11 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
             pumpkin::plugin::world::ExplosionInteraction::Tnt => ExplosionInteraction::Tnt,
             pumpkin::plugin::world::ExplosionInteraction::Trigger => ExplosionInteraction::Trigger,
         };
-        world_ref
-            .provider
-            .explode(
-                pumpkin_util::math::vector3::Vector3::new(pos.0, pos.1, pos.2),
-                power,
-                interaction,
-            )
-            .await;
+        world_ref.provider.explode(
+            pumpkin_util::math::vector3::Vector3::new(pos.0, pos.1, pos.2),
+            power,
+            interaction,
+        );
         Ok(())
     }
 
@@ -1111,9 +1104,7 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
     ) -> wasmtime::Result<()> {
         let world_provider = self.get_world_res(&world)?.provider.clone();
         let internal_pos = super::events::from_wasm_position(pos);
-        world_provider
-            .strike_lightning(internal_pos, effect_only)
-            .await;
+        world_provider.strike_lightning(internal_pos, effect_only);
         Ok(())
     }
 
@@ -1693,12 +1684,22 @@ impl pumpkin::plugin::world::HostChunk for PluginHostState {
 impl pumpkin::plugin::world::HostWorldBorder for PluginHostState {
     async fn get_center_x(&mut self, border: Resource<WitWorldBorder>) -> wasmtime::Result<f64> {
         let border_res = self.get_world_border_res(&border)?;
-        Ok(border_res.provider.worldborder.lock().await.center_x)
+        Ok(border_res
+            .provider
+            .worldborder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .center_x)
     }
 
     async fn get_center_z(&mut self, border: Resource<WitWorldBorder>) -> wasmtime::Result<f64> {
         let border_res = self.get_world_border_res(&border)?;
-        Ok(border_res.provider.worldborder.lock().await.center_z)
+        Ok(border_res
+            .provider
+            .worldborder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .center_z)
     }
 
     async fn get_center(
@@ -1706,7 +1707,11 @@ impl pumpkin::plugin::world::HostWorldBorder for PluginHostState {
         border: Resource<WitWorldBorder>,
     ) -> wasmtime::Result<WitPosition> {
         let border_res = self.get_world_border_res(&border)?;
-        let guard = border_res.provider.worldborder.lock().await;
+        let guard = border_res
+            .provider
+            .worldborder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         Ok(super::events::to_wasm_position(
             pumpkin_util::math::vector3::Vector3::new(guard.center_x, 0.0, guard.center_z),
         ))
@@ -1720,13 +1725,22 @@ impl pumpkin::plugin::world::HostWorldBorder for PluginHostState {
     ) -> wasmtime::Result<()> {
         let border_res = self.get_world_border_res(&border)?;
         let world = border_res.provider.clone();
-        world.worldborder.lock().await.set_center(&world, x, z);
+        world
+            .worldborder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_center(&world, x, z);
         Ok(())
     }
 
     async fn get_diameter(&mut self, border: Resource<WitWorldBorder>) -> wasmtime::Result<f64> {
         let border_res = self.get_world_border_res(&border)?;
-        Ok(border_res.provider.worldborder.lock().await.new_diameter)
+        Ok(border_res
+            .provider
+            .worldborder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .new_diameter)
     }
 
     async fn get_size(&mut self, border: Resource<WitWorldBorder>) -> wasmtime::Result<f64> {
@@ -1744,7 +1758,7 @@ impl pumpkin::plugin::world::HostWorldBorder for PluginHostState {
         world
             .worldborder
             .lock()
-            .await
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .set_diameter(&world, diameter, speed.map(|s| s as i64));
         Ok(())
     }
@@ -1773,7 +1787,12 @@ impl pumpkin::plugin::world::HostWorldBorder for PluginHostState {
         border: Resource<WitWorldBorder>,
     ) -> wasmtime::Result<f64> {
         let border_res = self.get_world_border_res(&border)?;
-        Ok(border_res.provider.worldborder.lock().await.new_diameter)
+        Ok(border_res
+            .provider
+            .worldborder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .new_diameter)
     }
 
     async fn get_target_speed(
@@ -1781,7 +1800,12 @@ impl pumpkin::plugin::world::HostWorldBorder for PluginHostState {
         border: Resource<WitWorldBorder>,
     ) -> wasmtime::Result<i64> {
         let border_res = self.get_world_border_res(&border)?;
-        Ok(border_res.provider.worldborder.lock().await.speed)
+        Ok(border_res
+            .provider
+            .worldborder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .speed)
     }
 
     async fn get_warning_distance(
@@ -1789,7 +1813,12 @@ impl pumpkin::plugin::world::HostWorldBorder for PluginHostState {
         border: Resource<WitWorldBorder>,
     ) -> wasmtime::Result<i32> {
         let border_res = self.get_world_border_res(&border)?;
-        Ok(border_res.provider.worldborder.lock().await.warning_blocks)
+        Ok(border_res
+            .provider
+            .worldborder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .warning_blocks)
     }
 
     async fn set_warning_distance(
@@ -1802,7 +1831,7 @@ impl pumpkin::plugin::world::HostWorldBorder for PluginHostState {
         world
             .worldborder
             .lock()
-            .await
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .set_warning_distance(&world, distance);
         Ok(())
     }
@@ -1812,7 +1841,12 @@ impl pumpkin::plugin::world::HostWorldBorder for PluginHostState {
         border: Resource<WitWorldBorder>,
     ) -> wasmtime::Result<i32> {
         let border_res = self.get_world_border_res(&border)?;
-        Ok(border_res.provider.worldborder.lock().await.warning_time)
+        Ok(border_res
+            .provider
+            .worldborder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .warning_time)
     }
 
     async fn set_warning_delay(
@@ -1825,7 +1859,7 @@ impl pumpkin::plugin::world::HostWorldBorder for PluginHostState {
         world
             .worldborder
             .lock()
-            .await
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .set_warning_delay(&world, delay);
         Ok(())
     }
@@ -1851,7 +1885,12 @@ impl pumpkin::plugin::world::HostWorldBorder for PluginHostState {
     ) -> wasmtime::Result<f64> {
         let border_res = self.get_world_border_res(&border)?;
         Ok(f64::from(
-            border_res.provider.worldborder.lock().await.buffer,
+            border_res
+                .provider
+                .worldborder
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .buffer,
         ))
     }
 
@@ -1865,7 +1904,7 @@ impl pumpkin::plugin::world::HostWorldBorder for PluginHostState {
             .provider
             .worldborder
             .lock()
-            .await
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .set_damage_buffer(buffer as f32);
         Ok(())
     }
@@ -1880,7 +1919,7 @@ impl pumpkin::plugin::world::HostWorldBorder for PluginHostState {
                 .provider
                 .worldborder
                 .lock()
-                .await
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .damage_per_block,
         ))
     }
@@ -1895,7 +1934,7 @@ impl pumpkin::plugin::world::HostWorldBorder for PluginHostState {
             .provider
             .worldborder
             .lock()
-            .await
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .set_damage_per_block(damage as f32);
         Ok(())
     }
@@ -1907,7 +1946,12 @@ impl pumpkin::plugin::world::HostWorldBorder for PluginHostState {
         z: f64,
     ) -> wasmtime::Result<bool> {
         let border_res = self.get_world_border_res(&border)?;
-        Ok(border_res.provider.worldborder.lock().await.contains(x, z))
+        Ok(border_res
+            .provider
+            .worldborder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .contains(x, z))
     }
 
     async fn contains_pos(
@@ -1920,14 +1964,18 @@ impl pumpkin::plugin::world::HostWorldBorder for PluginHostState {
             .provider
             .worldborder
             .lock()
-            .await
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .contains(pos.0, pos.2))
     }
 
     async fn reset(&mut self, border: Resource<WitWorldBorder>) -> wasmtime::Result<()> {
         let border_res = self.get_world_border_res(&border)?;
         let world = border_res.provider.clone();
-        world.worldborder.lock().await.reset(&world);
+        world
+            .worldborder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .reset(&world);
         Ok(())
     }
 

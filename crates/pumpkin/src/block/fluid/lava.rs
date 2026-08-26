@@ -6,7 +6,6 @@ use crate::{
 };
 use pumpkin_data::{
     Block, BlockDirection, BlockState, BlockStateId,
-    block_properties::blocks_movement,
     damage::DamageType,
     dimension::Dimension,
     fluid::{Falling, Fluid, FluidProperties, Level},
@@ -160,12 +159,7 @@ impl FluidBehaviour for FlowingLava {
     }
 
     fn on_scheduled_tick(&self, world: &Arc<World>, _fluid: &Fluid, block_pos: &BlockPos) {
-        let world = world.clone();
-        let block_pos = *block_pos;
-        tokio::spawn(async move {
-            Self.on_scheduled_tick_internal(&world, &Fluid::FLOWING_LAVA, &block_pos)
-                .await;
-        });
+        Self.on_scheduled_tick_internal(world, &Fluid::FLOWING_LAVA, block_pos);
     }
 
     fn on_neighbor_update(
@@ -193,68 +187,58 @@ impl FluidBehaviour for FlowingLava {
     }
 
     fn random_tick(&self, _fluid: &Fluid, world: &Arc<World>, block_pos: &BlockPos) {
-        let world = world.clone();
-        let block_pos = *block_pos;
-        tokio::spawn(async move {
-            if !Self::can_spread_fire_around(&world, &block_pos) {
-                return;
-            }
+        if !Self::can_spread_fire_around(world, block_pos) {
+            return;
+        }
 
-            let passes = rand::random_range(0..3);
-            if passes > 0 {
-                let mut test_pos = block_pos;
+        let passes = rand::random_range(0..3);
+        if passes > 0 {
+            let mut test_pos = *block_pos;
 
-                for _ in 0..passes {
-                    test_pos = test_pos.offset(Vector3::new(
-                        rand::random_range(-1..=1),
-                        1,
-                        rand::random_range(-1..=1),
-                    ));
+            for _ in 0..passes {
+                test_pos = test_pos.offset(Vector3::new(
+                    rand::random_range(-1..=1),
+                    1,
+                    rand::random_range(-1..=1),
+                ));
 
-                    if !world.is_loaded(&test_pos) {
+                let (block, _) = world.get_block_and_state_id(&test_pos);
+
+                if block.id == Block::AIR.id {
+                    if Self::has_flammable_neighbours(world, &test_pos) {
+                        world.set_block_state(
+                            &test_pos,
+                            Block::FIRE.default_state.id,
+                            BlockFlags::NOTIFY_ALL,
+                        );
                         return;
                     }
-
-                    let Some(block_state) = world.get_block_state_if_loaded(&test_pos) else {
-                        return;
-                    };
-
-                    if block_state.is_air() {
-                        if Self::has_flammable_neighbours(&world, &test_pos) {
-                            Self::ignite_fire_if_possible(&world, &test_pos);
-                            return;
-                        }
-                    } else if blocks_movement(block_state, block_state.id.to_block_id()) {
-                        return;
-                    }
-                }
-            } else {
-                for _ in 0..3 {
-                    let test_pos = block_pos.offset(Vector3::new(
-                        rand::random_range(-1..=1),
-                        0,
-                        rand::random_range(-1..=1),
-                    ));
-
-                    if !world.is_loaded(&test_pos) {
-                        return;
-                    }
-
-                    let above_pos = test_pos.up();
-                    if !world.is_loaded(&above_pos) {
-                        return;
-                    }
-
-                    if world
-                        .get_block_state_if_loaded(&above_pos)
-                        .is_some_and(BlockState::is_air)
-                        && Self::is_flammable(&world, &test_pos)
-                    {
-                        Self::ignite_fire_if_possible(&world, &above_pos);
-                    }
+                } else if block.is_solid() {
+                    return;
                 }
             }
-        });
+        } else {
+            for _ in 0..3 {
+                let test_pos = block_pos.offset(Vector3::new(
+                    rand::random_range(-1..=1),
+                    0,
+                    rand::random_range(-1..=1),
+                ));
+
+                if !world.is_loaded(&test_pos) {
+                    return;
+                }
+
+                let above_pos = test_pos.up();
+                if world
+                    .get_block_state_if_loaded(&above_pos)
+                    .is_some_and(BlockState::is_air)
+                    && Self::is_flammable(world, &test_pos)
+                {
+                    Self::ignite_fire_if_possible(world, &above_pos);
+                }
+            }
+        }
     }
 }
 
@@ -291,13 +275,7 @@ impl FlowingFluid for FlowingLava {
         world.level_info.load().game_rules.lava_source_conversion
     }
 
-    async fn spread_to(
-        &self,
-        world: &Arc<World>,
-        fluid: &Fluid,
-        pos: &BlockPos,
-        state_id: BlockStateId,
-    ) {
+    fn spread_to(&self, world: &Arc<World>, fluid: &Fluid, pos: &BlockPos, state_id: BlockStateId) {
         let new_props = FlowingFluidProperties::from_state_id(state_id, fluid);
         let current_state_id = world.get_block_state_id(pos);
         let block = Block::from_state_id(current_state_id);
@@ -317,7 +295,6 @@ impl FlowingFluid for FlowingLava {
         }
 
         // Delegate quiescence, replacement and scheduling to the shared helper
-        self.apply_spread(world, fluid, pos, state_id, new_props)
-            .await;
+        self.apply_spread(world, fluid, pos, state_id, new_props);
     }
 }

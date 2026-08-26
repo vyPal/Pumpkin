@@ -137,33 +137,25 @@ pub type EntityBaseFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 pub type TeleportFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
 
 pub trait EntityBase: Send + Sync + std::any::Any {
-    fn write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            self.get_entity().write_nbt(nbt).await;
-            if let Some(living) = self.get_living_entity() {
-                living.write_living_nbt(nbt).await;
-            }
-            self.write_custom_nbt(nbt).await;
-        })
+    fn write_nbt(&self, nbt: &mut NbtCompound) {
+        self.get_entity().write_nbt(nbt);
+        if let Some(living) = self.get_living_entity() {
+            living.write_living_nbt(nbt);
+        }
+        self.write_custom_nbt(nbt);
     }
 
-    fn write_custom_nbt<'a>(&'a self, _nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async {})
+    fn write_custom_nbt(&self, _nbt: &mut NbtCompound) {}
+
+    fn read_nbt_non_mut(&self, nbt: &NbtCompound) {
+        self.get_entity().read_nbt_non_mut(nbt);
+        if let Some(living) = self.get_living_entity() {
+            living.read_living_nbt_non_mut(nbt);
+        }
+        self.read_custom_nbt(nbt);
     }
 
-    fn read_nbt_non_mut<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            self.get_entity().read_nbt_non_mut(nbt).await;
-            if let Some(living) = self.get_living_entity() {
-                living.read_living_nbt_non_mut(nbt).await;
-            }
-            self.read_custom_nbt(nbt).await;
-        })
-    }
-
-    fn read_custom_nbt<'a>(&'a self, _nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async {})
-    }
+    fn read_custom_nbt(&self, _nbt: &NbtCompound) {}
     /// Called every tick for this entity.
     ///
     /// The `caller` parameter is a reference to the entity that initiated the tick.
@@ -266,25 +258,23 @@ pub trait EntityBase: Send + Sync + std::any::Any {
         caller.damage_with_context(caller, amount, damage_type, None, None, None)
     }
 
-    fn on_lightning_strike<'a>(
-        &'a self,
-        caller: &'a dyn EntityBase,
-        lightning: &'a lightning::LightningBoltEntity,
-    ) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            if self.get_living_entity().is_some() {
-                self.set_on_fire_for(8.0);
-                let cause = lightning.get_cause();
-                self.damage_with_context(
-                    caller,
-                    5.0,
-                    DamageType::LIGHTNING_BOLT,
-                    None,
-                    Some(lightning),
-                    cause.as_deref().map(|p| p as &dyn EntityBase),
-                );
-            }
-        })
+    fn on_lightning_strike(
+        &self,
+        caller: &dyn EntityBase,
+        lightning: &lightning::LightningBoltEntity,
+    ) {
+        if self.get_living_entity().is_some() {
+            self.set_on_fire_for(8.0);
+            let cause = lightning.get_cause();
+            self.damage_with_context(
+                caller,
+                5.0,
+                DamageType::LIGHTNING_BOLT,
+                None,
+                Some(lightning),
+                cause.as_deref().map(|p| p as &dyn EntityBase),
+            );
+        }
     }
 
     fn is_spectator(&self) -> bool {
@@ -322,7 +312,7 @@ pub trait EntityBase: Send + Sync + std::any::Any {
                 .unwrap_or(entity.entity_type.resource_name);
             let mut metadata = entity.bedrock_metadata();
             if let Some(mob) = self.get_mob()
-                && let Some(mob_metadata) = mob.mob_bedrock_spawn_metadata().await
+                && let Some(mob_metadata) = mob.mob_bedrock_spawn_metadata()
             {
                 metadata.0.extend(mob_metadata.0);
             }
@@ -356,7 +346,7 @@ pub trait EntityBase: Send + Sync + std::any::Any {
             let is_mob = entity.entity_type.mob || self.get_mob().is_some();
             if version < JavaMinecraftVersion::V_1_19 && is_mob {
                 let metadata = if let Some(mob) = self.get_mob() {
-                    mob.mob_java_spawn_metadata(version).await
+                    mob.mob_java_spawn_metadata(version)
                 } else {
                     None
                 };
@@ -378,7 +368,7 @@ pub trait EntityBase: Send + Sync + std::any::Any {
                     client.enqueue_packet(data).await;
                 }
                 if let Some(mob) = self.get_mob()
-                    && let Some(metadata) = mob.mob_java_spawn_metadata(version).await
+                    && let Some(metadata) = mob.mob_java_spawn_metadata(version)
                 {
                     let meta_packet = CSetEntityMetadata::new(entity.entity_id.into(), metadata);
                     if let Ok(meta_data) = client.serialize_packet(&meta_packet) {
@@ -412,13 +402,10 @@ pub trait EntityBase: Send + Sync + std::any::Any {
     }
 
     /// Called when a player right-clicks this entity with an item.
+    /// Called when a player right-clicks this entity with an item.
     /// Returns true if the interaction was handled.
-    fn interact<'a>(
-        &'a self,
-        _player: &'a Arc<Player>,
-        _item_stack: &'a mut ItemStack,
-    ) -> EntityBaseFuture<'a, bool> {
-        Box::pin(async { false })
+    fn interact(&self, _player: &Arc<Player>, _item_stack: &mut ItemStack) -> bool {
+        false
     }
 
     fn set_on_fire_for(&self, seconds: f32) {
@@ -450,23 +437,17 @@ pub trait EntityBase: Send + Sync + std::any::Any {
     /// Called when a player collides with an entity
     fn on_player_collision(&self, _player: &Arc<Player>) {}
 
-    fn is_passenger(&self) -> EntityBaseFuture<'_, bool> {
-        Box::pin(async move { self.get_entity().has_vehicle() })
+    fn is_passenger(&self) -> bool {
+        self.get_entity().has_vehicle()
     }
 
-    fn is_vehicle(&self) -> EntityBaseFuture<'_, bool> {
-        Box::pin(async move { self.get_entity().has_passengers() })
+    fn is_vehicle(&self) -> bool {
+        self.get_entity().has_passengers()
     }
 
-    fn has_passenger<'a>(&'a self, other: &'a Arc<dyn EntityBase>) -> EntityBaseFuture<'a, bool> {
-        Box::pin(async move {
-            self.get_entity()
-                .passengers
-                .lock()
-                .await
-                .iter()
-                .any(|p| p.get_entity().entity_id == other.get_entity().entity_id)
-        })
+    fn has_passenger(&self, other: &Arc<dyn EntityBase>) -> bool {
+        self.get_entity()
+            .has_passenger(other.get_entity().entity_id)
     }
 
     fn move_entity(&self, caller: &Arc<dyn EntityBase>, motion: Vector3<f64>) {
@@ -477,198 +458,175 @@ pub trait EntityBase: Send + Sync + std::any::Any {
         false
     }
 
-    fn push<'a>(&'a self, entity: &'a Arc<dyn EntityBase>) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            let self_entity = self.get_entity();
-            let other_entity = entity.get_entity();
+    fn push(&self, entity: &Arc<dyn EntityBase>) {
+        let self_entity = self.get_entity();
+        let other_entity = entity.get_entity();
 
-            if self_entity.no_physics.load(Ordering::Relaxed)
-                || other_entity.no_physics.load(Ordering::Relaxed)
-            {
-                return;
+        if self_entity.no_physics.load(Ordering::Relaxed)
+            || other_entity.no_physics.load(Ordering::Relaxed)
+        {
+            return;
+        }
+
+        if self_entity.has_passenger(other_entity.entity_id)
+            || other_entity.has_passenger(self_entity.entity_id)
+        {
+            return;
+        }
+
+        let mut dx = other_entity.pos.load().x - self_entity.pos.load().x;
+        let mut dz = other_entity.pos.load().z - self_entity.pos.load().z;
+        let mut d = dx.abs().max(dz.abs());
+        if d >= 0.01 {
+            d = d.sqrt();
+            dx /= d;
+            dz /= d;
+            let mut d2 = 1.0 / d;
+            if d2 > 1.0 {
+                d2 = 1.0;
+            }
+            dx *= d2;
+            dz *= d2;
+            dx *= 0.05;
+            dz *= 0.05;
+
+            if !self_entity.has_passengers() && self.is_pushable() {
+                let mut vel = self_entity.velocity.load();
+                vel.x -= dx;
+                vel.z -= dz;
+                self_entity.velocity.store(vel);
+                self_entity.send_velocity();
             }
 
-            {
-                let passengers = self_entity.passengers.lock().await;
-                if passengers
-                    .iter()
-                    .any(|p| p.get_entity().entity_id == other_entity.entity_id)
-                {
-                    return;
-                }
+            if !other_entity.has_passengers() && entity.is_pushable() {
+                let mut vel = other_entity.velocity.load();
+                vel.x += dx;
+                vel.z += dz;
+                other_entity.velocity.store(vel);
+                other_entity.send_velocity();
             }
-            {
-                let passengers = other_entity.passengers.lock().await;
-                if passengers
-                    .iter()
-                    .any(|p| p.get_entity().entity_id == self_entity.entity_id)
-                {
-                    return;
-                }
-            }
-
-            let mut dx = other_entity.pos.load().x - self_entity.pos.load().x;
-            let mut dz = other_entity.pos.load().z - self_entity.pos.load().z;
-            let mut d = dx.abs().max(dz.abs());
-            if d >= 0.01 {
-                d = d.sqrt();
-                dx /= d;
-                dz /= d;
-                let mut d2 = 1.0 / d;
-                if d2 > 1.0 {
-                    d2 = 1.0;
-                }
-                dx *= d2;
-                dz *= d2;
-                dx *= 0.05;
-                dz *= 0.05;
-
-                if !self_entity.has_passengers() && self.is_pushable() {
-                    let mut vel = self_entity.velocity.load();
-                    vel.x -= dx;
-                    vel.z -= dz;
-                    self_entity.velocity.store(vel);
-                    self_entity.send_velocity();
-                }
-
-                if !other_entity.has_passengers() && entity.is_pushable() {
-                    let mut vel = other_entity.velocity.load();
-                    vel.x += dx;
-                    vel.z += dz;
-                    other_entity.velocity.store(vel);
-                    other_entity.send_velocity();
-                }
-            }
-        })
+        }
     }
 
     #[allow(clippy::too_many_lines)]
-    fn push_entities<'a>(
-        &'a self,
-        dyn_self: &'a Arc<dyn EntityBase>,
-    ) -> EntityBaseFuture<'a, bool> {
-        Box::pin(async move {
-            let mut picked_up = false;
-            let mut pushed = false;
-            let self_entity = self.get_entity();
-            let entity_bb = self_entity.bounding_box.load();
+    fn push_entities(&self, dyn_self: &Arc<dyn EntityBase>) -> bool {
+        let mut picked_up = false;
+        let mut pushed = false;
+        let self_entity = self.get_entity();
+        let entity_bb = self_entity.bounding_box.load();
 
-            if !self.is_pushable() {
-                return false;
-            }
+        if !self.is_pushable() {
+            return false;
+        }
 
-            let world = self_entity.world.load();
+        let world = self_entity.world.load();
 
-            let is_rideable_minecart = self_entity.entity_type.id == EntityType::MINECART.id;
-            let is_abstract_minecart = is_rideable_minecart
-                || self_entity.entity_type.id == EntityType::CHEST_MINECART.id
-                || self_entity.entity_type.id == EntityType::COMMAND_BLOCK_MINECART.id
-                || self_entity.entity_type.id == EntityType::FURNACE_MINECART.id
-                || self_entity.entity_type.id == EntityType::HOPPER_MINECART.id
-                || self_entity.entity_type.id == EntityType::SPAWNER_MINECART.id
-                || self_entity.entity_type.id == EntityType::TNT_MINECART.id;
+        let is_rideable_minecart = self_entity.entity_type.id == EntityType::MINECART.id;
+        let is_abstract_minecart = is_rideable_minecart
+            || self_entity.entity_type.id == EntityType::CHEST_MINECART.id
+            || self_entity.entity_type.id == EntityType::COMMAND_BLOCK_MINECART.id
+            || self_entity.entity_type.id == EntityType::FURNACE_MINECART.id
+            || self_entity.entity_type.id == EntityType::HOPPER_MINECART.id
+            || self_entity.entity_type.id == EntityType::SPAWNER_MINECART.id
+            || self_entity.entity_type.id == EntityType::TNT_MINECART.id;
 
-            let is_minecart_fn = |id| -> bool {
-                id == EntityType::MINECART.id
-                    || id == EntityType::CHEST_MINECART.id
-                    || id == EntityType::COMMAND_BLOCK_MINECART.id
-                    || id == EntityType::FURNACE_MINECART.id
-                    || id == EntityType::HOPPER_MINECART.id
-                    || id == EntityType::SPAWNER_MINECART.id
-                    || id == EntityType::TNT_MINECART.id
-            };
+        let is_minecart_fn = |id| -> bool {
+            id == EntityType::MINECART.id
+                || id == EntityType::CHEST_MINECART.id
+                || id == EntityType::COMMAND_BLOCK_MINECART.id
+                || id == EntityType::FURNACE_MINECART.id
+                || id == EntityType::HOPPER_MINECART.id
+                || id == EntityType::SPAWNER_MINECART.id
+                || id == EntityType::TNT_MINECART.id
+        };
 
-            if is_abstract_minecart {
-                let is_vehicle = self.is_vehicle().await;
+        if is_abstract_minecart {
+            let is_vehicle = self.is_vehicle();
 
-                if is_rideable_minecart && !is_vehicle {
-                    let pickup_bb = entity_bb.expand(0.2, 0.0, 0.2);
-                    let other_entities = world.get_entities_at_box(&pickup_bb);
+            if is_rideable_minecart && !is_vehicle {
+                let pickup_bb = entity_bb.expand(0.2, 0.0, 0.2);
+                let other_entities = world.get_entities_at_box(&pickup_bb);
 
-                    for other in other_entities {
-                        if other.get_entity().entity_id != self_entity.entity_id {
-                            let other_type = other.get_entity().entity_type.id;
-                            let is_iron_golem = other_type == EntityType::IRON_GOLEM.id;
-                            let is_other_minecart = is_minecart_fn(other_type);
-
-                            if !is_iron_golem
-                                && !is_other_minecart
-                                && !other.is_passenger().await
-                                && other.is_pushable()
-                                && other.get_entity().riding_cooldown.load(Relaxed) == 0
-                            {
-                                dyn_self
-                                    .get_entity()
-                                    .add_passenger(dyn_self.clone(), other.clone())
-                                    .await;
-                                picked_up = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                let push_bb = entity_bb.expand(1.0e-7, 1.0e-7, 1.0e-7);
-
-                let other_entities = world.get_entities_at_box(&push_bb);
                 for other in other_entities {
                     if other.get_entity().entity_id != self_entity.entity_id {
                         let other_type = other.get_entity().entity_type.id;
-                        let is_other_minecart = is_minecart_fn(other_type);
                         let is_iron_golem = other_type == EntityType::IRON_GOLEM.id;
+                        let is_other_minecart = is_minecart_fn(other_type);
 
-                        if is_rideable_minecart {
-                            if (is_iron_golem
-                                || is_other_minecart
-                                || is_vehicle
-                                || !other.get_entity().has_vehicle())
-                                && other.is_pushable()
-                            {
-                                dyn_self.push(&other).await;
-                                pushed = true;
-                            }
-                        } else if !self.has_passenger(&other).await
+                        if !is_iron_golem
+                            && !is_other_minecart
+                            && !other.is_passenger()
                             && other.is_pushable()
-                            && is_other_minecart
+                            && other.get_entity().riding_cooldown.load(Relaxed) == 0
                         {
-                            dyn_self.push(&other).await;
-                            pushed = true;
+                            dyn_self
+                                .get_entity()
+                                .add_passenger(dyn_self.clone(), other.clone());
+                            picked_up = true;
+                            break;
                         }
                     }
                 }
+            }
 
-                let players = world.get_players_at_box(&push_bb);
-                for player in players {
-                    if player.get_entity().entity_id != self_entity.entity_id
-                        && is_rideable_minecart
+            let push_bb = entity_bb.expand(1.0e-7, 1.0e-7, 1.0e-7);
+
+            let other_entities = world.get_entities_at_box(&push_bb);
+            for other in other_entities {
+                if other.get_entity().entity_id != self_entity.entity_id {
+                    let other_type = other.get_entity().entity_type.id;
+                    let is_other_minecart = is_minecart_fn(other_type);
+                    let is_iron_golem = other_type == EntityType::IRON_GOLEM.id;
+
+                    if is_rideable_minecart {
+                        if (is_iron_golem
+                            || is_other_minecart
+                            || is_vehicle
+                            || !other.get_entity().has_vehicle())
+                            && other.is_pushable()
+                        {
+                            dyn_self.push(&other);
+                            pushed = true;
+                        }
+                    } else if !self.has_passenger(&other)
+                        && other.is_pushable()
+                        && is_other_minecart
                     {
-                        let player_base: Arc<dyn EntityBase> = player.clone();
-                        dyn_self.push(&player_base).await;
-                        pushed = true;
-                        // Non-rideable minecarts (hoppers, chests) do not push players in vanilla.
-                    }
-                }
-            } else {
-                let other_entities = world.get_entities_at_box(&entity_bb);
-                for other in other_entities {
-                    if other.get_entity().entity_id != self_entity.entity_id {
-                        dyn_self.push(&other).await;
-                        pushed = true;
-                    }
-                }
-
-                let players = world.get_players_at_box(&entity_bb);
-                for player in players {
-                    if player.get_entity().entity_id != self_entity.entity_id {
-                        let player_base: Arc<dyn EntityBase> = player.clone();
-                        dyn_self.push(&player_base).await;
+                        dyn_self.push(&other);
                         pushed = true;
                     }
                 }
             }
 
-            picked_up && !pushed
-        })
+            let players = world.get_players_at_box(&push_bb);
+            for player in players {
+                if player.get_entity().entity_id != self_entity.entity_id && is_rideable_minecart {
+                    let player_base: Arc<dyn EntityBase> = player.clone();
+                    dyn_self.push(&player_base);
+                    pushed = true;
+                    // Non-rideable minecarts (hoppers, chests) do not push players in vanilla.
+                }
+            }
+        } else {
+            let other_entities = world.get_entities_at_box(&entity_bb);
+            for other in other_entities {
+                if other.get_entity().entity_id != self_entity.entity_id {
+                    dyn_self.push(&other);
+                    pushed = true;
+                }
+            }
+
+            let players = world.get_players_at_box(&entity_bb);
+            for player in players {
+                if player.get_entity().entity_id != self_entity.entity_id {
+                    let player_base: Arc<dyn EntityBase> = player.clone();
+                    dyn_self.push(&player_base);
+                    pushed = true;
+                }
+            }
+        }
+
+        picked_up && !pushed
     }
 
     fn on_hit(&self, _hit: crate::entity::projectile::ProjectileHit) {}
@@ -720,38 +678,38 @@ pub trait EntityBase: Send + Sync + std::any::Any {
             ))
     }
 
-    fn get_display_name(&self) -> EntityBaseFuture<'_, TextComponent> {
-        Box::pin(async move {
-            // TODO: team color
-            let entity = self.get_entity();
-            let mut name = entity.custom_name.load().as_ref().clone().unwrap_or(
-                TextComponent::translate_cross(
+    fn get_display_name(&self) -> TextComponent {
+        // TODO: team color
+        let entity = self.get_entity();
+        let mut name =
+            entity
+                .custom_name
+                .load()
+                .as_ref()
+                .clone()
+                .unwrap_or(TextComponent::translate_cross(
                     format!("entity.minecraft.{}", entity.entity_type.resource_name),
                     format!("entity.minecraft.{}", entity.entity_type.resource_name),
                     [],
-                ),
-            );
-            let name_clone = name.clone();
-            name = name.hover_event(HoverEvent::show_entity(
-                entity.entity_uuid.to_string(),
-                entity.entity_type.resource_name.into(),
-                Some(name_clone),
-            ));
-            name = name.insertion(entity.entity_uuid.to_string());
-            name
-        })
+                ));
+        let name_clone = name.clone();
+        name = name.hover_event(HoverEvent::show_entity(
+            entity.entity_uuid.to_string(),
+            entity.entity_type.resource_name.into(),
+            Some(name_clone),
+        ));
+        name = name.insertion(entity.entity_uuid.to_string());
+        name
     }
 
     /// Kills the Entity.
-    fn kill<'a>(&'a self, caller: &'a dyn EntityBase) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            if self.get_living_entity().is_some() {
-                caller.damage(caller, f32::MAX, DamageType::GENERIC_KILL);
-            } else {
-                // TODO this should be removed once all entities are implemented
-                self.get_entity().remove();
-            }
-        })
+    fn kill(&self, caller: &dyn EntityBase) {
+        if self.get_living_entity().is_some() {
+            caller.damage(caller, f32::MAX, DamageType::GENERIC_KILL);
+        } else {
+            // TODO this should be removed once all entities are implemented
+            self.get_entity().remove();
+        }
     }
 
     fn get_experience_reward(&self, _killer: Option<&dyn EntityBase>) -> u32 {
@@ -875,9 +833,9 @@ pub struct Entity {
     pub was_in_powder_snow: AtomicBool,
     pub removal_reason: AtomicCell<Option<RemovalReason>>,
     // The passengers that entity has
-    pub passengers: Mutex<Vec<Arc<dyn EntityBase>>>,
+    pub passengers: std::sync::Mutex<Vec<Arc<dyn EntityBase>>>,
     /// The vehicle that entity is in
-    pub vehicle: Mutex<Option<Arc<dyn EntityBase>>>,
+    pub vehicle: std::sync::Mutex<Option<Arc<dyn EntityBase>>>,
     /// The entity this entity is attached/leashed to (if any)
     pub leashed_to: std::sync::Mutex<Option<Arc<dyn EntityBase>>>,
     /// Cooldown before entity can mount again after dismounting
@@ -899,7 +857,7 @@ pub struct Entity {
     pub has_no_gravity: AtomicBool,
     /// Scoreboard tags attached to this entity, managed with `/tag`.
     /// Vanilla allows at most [`MAX_SCOREBOARD_TAGS`] tags per entity.
-    pub scoreboard_tags: Mutex<HashSet<String>>,
+    pub scoreboard_tags: std::sync::Mutex<HashSet<String>>,
     /// The data send in the Entity Spawn packet
     pub data: AtomicI32,
     /// Stores entity boolean flags (on fire, sneaking, invisible, glowing, etc.)
@@ -925,7 +883,7 @@ pub struct Entity {
     /// Cache for the last sent head yaw byte
     pub last_sent_head_yaw: AtomicU8,
     /// Persistent custom data container for plugins (matching Bukkit's `PersistentDataHolder`)
-    pub custom_data: Mutex<NbtCompound>,
+    pub custom_data: std::sync::Mutex<NbtCompound>,
 }
 
 impl Entity {
@@ -1029,8 +987,8 @@ impl Entity {
             is_in_powder_snow: AtomicBool::new(false),
             was_in_powder_snow: AtomicBool::new(false),
             removal_reason: AtomicCell::new(None),
-            passengers: Mutex::new(Vec::new()),
-            vehicle: Mutex::new(None),
+            passengers: std::sync::Mutex::new(Vec::new()),
+            vehicle: std::sync::Mutex::new(None),
             leashed_to: std::sync::Mutex::new(None),
 
             riding_cooldown: AtomicI32::new(0),
@@ -1043,7 +1001,7 @@ impl Entity {
             custom_name_visible: AtomicBool::new(false),
             silent: AtomicBool::new(false),
             has_no_gravity: AtomicBool::new(false),
-            scoreboard_tags: Mutex::new(HashSet::new()),
+            scoreboard_tags: std::sync::Mutex::new(HashSet::new()),
             no_physics: AtomicBool::new(false),
             movement_multiplier: AtomicCell::new(Vector3::default()),
             velocity_dirty: AtomicBool::new(true),
@@ -1052,7 +1010,7 @@ impl Entity {
             last_sent_pitch: AtomicU8::new(0),
             last_sent_head_yaw: AtomicU8::new(0),
             last_sent_pos: AtomicCell::new(position),
-            custom_data: Mutex::new(NbtCompound::new()),
+            custom_data: std::sync::Mutex::new(NbtCompound::new()),
         }
     }
 
@@ -1137,16 +1095,22 @@ impl Entity {
     ///
     /// Returns `false` if the entity already has the tag or already carries
     /// [`MAX_SCOREBOARD_TAGS`] tags.
-    pub async fn add_scoreboard_tag(&self, tag: &str) -> bool {
-        let mut tags = self.scoreboard_tags.lock().await;
+    pub fn add_scoreboard_tag(&self, tag: &str) -> bool {
+        let mut tags = self
+            .scoreboard_tags
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         tags.len() < MAX_SCOREBOARD_TAGS && tags.insert(tag.to_owned())
     }
 
     /// Removes a scoreboard tag from this entity.
     ///
     /// Returns `false` if the entity did not have the tag.
-    pub async fn remove_scoreboard_tag(&self, tag: &str) -> bool {
-        self.scoreboard_tags.lock().await.remove(tag)
+    pub fn remove_scoreboard_tag(&self, tag: &str) -> bool {
+        self.scoreboard_tags
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(tag)
     }
 
     /// Sets a custom name for the entity, typically used with nametags
@@ -2391,15 +2355,13 @@ impl Entity {
                 let yaw = self.yaw.load();
 
                 tokio::spawn(async move {
-                    let transition = portal_type
-                        .get_portal_destination(
-                            &world_clone,
-                            dest_world_opt,
-                            &caller_clone,
-                            entry_pos,
-                            src_portal,
-                        )
-                        .await;
+                    let transition = portal_type.get_portal_destination(
+                        &world_clone,
+                        dest_world_opt,
+                        &caller_clone,
+                        entry_pos,
+                        src_portal,
+                    );
 
                     if let Some(transition) = transition {
                         let dest_world = transition.new_world.clone();
@@ -2436,13 +2398,17 @@ impl Entity {
 
     /// Recursively teleports all passengers (and their passengers) to the destination
     fn teleport_passengers_recursive<'a>(
-        entity: &'a Self,
+        entity: &'a Entity,
         position: Vector3<f64>,
         yaw_delta: Option<f32>,
         dest_world: &'a Arc<World>,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>> {
         Box::pin(async move {
-            let passengers = entity.passengers.lock().await.clone();
+            let passengers = entity
+                .passengers
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
             for passenger in passengers {
                 let passenger_entity = passenger.get_entity();
                 let passenger_yaw = yaw_delta.map(|delta| passenger_entity.yaw.load() + delta);
@@ -2452,7 +2418,11 @@ impl Entity {
                 );
 
                 // Get nested passengers before teleporting
-                let nested_passengers = passenger_entity.passengers.lock().await.clone();
+                let nested_passengers = passenger_entity
+                    .passengers
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .clone();
 
                 passenger
                     .teleport(position, passenger_yaw, None, dest_world.clone())
@@ -3391,22 +3361,33 @@ impl Entity {
     }
 
     pub fn has_passengers(&self) -> bool {
-        self.passengers.try_lock().is_ok_and(|p| !p.is_empty())
+        !self
+            .passengers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_empty()
     }
 
     pub fn has_passenger(&self, id: i32) -> bool {
-        self.passengers.try_lock().is_ok_and(|p| {
-            p.iter()
-                .any(|passenger| passenger.get_entity().entity_id == id)
-        })
+        self.passengers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .any(|passenger| passenger.get_entity().entity_id == id)
     }
 
     pub fn has_vehicle(&self) -> bool {
-        self.vehicle.try_lock().is_ok_and(|v| v.is_some())
+        self.vehicle
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_some()
     }
 
     pub fn get_vehicle(&self) -> Option<Arc<dyn EntityBase>> {
-        self.vehicle.try_lock().ok().and_then(|v| v.clone())
+        self.vehicle
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
     }
 
     pub fn is_leashed(&self) -> bool {
@@ -3416,11 +3397,7 @@ impl Entity {
             .is_some()
     }
 
-    pub async fn add_passenger(
-        &self,
-        vehicle: Arc<dyn EntityBase>,
-        passenger: Arc<dyn EntityBase>,
-    ) {
+    pub fn add_passenger(&self, vehicle: Arc<dyn EntityBase>, passenger: Arc<dyn EntityBase>) {
         let mut mount_event =
             crate::plugin::api::events::entity::entity_mount::EntityMountEvent::new(
                 passenger.get_entity().entity_id,
@@ -3432,20 +3409,27 @@ impl Entity {
                 passenger.get_entity().entity_id,
             );
         if let Some(server) = self.world.load().server.upgrade() {
-            server.plugin_manager.fire(&server, &mut mount_event).await;
             server
                 .plugin_manager
-                .fire(&server, &mut vehicle_enter)
-                .await;
+                .fire_blocking(&server, &mut mount_event);
+            server
+                .plugin_manager
+                .fire_blocking(&server, &mut vehicle_enter);
         }
         if mount_event.cancelled || vehicle_enter.cancelled {
             return;
         }
 
         let passenger_entity = passenger.get_entity();
-        *passenger_entity.vehicle.lock().await = Some(vehicle);
+        *passenger_entity
+            .vehicle
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(vehicle);
 
-        let mut passengers = self.passengers.lock().await;
+        let mut passengers = self
+            .passengers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         passengers.push(passenger);
 
         let passenger_ids: Vec<VarInt> = passengers
@@ -3461,14 +3445,21 @@ impl Entity {
         );
     }
 
-    pub(crate) async fn remove_passenger_on_disconnect(&self, passenger_id: i32) {
-        let mut passengers = self.passengers.lock().await;
+    pub(crate) fn remove_passenger_on_disconnect(&self, passenger_id: i32) {
+        let mut passengers = self
+            .passengers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(index) = passengers
             .iter()
             .position(|passenger| passenger.get_entity().entity_id == passenger_id)
         {
             let passenger = passengers.remove(index);
-            *passenger.get_entity().vehicle.lock().await = None;
+            *passenger
+                .get_entity()
+                .vehicle
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
         }
 
         let passenger_ids: Vec<VarInt> = passengers
@@ -3514,23 +3505,32 @@ impl Entity {
             return;
         }
 
-        let mut passengers = self.passengers.lock().await;
-        let removed_passenger = if let Some(idx) = passengers
-            .iter()
-            .position(|p| p.get_entity().entity_id == passenger_id)
-        {
-            let passenger = passengers.remove(idx);
-            *passenger.get_entity().vehicle.lock().await = None;
-            Some(passenger)
-        } else {
-            None
-        };
+        let (removed_passenger, passenger_ids) = {
+            let mut passengers = self
+                .passengers
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let removed_passenger = if let Some(idx) = passengers
+                .iter()
+                .position(|p| p.get_entity().entity_id == passenger_id)
+            {
+                let passenger = passengers.remove(idx);
+                *passenger
+                    .get_entity()
+                    .vehicle
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+                Some(passenger)
+            } else {
+                None
+            };
 
-        let passenger_ids: Vec<VarInt> = passengers
-            .iter()
-            .map(|p| VarInt(p.get_entity().entity_id))
-            .collect();
-        drop(passengers);
+            let passenger_ids: Vec<VarInt> = passengers
+                .iter()
+                .map(|p| VarInt(p.get_entity().entity_id))
+                .collect();
+            (removed_passenger, passenger_ids)
+        };
 
         let chunk_pos = self.chunk_pos.load();
 
@@ -3841,8 +3841,11 @@ impl Entity {
         self.movement_multiplier.store(multiplier);
     }
 
-    pub async fn set_custom_data(&self, namespace: &str, key: &str, value: NbtTag) {
-        let mut custom_data = self.custom_data.lock().await;
+    pub fn set_custom_data(&self, namespace: &str, key: &str, value: NbtTag) {
+        let mut custom_data = self
+            .custom_data
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
 
         let mut namespace_data = custom_data
             .child_tags
@@ -3859,8 +3862,11 @@ impl Entity {
             .insert(namespace.into(), NbtTag::Compound(namespace_data));
     }
 
-    pub async fn get_custom_data(&self, namespace: &str, key: &str) -> Option<NbtTag> {
-        let custom_data = self.custom_data.lock().await;
+    pub fn get_custom_data(&self, namespace: &str, key: &str) -> Option<NbtTag> {
+        let custom_data = self
+            .custom_data
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         custom_data
             .get(namespace)?
             .extract_compound()?
@@ -3868,8 +3874,11 @@ impl Entity {
             .cloned()
     }
 
-    pub async fn remove_custom_data(&self, namespace: &str, key: &str) {
-        let mut custom_data = self.custom_data.lock().await;
+    pub fn remove_custom_data(&self, namespace: &str, key: &str) {
+        let mut custom_data = self
+            .custom_data
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
 
         let Some(NbtTag::Compound(mut namespace_data)) = custom_data.child_tags.remove(namespace)
         else {
@@ -3884,151 +3893,159 @@ impl Entity {
         }
     }
 
-    pub async fn has_custom_data(&self, namespace: &str, key: &str) -> bool {
-        self.get_custom_data(namespace, key).await.is_some()
+    pub fn has_custom_data(&self, namespace: &str, key: &str) -> bool {
+        self.get_custom_data(namespace, key).is_some()
     }
 }
 
 impl Entity {
-    pub fn write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            let position = self.pos.load();
-            nbt.put_string(
-                "id",
-                format!("minecraft:{}", self.entity_type.resource_name),
-            );
-            nbt.put_uuid("UUID", self.entity_uuid);
-            nbt.put(
-                "Pos",
-                NbtTag::List(vec![
-                    position.x.into(),
-                    position.y.into(),
-                    position.z.into(),
-                ]),
-            );
-            let velocity = self.velocity.load();
-            nbt.put(
-                "Motion",
-                NbtTag::List(vec![
-                    velocity.x.into(),
-                    velocity.y.into(),
-                    velocity.z.into(),
-                ]),
-            );
-            nbt.put(
-                "Rotation",
-                NbtTag::List(vec![self.yaw.load().into(), self.pitch.load().into()]),
-            );
-            nbt.put_short("Fire", self.fire_ticks.load(Relaxed) as i16);
-            nbt.put_bool("OnGround", self.on_ground.load(Relaxed));
-            nbt.put_bool("Invulnerable", self.invulnerable.load(Relaxed));
-            nbt.put_int("PortalCooldown", self.portal_cooldown.load(Relaxed) as i32);
-            if self.has_visual_fire.load(Relaxed) {
-                nbt.put_bool("HasVisualFire", true);
-            }
-            nbt.put_int("TicksFrozen", self.frozen_ticks.load(Relaxed));
-            if let Some(custom_name) = &**self.custom_name.load()
-                && let Ok(name_json) = pumpkin_util::serde_json::to_string(custom_name)
-            {
-                nbt.put_string("CustomName", name_json);
-            }
-            nbt.put_bool("CustomNameVisible", self.custom_name_visible.load(Relaxed));
+    pub fn write_nbt(&self, nbt: &mut NbtCompound) {
+        let position = self.pos.load();
+        nbt.put_string(
+            "id",
+            format!("minecraft:{}", self.entity_type.resource_name),
+        );
+        nbt.put_uuid("UUID", self.entity_uuid);
+        nbt.put(
+            "Pos",
+            NbtTag::List(vec![
+                position.x.into(),
+                position.y.into(),
+                position.z.into(),
+            ]),
+        );
+        let velocity = self.velocity.load();
+        nbt.put(
+            "Motion",
+            NbtTag::List(vec![
+                velocity.x.into(),
+                velocity.y.into(),
+                velocity.z.into(),
+            ]),
+        );
+        nbt.put(
+            "Rotation",
+            NbtTag::List(vec![self.yaw.load().into(), self.pitch.load().into()]),
+        );
+        nbt.put_short("Fire", self.fire_ticks.load(Relaxed) as i16);
+        nbt.put_bool("OnGround", self.on_ground.load(Relaxed));
+        nbt.put_bool("Invulnerable", self.invulnerable.load(Relaxed));
+        nbt.put_int("PortalCooldown", self.portal_cooldown.load(Relaxed) as i32);
+        if self.has_visual_fire.load(Relaxed) {
+            nbt.put_bool("HasVisualFire", true);
+        }
+        nbt.put_int("TicksFrozen", self.frozen_ticks.load(Relaxed));
+        if let Some(custom_name) = &**self.custom_name.load()
+            && let Ok(name_json) = pumpkin_util::serde_json::to_string(custom_name)
+        {
+            nbt.put_string("CustomName", name_json);
+        }
+        nbt.put_bool("CustomNameVisible", self.custom_name_visible.load(Relaxed));
 
-            let tags = self.scoreboard_tags.lock().await;
-            if !tags.is_empty() {
-                nbt.put(
-                    "Tags",
-                    NbtTag::List(
-                        tags.iter()
-                            .map(|tag| NbtTag::String(tag.as_str().into()))
-                            .collect(),
-                    ),
-                );
-            }
+        let tags = self
+            .scoreboard_tags
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !tags.is_empty() {
+            nbt.put(
+                "Tags",
+                NbtTag::List(
+                    tags.iter()
+                        .map(|tag| NbtTag::String(tag.as_str().into()))
+                        .collect(),
+                ),
+            );
+        }
 
-            let custom_data = self.custom_data.lock().await;
-            if !custom_data.is_empty() {
-                nbt.put_compound("PumpkinCustomData", custom_data.clone());
-            }
+        let custom_data = self
+            .custom_data
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !custom_data.is_empty() {
+            nbt.put_compound("PumpkinCustomData", custom_data.clone());
+        }
 
-            // todo more...
-        })
+        // todo more...
     }
 
-    pub fn read_nbt_non_mut<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async {
-            if let Some(position) = nbt.get_list("Pos")
-                && position.len() >= 3
-            {
-                let x = position[0].extract_double().unwrap_or(0.0);
-                let y = position[1].extract_double().unwrap_or(0.0);
-                let z = position[2].extract_double().unwrap_or(0.0);
-                let pos = Vector3::new(x, y, z);
-                self.set_pos(pos);
-                self.last_sent_pos.store(pos);
-            }
-            if let Some(velocity) = nbt.get_list("Motion")
-                && velocity.len() >= 3
-            {
-                let x = velocity[0].extract_double().unwrap_or(0.0);
-                let y = velocity[1].extract_double().unwrap_or(0.0);
-                let z = velocity[2].extract_double().unwrap_or(0.0);
-                self.velocity.store(Vector3::new(x, y, z));
-            }
-            if let Some(rotation) = nbt.get_list("Rotation")
-                && rotation.len() >= 2
-            {
-                let yaw = rotation[0].extract_float().unwrap_or(0.0);
-                let pitch = rotation[1].extract_float().unwrap_or(0.0);
-                self.set_rotation(yaw, pitch);
-                let yaw_byte = (yaw * 256.0 / 360.0).rem_euclid(256.0) as u8;
-                let pitch_byte = (pitch * 256.0 / 360.0).rem_euclid(256.0) as u8;
-                self.last_sent_yaw.store(yaw_byte, Relaxed);
-                self.last_sent_pitch.store(pitch_byte, Relaxed);
-                self.head_yaw.store(yaw);
-                self.last_sent_head_yaw.store(yaw_byte, Relaxed);
-            }
-            self.fire_ticks
-                .store(i32::from(nbt.get_short("Fire").unwrap_or(0)), Relaxed);
-            self.on_ground
-                .store(nbt.get_bool("OnGround").unwrap_or(false), Relaxed);
-            self.invulnerable
-                .store(nbt.get_bool("Invulnerable").unwrap_or(false), Relaxed);
-            self.portal_cooldown
-                .store(nbt.get_int("PortalCooldown").unwrap_or(0) as u32, Relaxed);
-            self.has_visual_fire
-                .store(nbt.get_bool("HasVisualFire").unwrap_or(false), Relaxed);
-            self.frozen_ticks
-                .store(nbt.get_int("TicksFrozen").unwrap_or(0), Relaxed);
-            if let Some(name_json) = nbt.get_string("CustomName")
-                && let Ok(component) = pumpkin_util::serde_json::from_str(name_json)
-            {
-                self.custom_name.store(Arc::new(Some(component)));
-            }
-            self.custom_name_visible
-                .store(nbt.get_bool("CustomNameVisible").unwrap_or(false), Relaxed);
+    pub fn read_nbt_non_mut(&self, nbt: &NbtCompound) {
+        if let Some(position) = nbt.get_list("Pos")
+            && position.len() >= 3
+        {
+            let x = position[0].extract_double().unwrap_or(0.0);
+            let y = position[1].extract_double().unwrap_or(0.0);
+            let z = position[2].extract_double().unwrap_or(0.0);
+            let pos = Vector3::new(x, y, z);
+            self.set_pos(pos);
+            self.last_sent_pos.store(pos);
+        }
+        if let Some(velocity) = nbt.get_list("Motion")
+            && velocity.len() >= 3
+        {
+            let x = velocity[0].extract_double().unwrap_or(0.0);
+            let y = velocity[1].extract_double().unwrap_or(0.0);
+            let z = velocity[2].extract_double().unwrap_or(0.0);
+            self.velocity.store(Vector3::new(x, y, z));
+        }
+        if let Some(rotation) = nbt.get_list("Rotation")
+            && rotation.len() >= 2
+        {
+            let yaw = rotation[0].extract_float().unwrap_or(0.0);
+            let pitch = rotation[1].extract_float().unwrap_or(0.0);
+            self.set_rotation(yaw, pitch);
+            let yaw_byte = (yaw * 256.0 / 360.0).rem_euclid(256.0) as u8;
+            let pitch_byte = (pitch * 256.0 / 360.0).rem_euclid(256.0) as u8;
+            self.last_sent_yaw.store(yaw_byte, Relaxed);
+            self.last_sent_pitch.store(pitch_byte, Relaxed);
+            self.head_yaw.store(yaw);
+            self.last_sent_head_yaw.store(yaw_byte, Relaxed);
+        }
+        self.fire_ticks
+            .store(i32::from(nbt.get_short("Fire").unwrap_or(0)), Relaxed);
+        self.on_ground
+            .store(nbt.get_bool("OnGround").unwrap_or(false), Relaxed);
+        self.invulnerable
+            .store(nbt.get_bool("Invulnerable").unwrap_or(false), Relaxed);
+        self.portal_cooldown
+            .store(nbt.get_int("PortalCooldown").unwrap_or(0) as u32, Relaxed);
+        self.has_visual_fire
+            .store(nbt.get_bool("HasVisualFire").unwrap_or(false), Relaxed);
+        self.frozen_ticks
+            .store(nbt.get_int("TicksFrozen").unwrap_or(0), Relaxed);
+        if let Some(name_json) = nbt.get_string("CustomName")
+            && let Ok(component) = pumpkin_util::serde_json::from_str(name_json)
+        {
+            self.custom_name.store(Arc::new(Some(component)));
+        }
+        self.custom_name_visible
+            .store(nbt.get_bool("CustomNameVisible").unwrap_or(false), Relaxed);
 
-            if let Some(tag_list) = nbt.get_list("Tags") {
-                let mut tags = self.scoreboard_tags.lock().await;
-                tags.clear();
-                tags.extend(
-                    tag_list
-                        .iter()
-                        .filter_map(|tag| tag.extract_string().map(str::to_owned))
-                        .take(MAX_SCOREBOARD_TAGS),
-                );
-            }
+        if let Some(tag_list) = nbt.get_list("Tags") {
+            let mut tags = self
+                .scoreboard_tags
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            tags.clear();
+            tags.extend(
+                tag_list
+                    .iter()
+                    .filter_map(|tag| tag.extract_string().map(str::to_owned))
+                    .take(MAX_SCOREBOARD_TAGS),
+            );
+        }
 
-            if let Some(custom_data) = nbt
-                .get_compound("PumpkinCustomData")
-                .or_else(|| nbt.get_compound("BukkitValues"))
-            {
-                let mut data = self.custom_data.lock().await;
-                *data = custom_data.clone();
-            }
+        if let Some(custom_data) = nbt
+            .get_compound("PumpkinCustomData")
+            .or_else(|| nbt.get_compound("BukkitValues"))
+        {
+            let mut data = self
+                .custom_data
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            *data = custom_data.clone();
+        }
 
-            // todo more...
-        })
+        // todo more...
     }
 }
 
@@ -4101,41 +4118,28 @@ impl EntityBase for Entity {
 }
 
 impl<T: EntityBase + ?Sized> NBTStorage for T {
-    fn write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        EntityBase::write_nbt(self, nbt)
+    fn write_nbt(&self, nbt: &mut NbtCompound) {
+        EntityBase::write_nbt(self, nbt);
     }
 
-    fn read_nbt_non_mut<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        EntityBase::read_nbt_non_mut(self, nbt)
+    fn read_nbt_non_mut(&self, nbt: &NbtCompound) {
+        EntityBase::read_nbt_non_mut(self, nbt);
     }
 }
-
-pub type NbtFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 pub trait NBTStorage: Send + Sync {
-    fn write_nbt<'a>(&'a self, _nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async {})
+    fn write_nbt(&self, _nbt: &mut NbtCompound) {}
+
+    fn read_nbt(&mut self, nbt: &mut NbtCompound) {
+        self.read_nbt_non_mut(nbt);
     }
 
-    fn read_nbt<'a>(&'a mut self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            self.read_nbt_non_mut(nbt).await;
-        })
-    }
-
-    fn read_nbt_non_mut<'a>(&'a self, _nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async {})
-    }
+    fn read_nbt_non_mut(&self, _nbt: &NbtCompound) {}
 }
 
-pub type NBTInitFuture<'a, T> = Pin<Box<dyn Future<Output = Option<T>> + Send + 'a>>;
-
 pub trait NBTStorageInit: Send + Sync + Sized {
-    fn create_from_nbt<'a>(_nbt: &'a mut NbtCompound) -> NBTInitFuture<'a, Self>
-    where
-        Self: 'a,
-    {
-        Box::pin(async move { None })
+    fn create_from_nbt(_nbt: &mut NbtCompound) -> Option<Self> {
+        None
     }
 }
 

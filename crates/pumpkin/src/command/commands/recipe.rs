@@ -121,7 +121,7 @@ impl CommandExecutor for RecipeGiveExecutor {
                     translation::java::COMMANDS_RECIPE_GIVE_SUCCESS_SINGLE,
                     [
                         TextComponent::text(recipe_count_str),
-                        targets[0].get_display_name().await,
+                        targets[0].get_display_name(),
                     ],
                 );
                 context.source.send_feedback(msg, true).await;
@@ -202,7 +202,7 @@ impl CommandExecutor for RecipeTakeExecutor {
                     translation::java::COMMANDS_RECIPE_TAKE_SUCCESS_SINGLE,
                     [
                         TextComponent::text(taken_count_str),
-                        targets[0].get_display_name().await,
+                        targets[0].get_display_name(),
                     ],
                 );
                 context.source.send_feedback(msg, true).await;

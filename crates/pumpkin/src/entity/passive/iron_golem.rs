@@ -12,7 +12,7 @@ use pumpkin_protocol::java::client::play::Metadata;
 use pumpkin_util::GameMode;
 
 use crate::entity::{
-    Entity, EntityBase, EntityBaseFuture, NbtFuture,
+    Entity, EntityBase,
     ai::goal::{
         active_target::ActiveTargetGoal, look_around::RandomLookAroundGoal,
         look_at_entity::LookAtEntityGoal, melee_attack::MeleeAttackGoal,
@@ -122,18 +122,14 @@ impl Mob for IronGolemEntity {
     fn as_iron_golem(&self) -> Option<&IronGolemEntity> {
         Some(self)
     }
-    fn mob_write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            nbt.put_bool("PlayerCreated", self.is_player_created());
-        })
+    fn mob_write_nbt(&self, nbt: &mut NbtCompound) {
+        nbt.put_bool("PlayerCreated", self.is_player_created());
     }
 
-    fn mob_read_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(created) = nbt.get_bool("PlayerCreated") {
-                self.set_player_created(created);
-            }
-        })
+    fn mob_read_nbt(&self, nbt: &NbtCompound) {
+        if let Some(created) = nbt.get_bool("PlayerCreated") {
+            self.set_player_created(created);
+        }
     }
 
     fn get_mob_entity(&self) -> &MobEntity {
@@ -164,29 +160,23 @@ impl Mob for IronGolemEntity {
         );
     }
 
-    fn mob_interact<'a>(
-        &'a self,
-        player: &'a Arc<Player>,
-        item_stack: &'a mut ItemStack,
-    ) -> EntityBaseFuture<'a, bool> {
-        Box::pin(async move {
-            if item_stack.item.id == Item::IRON_INGOT.id {
-                let living = &self.mob_entity.living_entity;
-                let current_health = living.health.load();
-                let max_health = living.get_max_health();
-                if current_health < max_health {
-                    living.set_health((current_health + 25.0).min(max_health));
-                    let entity = self.get_entity();
-                    let world = entity.world.load();
-                    let pos = entity.pos.load();
-                    world.play_sound(Sound::EntityIronGolemRepair, SoundCategory::Neutral, &pos);
-                    if player.gamemode.load() != GameMode::Creative {
-                        item_stack.item_count = item_stack.item_count.saturating_sub(1);
-                    }
-                    return true;
+    fn mob_interact(&self, player: &Arc<Player>, item_stack: &mut ItemStack) -> bool {
+        if item_stack.item.id == Item::IRON_INGOT.id {
+            let living = &self.mob_entity.living_entity;
+            let current_health = living.health.load();
+            let max_health = living.get_max_health();
+            if current_health < max_health {
+                living.set_health((current_health + 25.0).min(max_health));
+                let entity = self.get_entity();
+                let world = entity.world.load();
+                let pos = entity.pos.load();
+                world.play_sound(Sound::EntityIronGolemRepair, SoundCategory::Neutral, &pos);
+                if player.gamemode.load() != GameMode::Creative {
+                    item_stack.item_count = item_stack.item_count.saturating_sub(1);
                 }
+                return true;
             }
-            false
-        })
+        }
+        false
     }
 }

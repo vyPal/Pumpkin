@@ -669,7 +669,7 @@ impl DispenserBlock {
         item: &mut ItemStack,
     ) {
         let front = Self::target_position(ctx);
-        let Some(filled) = try_pickup_fluid_at(ctx.world, front).await else {
+        let Some(filled) = try_pickup_fluid_at(ctx.world, front) else {
             Self::drop_item(ctx, item);
             return;
         };
@@ -717,7 +717,6 @@ impl DispenserBlock {
                 *ctx.position,
                 ctx.facing.to_block_direction(),
             )
-            .await
         };
 
         if emptied {
@@ -737,7 +736,7 @@ impl DispenserBlock {
             true
         } else {
             Ignition::ignite_block(
-                |world: Arc<World>, pos: BlockPos, new_state_id: BlockStateId| async move {
+                |world: Arc<World>, pos: BlockPos, new_state_id: BlockStateId| {
                     world.set_block_state(&pos, new_state_id, BlockFlags::NOTIFY_ALL);
                 },
                 ctx.world,
@@ -745,7 +744,6 @@ impl DispenserBlock {
                 front,
                 front_block,
             )
-            .await
         };
 
         if ignited {
@@ -761,7 +759,7 @@ impl DispenserBlock {
         let front = Self::target_position(ctx);
         let front_block = ctx.world.get_block(&front);
 
-        if try_wax_block(ctx.world, front, front_block).await {
+        if try_wax_block(ctx.world, front, front_block) {
             item.decrement(1);
             Self::play_dispense_effects(ctx, WorldEvent::SoundDispenserDispense);
         } else {

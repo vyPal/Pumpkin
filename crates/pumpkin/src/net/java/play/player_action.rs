@@ -114,7 +114,7 @@ impl JavaClient {
                                     server,
                                     broken_state,
                                 );
-                                player.apply_tool_damage_for_block_break(broken_state).await;
+                                player.apply_tool_damage_for_block_break(broken_state);
                                 if can_harvest {
                                     player.add_exhaustion(MINE_BLOCK_EXHAUSTION).await;
                                 }
@@ -134,16 +134,14 @@ impl JavaClient {
                             player
                                 .current_block_breaking_speed
                                 .store(speed.to_bits(), Ordering::Relaxed);
-                            world
-                                .set_block_breaking(
-                                    entity,
-                                    position,
-                                    BlockBreakingProgress::Start {
-                                        stage: progress,
-                                        speed,
-                                    },
-                                )
-                                .await;
+                            world.set_block_breaking(
+                                entity,
+                                position,
+                                BlockBreakingProgress::Start {
+                                    stage: progress,
+                                    speed,
+                                },
+                            );
                             player
                                 .current_block_destroy_stage
                                 .store(progress, Ordering::Relaxed);
@@ -162,15 +160,11 @@ impl JavaClient {
                     }
                     player.mining.store(false, Ordering::Relaxed);
                     let entity = &player.get_entity();
-                    entity
-                        .world
-                        .load()
-                        .set_block_breaking(
-                            entity,
-                            player_action.position,
-                            BlockBreakingProgress::Stop,
-                        )
-                        .await;
+                    entity.world.load().set_block_breaking(
+                        entity,
+                        player_action.position,
+                        BlockBreakingProgress::Stop,
+                    );
                     self.update_sequence(player, player_action.sequence.0);
                 }
                 Status::FinishedDigging => {
@@ -190,9 +184,7 @@ impl JavaClient {
                     let world = entity.world.load_full();
 
                     player.mining.store(false, Ordering::Relaxed);
-                    world
-                        .set_block_breaking(entity, location, BlockBreakingProgress::Stop)
-                        .await;
+                    world.set_block_breaking(entity, location, BlockBreakingProgress::Stop);
 
                     let (block, state) = world.get_block_and_state(&location);
                     let block_drop = player.gamemode.load() != GameMode::Creative
@@ -212,7 +204,7 @@ impl JavaClient {
                             .block_registry
                             .broken(&world, block, player, &location, server, state);
 
-                        player.apply_tool_damage_for_block_break(state).await;
+                        player.apply_tool_damage_for_block_break(state);
                         if block_drop {
                             player.add_exhaustion(MINE_BLOCK_EXHAUSTION).await;
                         }
@@ -243,7 +235,7 @@ impl JavaClient {
                         .unwrap_or_else(std::sync::PoisonError::into_inner)
                         .clone();
                     if let Some(stack) = item_in_use {
-                        server.item_registry.on_stopped_using(&stack, player).await;
+                        server.item_registry.on_stopped_using(&stack, player);
                     }
 
                     player.living_entity.clear_active_hand();

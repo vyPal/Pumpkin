@@ -14,7 +14,7 @@ use pumpkin_world::chunk::ChunkHeightmapType;
 use rand::RngExt;
 
 use crate::entity::mob::{Mob, MobEntity};
-use crate::entity::{Entity, EntityBase, NbtFuture};
+use crate::entity::{Entity, EntityBase};
 use crate::world::World;
 
 const ROOSTING_FLAG: u8 = 1;
@@ -217,19 +217,15 @@ impl Mob for BatEntity {
         );
     }
 
-    fn mob_write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            let flags: u8 = if self.is_roosting() { ROOSTING_FLAG } else { 0 };
-            nbt.put_byte("BatFlags", i8::try_from(flags).unwrap_or(0));
-        })
+    fn mob_write_nbt(&self, nbt: &mut NbtCompound) {
+        let flags: u8 = if self.is_roosting() { ROOSTING_FLAG } else { 0 };
+        nbt.put_byte("BatFlags", i8::try_from(flags).unwrap_or(0));
     }
 
-    fn mob_read_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            let flags = u8::try_from(nbt.get_byte("BatFlags").unwrap_or(0)).unwrap_or(0);
-            let roosting = (flags & ROOSTING_FLAG) != 0;
-            self.set_roosting(roosting);
-        })
+    fn mob_read_nbt(&self, nbt: &NbtCompound) {
+        let flags = u8::try_from(nbt.get_byte("BatFlags").unwrap_or(0)).unwrap_or(0);
+        let roosting = (flags & ROOSTING_FLAG) != 0;
+        self.set_roosting(roosting);
     }
 
     fn get_mob_entity(&self) -> &MobEntity {

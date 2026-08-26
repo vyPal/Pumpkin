@@ -11,7 +11,7 @@ use pumpkin_util::math::vector3::Vector3;
 
 use crate::{
     entity::{
-        Entity, EntityBase, NbtFuture,
+        Entity, EntityBase,
         projectile::{ProjectileHit, ThrownItemEntity},
         projectile_deflection::ProjectileDeflectionType,
     },
@@ -173,25 +173,21 @@ impl FireballEntity {
 }
 
 impl EntityBase for FireballEntity {
-    fn write_custom_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            nbt.put_double("acceleration_power", self.get_acceleration_power());
-            nbt.put_float("ExplosionPower", self.get_explosion_power());
-        })
+    fn write_custom_nbt(&self, nbt: &mut NbtCompound) {
+        nbt.put_double("acceleration_power", self.get_acceleration_power());
+        nbt.put_float("ExplosionPower", self.get_explosion_power());
     }
 
-    fn read_custom_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(accel) = nbt
-                .get_double("acceleration_power")
-                .or_else(|| nbt.get_double("power"))
-            {
-                self.set_acceleration_power(accel);
-            }
-            if let Some(exp) = nbt.get_float("ExplosionPower") {
-                self.set_explosion_power(exp);
-            }
-        })
+    fn read_custom_nbt(&self, nbt: &NbtCompound) {
+        if let Some(accel) = nbt
+            .get_double("acceleration_power")
+            .or_else(|| nbt.get_double("power"))
+        {
+            self.set_acceleration_power(accel);
+        }
+        if let Some(exp) = nbt.get_float("ExplosionPower") {
+            self.set_explosion_power(exp);
+        }
     }
 
     fn init_data_tracker(&self) {
@@ -260,10 +256,6 @@ impl EntityBase for FireballEntity {
 
         let hit_pos = hit.hit_pos();
         let power = self.get_explosion_power();
-        tokio::spawn(async move {
-            world
-                .explode(hit_pos, power, crate::world::ExplosionInteraction::Mob)
-                .await;
-        });
+        world.explode(hit_pos, power, crate::world::ExplosionInteraction::Mob);
     }
 }

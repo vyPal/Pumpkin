@@ -211,18 +211,15 @@ impl BedrockClient {
 
                     let mut stack = held_item;
                     if !stack.is_empty() {
-                        server
-                            .item_registry
-                            .use_on_block(
-                                &mut stack,
-                                player,
-                                data.block_position,
-                                face,
-                                data.click_position,
-                                block,
-                                &server,
-                            )
-                            .await;
+                        server.item_registry.use_on_block(
+                            &mut stack,
+                            player,
+                            data.block_position,
+                            face,
+                            data.click_position,
+                            block,
+                            &server,
+                        );
 
                         let item_id = stack.item.id;
                         if let Some(placed_block) = pumpkin_data::Block::from_item_id(item_id) {
@@ -284,7 +281,7 @@ impl BedrockClient {
                                 .cooldown_group
                                 .clone()
                                 .unwrap_or_else(|| held.item.registry_key.to_string());
-                            if player.is_on_cooldown(&group).await {
+                            if player.is_on_cooldown(&group) {
                                 cooldown_active = true;
                             }
                         }
@@ -294,7 +291,11 @@ impl BedrockClient {
                                 || held.get_data_component::<BlocksAttacksImpl>().is_some()
                             {
                                 if let Some(food) = held.get_data_component::<FoodImpl>() {
-                                    if player.abilities.lock().await.invulnerable
+                                    if player
+                                        .abilities
+                                        .lock()
+                                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                                        .invulnerable
                                         || food.can_always_eat
                                         || player.hunger_manager.level.load() < 20
                                     {
@@ -355,7 +356,7 @@ impl BedrockClient {
                         &server;
                         event;
                         'after: {
-                            server.item_registry.on_use(&stack_for_use, player).await;
+                            server.item_registry.on_use(&stack_for_use, player);
                         }
                     }}
                 }
@@ -369,14 +370,13 @@ impl BedrockClient {
                         let world = player.world();
                         if let Some(target) = world.get_entity_by_id(target_runtime_id) {
                             let mut stack = player.inventory().held_item();
-                            if !target.interact(player, &mut stack).await {
+                            if !target.interact(player, &mut stack) {
                                 let Some(server) = world.server.upgrade() else {
                                     return;
                                 };
                                 server
                                     .item_registry
-                                    .use_on_entity(&mut stack, player, target)
-                                    .await;
+                                    .use_on_entity(&mut stack, player, target);
                                 player.inventory().set_held_item(stack);
                             }
                         }
@@ -408,7 +408,7 @@ impl BedrockClient {
                     let Some(server) = player.world().server.upgrade() else {
                         return;
                     };
-                    server.item_registry.on_stopped_using(&stack, player).await;
+                    server.item_registry.on_stopped_using(&stack, player);
                 }
                 player.living_entity.clear_active_hand();
             }

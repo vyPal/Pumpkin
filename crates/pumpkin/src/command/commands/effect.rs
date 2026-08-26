@@ -124,7 +124,7 @@ impl CommandExecutor for GiveExecutor {
                     .send_message(TextComponent::translate_cross(
                         "commands.effect.give.success.single",
                         "commands.effect.give.success.single",
-                        [translation_name, targets[0].get_display_name().await],
+                        [translation_name, targets[0].get_display_name()],
                     ))
                     .await;
             } else {
@@ -183,7 +183,7 @@ impl CommandExecutor for ClearExecutor {
                         .send_message(TextComponent::translate_cross(
                             "commands.effect.clear.everything.success.single",
                             "commands.effect.clear.everything.success.single",
-                            [targets[0].get_display_name().await],
+                            [targets[0].get_display_name()],
                         ))
                         .await;
                 } else {
@@ -228,7 +228,7 @@ impl CommandExecutor for ClearExecutor {
                                     effect.translation_key,
                                     [],
                                 ),
-                                targets[0].get_display_name().await,
+                                targets[0].get_display_name(),
                             ],
                         ))
                         .await;

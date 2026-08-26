@@ -53,11 +53,7 @@ impl CommandExecutor for ClearOrResetExecutor {
                     } else {
                         "commands.title.cleared.single"
                     };
-                    TextComponent::translate_cross(
-                        text,
-                        text,
-                        [targets[0].get_display_name().await],
-                    )
+                    TextComponent::translate_cross(text, text, [targets[0].get_display_name()])
                 } else {
                     let text = if reset {
                         "commands.title.reset.multiple"
@@ -105,7 +101,7 @@ impl CommandExecutor for TitleExecutor {
                     TextComponent::translate_cross(
                         format!("commands.title.show.{mode_name}.single").clone(),
                         format!("commands.title.show.{mode_name}.single"),
-                        [targets[0].get_display_name().await],
+                        [targets[0].get_display_name()],
                     )
                 } else {
                     TextComponent::translate_cross(
@@ -148,7 +144,7 @@ impl CommandExecutor for TimesTitleExecutor {
                     TextComponent::translate_cross(
                         "commands.title.times.single",
                         "commands.title.times.single",
-                        [targets[0].get_display_name().await],
+                        [targets[0].get_display_name()],
                     )
                 } else {
                     TextComponent::translate_cross(

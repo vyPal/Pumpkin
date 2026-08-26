@@ -72,12 +72,7 @@ pub trait FlowingFluid: Send + Sync {
     /// 3. Triggering fluid spread to adjacent positions
     ///
     /// Sources (level 8, non-falling) always spread without state changes.
-    async fn on_scheduled_tick_internal(
-        &self,
-        world: &Arc<World>,
-        fluid: &Fluid,
-        block_pos: &BlockPos,
-    ) {
+    fn on_scheduled_tick_internal(&self, world: &Arc<World>, fluid: &Fluid, block_pos: &BlockPos) {
         let current_block_state_id = world.get_block_state_id(block_pos);
         let block = Block::from_state_id(current_block_state_id);
 
@@ -96,7 +91,7 @@ pub trait FlowingFluid: Send + Sync {
 
         // Update state if non-source
         if !is_source && !waterlogged {
-            let new_fluid_state = self.get_new_liquid(world, fluid, block_pos).await;
+            let new_fluid_state = self.get_new_liquid(world, fluid, block_pos);
 
             if let Some(new_state) = new_fluid_state {
                 let new_state_id = new_state.to_state_id(fluid);
@@ -127,8 +122,7 @@ pub trait FlowingFluid: Send + Sync {
         }
 
         // Then, spread using the appropriate state
-        self.try_flow(world, fluid, block_pos, &state_for_spreading)
-            .await;
+        self.try_flow(world, fluid, block_pos, &state_for_spreading);
     }
 
     /// Attempts to flow fluid from a position, prioritizing downward flow.
@@ -138,7 +132,7 @@ pub trait FlowingFluid: Send + Sync {
     /// 2. Sides - spread horizontally using pathfinding
     ///
     /// Sources with 3+ adjacent sources also spread to sides when flowing down.
-    async fn try_flow(
+    fn try_flow(
         &self,
         world: &Arc<World>,
         fluid: &Fluid,
@@ -153,24 +147,23 @@ pub trait FlowingFluid: Send + Sync {
         // Try to flow down first
         if is_hole {
             let falling_props = self.get_flowing(fluid, Level::L8, true);
-            self.spread_to(world, fluid, &below_pos, falling_props.to_state_id(fluid))
-                .await;
+            self.spread_to(world, fluid, &below_pos, falling_props.to_state_id(fluid));
 
             // Check if we should also spread to sides
             if props.level == Level::L8 && props.falling == Falling::False {
-                let source_count = self.count_source_neighbors(world, fluid, block_pos).await;
+                let source_count = self.count_source_neighbors(world, fluid, block_pos);
                 if source_count >= 3 {
-                    self.flow_to_sides(world, fluid, block_pos, props).await;
+                    self.flow_to_sides(world, fluid, block_pos, props);
                 }
             }
             return;
         }
 
         // Check if fluid should flow to the side(s)
-        self.flow_to_sides(world, fluid, block_pos, props).await;
+        self.flow_to_sides(world, fluid, block_pos, props);
     }
 
-    async fn count_source_neighbors(
+    fn count_source_neighbors(
         &self,
         world: &Arc<World>,
         fluid: &Fluid,
@@ -205,7 +198,7 @@ pub trait FlowingFluid: Send + Sync {
     ///
     /// # Returns
     /// New fluid properties, or None if fluid should drain
-    async fn get_new_liquid(
+    fn get_new_liquid(
         &self,
         world: &Arc<World>,
         fluid: &Fluid,
@@ -295,7 +288,7 @@ pub trait FlowingFluid: Send + Sync {
     /// - Fluid tick scheduling for non-source blocks
     ///
     /// Called by `spread_to` implementations after fluid-specific pre-checks.
-    async fn apply_spread(
+    fn apply_spread(
         &self,
         world: &Arc<World>,
         fluid: &Fluid,
@@ -318,9 +311,7 @@ pub trait FlowingFluid: Send + Sync {
 
             // Check for infinite source formation before quiescence checks
             if !current_is_source && self.can_convert_to_source(world) {
-                let should_convert = self
-                    .check_infinite_source_formation(world, fluid, pos)
-                    .await;
+                let should_convert = self.check_infinite_source_formation(world, fluid, pos);
 
                 if should_convert {
                     let source_props = self.get_source(fluid, false);
@@ -355,7 +346,7 @@ pub trait FlowingFluid: Send + Sync {
             &pumpkin_data::Block::WATER,
         );
         if let Some(server) = world.server.upgrade() {
-            server.plugin_manager.fire(&server, &mut event).await;
+            server.plugin_manager.fire_blocking(&server, &mut event);
         }
         if event.cancelled {
             return;
@@ -365,9 +356,7 @@ pub trait FlowingFluid: Send + Sync {
 
         // Check for infinite source formation after placing new fluid
         if self.can_convert_to_source(world) {
-            let should_convert = self
-                .check_infinite_source_formation(world, fluid, pos)
-                .await;
+            let should_convert = self.check_infinite_source_formation(world, fluid, pos);
 
             if should_convert {
                 let source_props = self.get_source(fluid, false);
@@ -396,7 +385,7 @@ pub trait FlowingFluid: Send + Sync {
     ///
     /// # Returns
     /// `true` if position should convert to a source block
-    async fn check_infinite_source_formation(
+    fn check_infinite_source_formation(
         &self,
         world: &Arc<World>,
         fluid: &Fluid,
@@ -444,23 +433,16 @@ pub trait FlowingFluid: Send + Sync {
     ///
     /// Default implementation delegates to `apply_spread`. Implementations like
     /// lava can override to add fluid-specific logic (e.g., water -> stone conversion).
-    async fn spread_to(
-        &self,
-        world: &Arc<World>,
-        fluid: &Fluid,
-        pos: &BlockPos,
-        state_id: BlockStateId,
-    ) {
+    fn spread_to(&self, world: &Arc<World>, fluid: &Fluid, pos: &BlockPos, state_id: BlockStateId) {
         let new_props = FlowingFluidProperties::from_state_id(state_id, fluid);
-        self.apply_spread(world, fluid, pos, state_id, new_props)
-            .await;
+        self.apply_spread(world, fluid, pos, state_id, new_props);
     }
 
     /// Spreads fluid horizontally to adjacent positions using pathfinding.
     ///
     /// Uses `get_spread` to find optimal flow directions (shortest distance to holes)
     /// and the computed fluid state for each target position.
-    async fn flow_to_sides(
+    fn flow_to_sides(
         &self,
         world: &Arc<World>,
         fluid: &Fluid,
@@ -479,12 +461,12 @@ pub trait FlowingFluid: Send + Sync {
             return;
         }
 
-        let (spread_dirs, count) = pathfinder::get_spread(self, world, fluid, block_pos).await;
+        let (spread_dirs, count) = pathfinder::get_spread(self, world, fluid, block_pos);
 
         for &(direction, state_id) in spread_dirs.iter().take(count) {
             let side_pos = block_pos.offset(direction.to_offset());
 
-            self.spread_to(world, fluid, &side_pos, state_id).await;
+            self.spread_to(world, fluid, &side_pos, state_id);
         }
     }
 }

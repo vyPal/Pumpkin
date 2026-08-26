@@ -170,7 +170,13 @@ impl BedrockClient {
         }
 
         if input_data.get(InputData::StartFlying as usize) {
-            let flying = { player.abilities.lock().await.flying };
+            let flying = {
+                player
+                    .abilities
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .flying
+            };
             if !flying {
                 send_cancellable! {{
                     server;
@@ -178,7 +184,7 @@ impl BedrockClient {
                     'after: {
                         player.living_entity.fall_distance.store(0.0);
                         {
-                            player.abilities.lock().await.flying = true;
+                            player.abilities.lock().unwrap_or_else(std::sync::PoisonError::into_inner).flying = true;
                         };
                         player.send_abilities_update().await;
                     }
@@ -188,14 +194,20 @@ impl BedrockClient {
                 }}
             }
         } else if input_data.get(InputData::StopFlying as usize) {
-            let flying = { player.abilities.lock().await.flying };
+            let flying = {
+                player
+                    .abilities
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .flying
+            };
             if flying {
                 send_cancellable! {{
                     server;
                     PlayerToggleFlightEvent::new(player.clone(), false);
                     'after: {
                         {
-                            player.abilities.lock().await.flying = false;
+                            player.abilities.lock().unwrap_or_else(std::sync::PoisonError::into_inner).flying = false;
                         };
                         player.send_abilities_update().await;
                     }

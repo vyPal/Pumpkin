@@ -35,7 +35,7 @@ impl CommandExecutor for StopSpectateExecutor {
             };
 
             if player.gamemode.load() != GameMode::Spectator {
-                let display_name = player.get_display_name().await;
+                let display_name = player.get_display_name();
                 return Err(CommandError::CommandFailed(TextComponent::translate_cross(
                     translation::java::COMMANDS_SPECTATE_NOT_SPECTATOR,
                     translation::java::COMMANDS_SPECTATE_NOT_SPECTATOR,
@@ -76,7 +76,7 @@ impl CommandExecutor for SpectateTargetSelfExecutor {
             };
 
             if player.gamemode.load() != GameMode::Spectator {
-                let display_name = player.get_display_name().await;
+                let display_name = player.get_display_name();
                 return Err(CommandError::CommandFailed(TextComponent::translate_cross(
                     translation::java::COMMANDS_SPECTATE_NOT_SPECTATOR,
                     translation::java::COMMANDS_SPECTATE_NOT_SPECTATOR,
@@ -98,7 +98,7 @@ impl CommandExecutor for SpectateTargetSelfExecutor {
             let target_world = target_entity.world.load_full();
             let player_world = player.world();
             if !Arc::ptr_eq(&target_world, &player_world) {
-                let target_name = target.get_display_name().await;
+                let target_name = target.get_display_name();
                 return Err(CommandError::CommandFailed(TextComponent::translate_cross(
                     translation::java::COMMANDS_SPECTATE_CANNOT_SPECTATE,
                     translation::java::COMMANDS_SPECTATE_CANNOT_SPECTATE,
@@ -120,7 +120,7 @@ impl CommandExecutor for SpectateTargetSelfExecutor {
                 .teleport(pos, Some(yaw), Some(pitch), player_world)
                 .await;
 
-            let target_name = target.get_display_name().await;
+            let target_name = target.get_display_name();
             sender
                 .send_message(TextComponent::translate_cross(
                     translation::java::COMMANDS_SPECTATE_SUCCESS_STARTED,
@@ -155,7 +155,7 @@ impl CommandExecutor for SpectateTargetOtherExecutor {
             // First validate all players
             for player in players {
                 if player.gamemode.load() != GameMode::Spectator {
-                    let display_name = player.get_display_name().await;
+                    let display_name = player.get_display_name();
                     return Err(CommandError::CommandFailed(TextComponent::translate_cross(
                         translation::java::COMMANDS_SPECTATE_NOT_SPECTATOR,
                         translation::java::COMMANDS_SPECTATE_NOT_SPECTATOR,
@@ -173,7 +173,7 @@ impl CommandExecutor for SpectateTargetOtherExecutor {
 
                 let player_world = player.world();
                 if !Arc::ptr_eq(&target_world, &player_world) {
-                    let target_name = target.get_display_name().await;
+                    let target_name = target.get_display_name();
                     return Err(CommandError::CommandFailed(TextComponent::translate_cross(
                         translation::java::COMMANDS_SPECTATE_CANNOT_SPECTATE,
                         translation::java::COMMANDS_SPECTATE_CANNOT_SPECTATE,
@@ -201,7 +201,7 @@ impl CommandExecutor for SpectateTargetOtherExecutor {
                 succeeded += 1;
             }
 
-            let target_name = target.get_display_name().await;
+            let target_name = target.get_display_name();
             sender
                 .send_message(TextComponent::translate_cross(
                     translation::java::COMMANDS_SPECTATE_SUCCESS_STARTED,

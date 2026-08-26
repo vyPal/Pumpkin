@@ -42,8 +42,8 @@ impl CommandExecutor for Executor {
                     .send_message(
                         &TextComponent::text(msg.clone()),
                         MSG_COMMAND_OUTGOING,
-                        &player.get_display_name().await,
-                        Some(&target.get_display_name().await),
+                        &player.get_display_name(),
+                        Some(&target.get_display_name()),
                     )
                     .await;
             }
@@ -52,8 +52,8 @@ impl CommandExecutor for Executor {
                     .send_message(
                         &TextComponent::text(msg.clone()),
                         MSG_COMMAND_INCOMING,
-                        &player.get_display_name().await,
-                        Some(&target.get_display_name().await),
+                        &player.get_display_name(),
+                        Some(&target.get_display_name()),
                     )
                     .await;
             }

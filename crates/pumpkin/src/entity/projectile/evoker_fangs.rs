@@ -5,7 +5,7 @@ use pumpkin_data::damage::DamageType;
 use pumpkin_data::sound::Sound;
 
 use crate::{
-    entity::{Entity, EntityBase, NbtFuture},
+    entity::{Entity, EntityBase},
     server::Server,
 };
 
@@ -32,24 +32,14 @@ impl EvokerFangsEntity {
 }
 
 impl EntityBase for EvokerFangsEntity {
-    fn write_custom_nbt<'a>(
-        &'a self,
-        nbt: &'a mut pumpkin_nbt::compound::NbtCompound,
-    ) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            nbt.put_int("Warmup", self.warmup_ticks.load(Ordering::Relaxed) as i32);
-        })
+    fn write_custom_nbt(&self, nbt: &mut pumpkin_nbt::compound::NbtCompound) {
+        nbt.put_int("Warmup", self.warmup_ticks.load(Ordering::Relaxed) as i32);
     }
 
-    fn read_custom_nbt<'a>(
-        &'a self,
-        nbt: &'a pumpkin_nbt::compound::NbtCompound,
-    ) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(warmup) = nbt.get_int("Warmup") {
-                self.warmup_ticks.store(warmup as u32, Ordering::Relaxed);
-            }
-        })
+    fn read_custom_nbt(&self, nbt: &pumpkin_nbt::compound::NbtCompound) {
+        if let Some(warmup) = nbt.get_int("Warmup") {
+            self.warmup_ticks.store(warmup as u32, Ordering::Relaxed);
+        }
     }
 
     fn tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>, _server: &'a Server) {

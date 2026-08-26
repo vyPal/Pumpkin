@@ -21,7 +21,7 @@ use crate::entity::ai::goal::revenge::RevengeGoal;
 use crate::entity::ai::goal::{Controls, Goal};
 use crate::entity::mob::{Mob, MobEntity};
 use crate::entity::projectile::shulker_bullet::ShulkerBulletEntity;
-use crate::entity::{Entity, EntityBase, NbtFuture};
+use crate::entity::{Entity, EntityBase};
 
 const DEFAULT_ATTACH_FACE: BlockDirection = BlockDirection::Down;
 const NO_COLOR: u8 = 16;
@@ -322,26 +322,22 @@ impl ShulkerEntity {
 }
 
 impl Mob for ShulkerEntity {
-    fn mob_write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            nbt.put_byte("AttachFace", self.attach_face.load(Ordering::Relaxed) as i8);
-            nbt.put_byte("PeekAmount", self.peek_amount.load(Ordering::Relaxed) as i8);
-            nbt.put_byte("Color", self.color.load(Ordering::Relaxed) as i8);
-        })
+    fn mob_write_nbt(&self, nbt: &mut NbtCompound) {
+        nbt.put_byte("AttachFace", self.attach_face.load(Ordering::Relaxed) as i8);
+        nbt.put_byte("PeekAmount", self.peek_amount.load(Ordering::Relaxed) as i8);
+        nbt.put_byte("Color", self.color.load(Ordering::Relaxed) as i8);
     }
 
-    fn mob_read_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(face) = nbt.get_byte("AttachFace") {
-                self.attach_face.store(face as u8, Ordering::Relaxed);
-            }
-            if let Some(peek) = nbt.get_byte("PeekAmount") {
-                self.peek_amount.store(peek as u8, Ordering::Relaxed);
-            }
-            if let Some(color) = nbt.get_byte("Color") {
-                self.color.store(color as u8, Ordering::Relaxed);
-            }
-        })
+    fn mob_read_nbt(&self, nbt: &NbtCompound) {
+        if let Some(face) = nbt.get_byte("AttachFace") {
+            self.attach_face.store(face as u8, Ordering::Relaxed);
+        }
+        if let Some(peek) = nbt.get_byte("PeekAmount") {
+            self.peek_amount.store(peek as u8, Ordering::Relaxed);
+        }
+        if let Some(color) = nbt.get_byte("Color") {
+            self.color.store(color as u8, Ordering::Relaxed);
+        }
     }
 
     fn get_mob_entity(&self) -> &MobEntity {

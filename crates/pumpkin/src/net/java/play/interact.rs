@@ -107,12 +107,11 @@ impl JavaClient {
                                 player.trigger_advancement(crate::entity::player::advancement::trigger::AdvancementTrigger::CuredZombieVillager);
                             }
 
-                            let interacted = event.target.interact(player, &mut stack).await;
+                            let interacted = event.target.interact(player, &mut stack);
                             if !interacted {
                                 server
                                     .item_registry
-                                    .use_on_entity(&mut stack, player, event.target)
-                                    .await;
+                                    .use_on_entity(&mut stack, player, event.target);
                             }
                             player.inventory().set_held_item(stack);
                         }

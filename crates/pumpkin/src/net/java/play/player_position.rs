@@ -94,7 +94,7 @@ impl JavaClient {
                 let distance = last_pos.squared_distance_to_vec(&pos).sqrt();
                 let cm = (distance * 100.0) as i32;
                 if cm > 0 {
-                    let stat = player.get_movement_statistic().await;
+                    let stat = player.get_movement_statistic();
                     player.increment_stat(StatisticCategory::Custom, stat as i32, cm);
                 }
 
@@ -141,7 +141,7 @@ impl JavaClient {
                 }
 
                 // Only process fall damage if player is alive
-                if !player.abilities.lock().await.flying
+                if !player.abilities.lock().unwrap_or_else(std::sync::PoisonError::into_inner).flying
                     && player.living_entity.health.load() > 0.0
                     && !player.living_entity.dead.load(Ordering::Relaxed)
                 {
@@ -228,7 +228,7 @@ impl JavaClient {
                 let distance = last_pos.squared_distance_to_vec(&pos).sqrt();
                 let cm = (distance * 100.0) as i32;
                 if cm > 0 {
-                    let stat = player.get_movement_statistic().await;
+                    let stat = player.get_movement_statistic();
                     player.increment_stat(StatisticCategory::Custom, stat as i32, cm);
                 }
 
@@ -293,7 +293,7 @@ impl JavaClient {
                     )
                    ;
                 // Only process fall damage if player is alive
-                if !player.abilities.lock().await.flying
+                if !player.abilities.lock().unwrap_or_else(std::sync::PoisonError::into_inner).flying
                     && player.living_entity.health.load() > 0.0
                     && !player.living_entity.dead.load(Ordering::Relaxed)
                 {

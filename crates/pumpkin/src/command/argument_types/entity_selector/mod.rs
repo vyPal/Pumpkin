@@ -521,7 +521,8 @@ impl EntitySelectorPredicate {
                 let has_tag = entity
                     .get_entity()
                     .scoreboard_tags
-                    .blocking_lock()
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
                     .contains(expected_tag);
                 has_tag ^ invert
             }
@@ -567,8 +568,7 @@ impl EntitySelectorPredicate {
             }
             Self::Nbt(expected_nbt, invert) => {
                 let mut actual_nbt = NbtCompound::default();
-                // write_nbt is asynchronous, so we can poll it synchronously because it does not do IO.
-                futures::executor::block_on(entity.write_nbt(&mut actual_nbt));
+                entity.write_nbt(&mut actual_nbt);
                 matches_nbt_compound(expected_nbt, &actual_nbt) ^ invert
             }
             Self::Predicate(_predicate_id, invert) => {

@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::entity::player::Player;
-use crate::entity::{Entity, EntityBase, EntityBaseFuture, NbtFuture, living::LivingEntity};
+use crate::entity::{Entity, EntityBase, EntityBaseFuture, living::LivingEntity};
 use crossbeam::atomic::AtomicCell;
 use pumpkin_data::BlockDirection;
 use pumpkin_data::damage::DamageType;
@@ -282,52 +282,48 @@ impl ItemFrameEntity {
 }
 
 impl EntityBase for ItemFrameEntity {
-    fn write_custom_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            let item = self
-                .item_stack
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            if !item.is_empty() {
-                let mut item_compound = NbtCompound::new();
-                item.write_item_stack(&mut item_compound);
-                nbt.put_compound("Item", item_compound);
-            }
-            nbt.put_float("ItemDropChance", self.item_drop_chance.load());
-            nbt.put_byte("ItemRotation", self.rotation.load(Ordering::Relaxed) as i8);
-            nbt.put_byte("Facing", self.facing.load(Ordering::Relaxed) as i8);
-            nbt.put_bool("Invisible", self.invisible.load(Ordering::Relaxed));
-            nbt.put_bool("Fixed", self.fixed.load(Ordering::Relaxed));
-        })
+    fn write_custom_nbt(&self, nbt: &mut NbtCompound) {
+        let item = self
+            .item_stack
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !item.is_empty() {
+            let mut item_compound = NbtCompound::new();
+            item.write_item_stack(&mut item_compound);
+            nbt.put_compound("Item", item_compound);
+        }
+        nbt.put_float("ItemDropChance", self.item_drop_chance.load());
+        nbt.put_byte("ItemRotation", self.rotation.load(Ordering::Relaxed) as i8);
+        nbt.put_byte("Facing", self.facing.load(Ordering::Relaxed) as i8);
+        nbt.put_bool("Invisible", self.invisible.load(Ordering::Relaxed));
+        nbt.put_bool("Fixed", self.fixed.load(Ordering::Relaxed));
     }
 
-    fn read_custom_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async {
-            if let Some(item_compound) = nbt.get_compound("Item")
-                && let Some(stack) = ItemStack::read_item_stack(item_compound)
-            {
-                *self
-                    .item_stack
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner) = stack;
-            }
-            self.rotation.store(
-                (nbt.get_byte("ItemRotation").unwrap_or(0) as u8) % 8,
-                Ordering::Relaxed,
-            );
-            let facing = nbt.get_byte("Facing").unwrap_or(0) as u8 % 6;
-            self.facing.store(facing, Ordering::Relaxed);
-            // The spawn packet's data field carries the frame's direction.
-            self.entity.data.store(i32::from(facing), Ordering::Relaxed);
-            self.item_drop_chance
-                .store(nbt.get_float("ItemDropChance").unwrap_or(1.0));
-            self.invisible.store(
-                nbt.get_bool("Invisible").unwrap_or(false),
-                Ordering::Relaxed,
-            );
-            self.fixed
-                .store(nbt.get_bool("Fixed").unwrap_or(false), Ordering::Relaxed);
-        })
+    fn read_custom_nbt(&self, nbt: &NbtCompound) {
+        if let Some(item_compound) = nbt.get_compound("Item")
+            && let Some(stack) = ItemStack::read_item_stack(item_compound)
+        {
+            *self
+                .item_stack
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = stack;
+        }
+        self.rotation.store(
+            (nbt.get_byte("ItemRotation").unwrap_or(0) as u8) % 8,
+            Ordering::Relaxed,
+        );
+        let facing = nbt.get_byte("Facing").unwrap_or(0) as u8 % 6;
+        self.facing.store(facing, Ordering::Relaxed);
+        // The spawn packet's data field carries the frame's direction.
+        self.entity.data.store(i32::from(facing), Ordering::Relaxed);
+        self.item_drop_chance
+            .store(nbt.get_float("ItemDropChance").unwrap_or(1.0));
+        self.invisible.store(
+            nbt.get_bool("Invisible").unwrap_or(false),
+            Ordering::Relaxed,
+        );
+        self.fixed
+            .store(nbt.get_bool("Fixed").unwrap_or(false), Ordering::Relaxed);
     }
 
     fn get_entity(&self) -> &Entity {
@@ -405,37 +401,31 @@ impl EntityBase for ItemFrameEntity {
         })
     }
 
-    fn interact<'a>(
-        &'a self,
-        player: &'a Arc<Player>,
-        item_stack: &'a mut ItemStack,
-    ) -> EntityBaseFuture<'a, bool> {
-        Box::pin(async move {
-            if self.is_fixed() {
-                return false;
+    fn interact(&self, player: &Arc<Player>, item_stack: &mut ItemStack) -> bool {
+        if self.is_fixed() {
+            return false;
+        }
+
+        let frame_has_item = !self.get_item().is_empty();
+        let has_held_item = !item_stack.is_empty();
+
+        if frame_has_item {
+            let new_rot = self.get_rotation() + 1;
+            self.set_rotation(new_rot, true);
+            self.entity.play_sound(self.get_rotate_item_sound());
+            true
+        } else if has_held_item && !self.entity.removed.load(Ordering::Relaxed) {
+            let mut new_stack = item_stack.clone();
+            new_stack.item_count = 1;
+            self.set_item(new_stack, true);
+
+            if !player.is_creative() {
+                item_stack.decrement(1);
             }
-
-            let frame_has_item = !self.get_item().is_empty();
-            let has_held_item = !item_stack.is_empty();
-
-            if frame_has_item {
-                let new_rot = self.get_rotation() + 1;
-                self.set_rotation(new_rot, true);
-                self.entity.play_sound(self.get_rotate_item_sound());
-                true
-            } else if has_held_item && !self.entity.removed.load(Ordering::Relaxed) {
-                let mut new_stack = item_stack.clone();
-                new_stack.item_count = 1;
-                self.set_item(new_stack, true);
-
-                if !player.is_creative() {
-                    item_stack.decrement(1);
-                }
-                true
-            } else {
-                false
-            }
-        })
+            true
+        } else {
+            false
+        }
     }
 
     fn damage_with_context(

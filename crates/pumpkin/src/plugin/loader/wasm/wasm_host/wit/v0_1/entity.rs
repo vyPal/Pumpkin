@@ -909,7 +909,11 @@ impl HostEntity for PluginHostState {
         entity: Resource<Entity>,
     ) -> wasmtime::Result<Option<Resource<Entity>>> {
         let entity = entity_from_resource(self, &entity)?;
-        let vehicle = entity.get_entity().vehicle.lock().await;
+        let vehicle = entity
+            .get_entity()
+            .vehicle
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(v) = vehicle.as_ref() {
             Ok(Some(self.add_entity(Arc::clone(v)).map_err(|_| {
                 wasmtime::Error::msg("failed to add entity resource")
@@ -927,7 +931,12 @@ impl HostEntity for PluginHostState {
         let entity_base = entity_from_resource(self, &entity)?;
 
         // Remove from current vehicle if any
-        let current_vehicle = entity_base.get_entity().vehicle.lock().await.clone();
+        let current_vehicle = entity_base
+            .get_entity()
+            .vehicle
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
         if let Some(v) = current_vehicle {
             v.get_entity()
                 .remove_passenger(entity_base.get_entity().entity_id)
@@ -938,8 +947,7 @@ impl HostEntity for PluginHostState {
             let vehicle_base = entity_from_resource(self, &vehicle_res)?;
             vehicle_base
                 .get_entity()
-                .add_passenger(vehicle_base.clone(), entity_base)
-                .await;
+                .add_passenger(vehicle_base.clone(), entity_base);
         }
 
         Ok(())
@@ -950,7 +958,11 @@ impl HostEntity for PluginHostState {
         entity: Resource<Entity>,
     ) -> wasmtime::Result<Vec<Resource<Entity>>> {
         let entity = entity_from_resource(self, &entity)?;
-        let passengers = entity.get_entity().passengers.lock().await;
+        let passengers = entity
+            .get_entity()
+            .passengers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut result = Vec::new();
         for p in passengers.iter() {
             result.push(
@@ -970,8 +982,7 @@ impl HostEntity for PluginHostState {
         let passenger = entity_from_resource(self, &passenger)?;
         entity
             .get_entity()
-            .add_passenger(Arc::clone(&entity), passenger)
-            .await;
+            .add_passenger(Arc::clone(&entity), passenger);
         Ok(())
     }
 
@@ -995,7 +1006,7 @@ impl HostEntity for PluginHostState {
             .get_entity()
             .passengers
             .lock()
-            .await
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .iter()
             .map(|p| p.get_entity().entity_id)
             .collect();
@@ -1379,7 +1390,7 @@ impl HostEntity for PluginHostState {
         let entity = entity_from_resource(self, &this)?;
         let base_entity = entity.get_entity();
         let tag = super::common::from_wit_nbt_tree(&value).map_err(wasmtime::Error::msg)?;
-        base_entity.set_custom_data(&namespace, &key, tag).await;
+        base_entity.set_custom_data(&namespace, &key, tag);
         Ok(())
     }
 
@@ -1391,7 +1402,7 @@ impl HostEntity for PluginHostState {
     ) -> wasmtime::Result<Option<WitNbtTree>> {
         let entity = entity_from_resource(self, &this)?;
         let base_entity = entity.get_entity();
-        let tag = base_entity.get_custom_data(&namespace, &key).await;
+        let tag = base_entity.get_custom_data(&namespace, &key);
         Ok(tag.map(super::common::to_wit_nbt_tree))
     }
 
@@ -1403,7 +1414,7 @@ impl HostEntity for PluginHostState {
     ) -> wasmtime::Result<()> {
         let entity = entity_from_resource(self, &this)?;
         let base_entity = entity.get_entity();
-        base_entity.remove_custom_data(&namespace, &key).await;
+        base_entity.remove_custom_data(&namespace, &key);
         Ok(())
     }
 
@@ -1415,7 +1426,7 @@ impl HostEntity for PluginHostState {
     ) -> wasmtime::Result<bool> {
         let entity = entity_from_resource(self, &this)?;
         let base_entity = entity.get_entity();
-        Ok(base_entity.has_custom_data(&namespace, &key).await)
+        Ok(base_entity.has_custom_data(&namespace, &key))
     }
 
     async fn drop(&mut self, rep: Resource<Entity>) -> wasmtime::Result<()> {

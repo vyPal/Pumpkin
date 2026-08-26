@@ -12,7 +12,7 @@ use crate::{
         context::command_context::CommandContext,
         node::{CommandExecutor, CommandExecutorResult, dispatcher::CommandDispatcher},
     },
-    entity::{EntityBase, EntityBaseFuture, player::Player},
+    entity::{EntityBase, player::Player},
 };
 
 const DESCRIPTION: &str = "Print the list of online players.";
@@ -33,7 +33,7 @@ impl CommandExecutor for ListCommandExecutor {
             let players_len = players.len();
 
             let list = match self.0 {
-                ListMode::Names => get_player_names(&players).await,
+                ListMode::Names => get_player_names(&players),
                 ListMode::Uuids => get_player_names_and_ids(&players),
             };
 
@@ -75,10 +75,8 @@ impl CommandExecutor for ListCommandExecutor {
     }
 }
 
-async fn get_player_names(players: &[Arc<Player>]) -> TextComponent {
-    let display_name_futures: Vec<EntityBaseFuture<'_, TextComponent>> =
-        players.iter().map(|p| p.get_display_name()).collect();
-    let display_names = futures::future::join_all(display_name_futures).await;
+fn get_player_names(players: &[Arc<Player>]) -> TextComponent {
+    let display_names = players.iter().map(|p| p.get_display_name()).collect();
     TextComponent::join_with_comma(display_names)
 }
 

@@ -73,7 +73,7 @@ impl CommandExecutor for Executor {
                                 id: item_name.to_string().into(),
                                 count: Some(item_count.min(99)),
                             }),
-                        targets[0].get_display_name().await,
+                        targets[0].get_display_name(),
                     ],
                 )
             } else {

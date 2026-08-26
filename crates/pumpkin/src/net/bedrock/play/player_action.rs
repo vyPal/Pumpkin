@@ -69,7 +69,7 @@ impl BedrockClient {
                                 server,
                                 broken_state,
                             );
-                            player.apply_tool_damage_for_block_break(broken_state).await;
+                            player.apply_tool_damage_for_block_break(broken_state);
                             if can_harvest {
                                 player.add_exhaustion(MINE_BLOCK_EXHAUSTION).await;
                             }
@@ -94,30 +94,26 @@ impl BedrockClient {
                             .current_block_breaking_speed
                             .swap(speed.to_bits(), Ordering::Relaxed);
                         if starts_breaking {
-                            world
-                                .set_block_breaking(
-                                    entity,
-                                    location,
-                                    BlockBreakingProgress::Start {
-                                        stage: progress,
-                                        speed,
-                                    },
-                                )
-                                .await;
+                            world.set_block_breaking(
+                                entity,
+                                location,
+                                BlockBreakingProgress::Start {
+                                    stage: progress,
+                                    speed,
+                                },
+                            );
                             player
                                 .current_block_destroy_stage
                                 .store(progress, Ordering::Relaxed);
                         } else if old_speed != speed.to_bits() {
-                            world
-                                .set_block_breaking(
-                                    entity,
-                                    location,
-                                    BlockBreakingProgress::Update {
-                                        stage: progress,
-                                        speed: Some(speed),
-                                    },
-                                )
-                                .await;
+                            world.set_block_breaking(
+                                entity,
+                                location,
+                                BlockBreakingProgress::Update {
+                                    stage: progress,
+                                    speed: Some(speed),
+                                },
+                            );
                         }
                     }
                 }
@@ -157,7 +153,7 @@ impl BedrockClient {
                             server
                                 .block_registry
                                 .broken(&world, block, player, &location, server, state);
-                            player.apply_tool_damage_for_block_break(state).await;
+                            player.apply_tool_damage_for_block_break(state);
                             if can_harvest {
                                 player.add_exhaustion(MINE_BLOCK_EXHAUSTION).await;
                             }
@@ -169,18 +165,16 @@ impl BedrockClient {
                         if matches!(action, PlayerAction::StopDestroyBlock) {
                             player.stop_mining().await;
                         } else {
-                            world
-                                .set_block_breaking(
-                                    entity,
-                                    location,
-                                    BlockBreakingProgress::Update {
-                                        stage: player
-                                            .current_block_destroy_stage
-                                            .load(Ordering::Relaxed),
-                                        speed: Some(speed),
-                                    },
-                                )
-                                .await;
+                            world.set_block_breaking(
+                                entity,
+                                location,
+                                BlockBreakingProgress::Update {
+                                    stage: player
+                                        .current_block_destroy_stage
+                                        .load(Ordering::Relaxed),
+                                    speed: Some(speed),
+                                },
+                            );
                         }
                     }
                 } else if matches!(action, PlayerAction::StopDestroyBlock) {

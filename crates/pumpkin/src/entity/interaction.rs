@@ -13,9 +13,7 @@ use pumpkin_util::math::{
 };
 
 use crate::{
-    entity::{
-        Entity, EntityBase, EntityBaseFuture, NbtFuture, living::LivingEntity, player::Player,
-    },
+    entity::{Entity, EntityBase, living::LivingEntity, player::Player},
     server::Server,
 };
 
@@ -161,85 +159,81 @@ impl InteractionEntity {
 }
 
 impl EntityBase for InteractionEntity {
-    fn write_custom_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            nbt.put_float(
-                "width",
-                *self
-                    .width
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner),
-            );
-            nbt.put_float(
-                "height",
-                *self
-                    .height
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner),
-            );
-            nbt.put_bool("response", self.response.load(Ordering::Relaxed));
-
-            let attack = *self
-                .attack
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            if let Some(attack) = attack {
-                nbt.put("attack", NbtTag::Compound(attack.to_nbt()));
-            }
-
-            let interaction = *self
-                .interaction
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            if let Some(interaction) = interaction {
-                nbt.put("interaction", NbtTag::Compound(interaction.to_nbt()));
-            }
-        })
-    }
-
-    fn read_custom_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            let width = nbt.get_float("width").unwrap_or(1.0);
-            let height = nbt.get_float("height").unwrap_or(1.0);
-            let response = nbt.get_bool("response").unwrap_or(false);
-
+    fn write_custom_nbt(&self, nbt: &mut NbtCompound) {
+        nbt.put_float(
+            "width",
             *self
                 .width
                 .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner) = width;
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
+        nbt.put_float(
+            "height",
             *self
                 .height
                 .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner) = height;
-            self.response.store(response, Ordering::Relaxed);
-            self.update_dimensions();
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
+        nbt.put_bool("response", self.response.load(Ordering::Relaxed));
 
-            if let Some(attack_compound) = nbt.get_compound("attack") {
-                *self
-                    .attack
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner) =
-                    PlayerAction::from_nbt(attack_compound);
-            } else {
-                *self
-                    .attack
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
-            }
+        let attack = *self
+            .attack
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(attack) = attack {
+            nbt.put("attack", NbtTag::Compound(attack.to_nbt()));
+        }
 
-            if let Some(interaction_compound) = nbt.get_compound("interaction") {
-                *self
-                    .interaction
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner) =
-                    PlayerAction::from_nbt(interaction_compound);
-            } else {
-                *self
-                    .interaction
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
-            }
-        })
+        let interaction = *self
+            .interaction
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(interaction) = interaction {
+            nbt.put("interaction", NbtTag::Compound(interaction.to_nbt()));
+        }
+    }
+
+    fn read_custom_nbt(&self, nbt: &NbtCompound) {
+        let width = nbt.get_float("width").unwrap_or(1.0);
+        let height = nbt.get_float("height").unwrap_or(1.0);
+        let response = nbt.get_bool("response").unwrap_or(false);
+
+        *self
+            .width
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = width;
+        *self
+            .height
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = height;
+        self.response.store(response, Ordering::Relaxed);
+        self.update_dimensions();
+
+        if let Some(attack_compound) = nbt.get_compound("attack") {
+            *self
+                .attack
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) =
+                PlayerAction::from_nbt(attack_compound);
+        } else {
+            *self
+                .attack
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+        }
+
+        if let Some(interaction_compound) = nbt.get_compound("interaction") {
+            *self
+                .interaction
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) =
+                PlayerAction::from_nbt(interaction_compound);
+        } else {
+            *self
+                .interaction
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+        }
     }
 
     fn tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>, _server: &'a Server) {}
@@ -331,21 +325,15 @@ impl EntityBase for InteractionEntity {
         false
     }
 
-    fn interact<'a>(
-        &'a self,
-        player: &'a Arc<Player>,
-        _item_stack: &'a mut ItemStack,
-    ) -> EntityBaseFuture<'a, bool> {
-        Box::pin(async move {
-            let timestamp = self.entity.world.load().get_world_age();
-            *self
-                .interaction
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(PlayerAction {
-                player: player.gameprofile.id,
-                timestamp,
-            });
-            true
-        })
+    fn interact(&self, player: &Arc<Player>, _item_stack: &mut ItemStack) -> bool {
+        let timestamp = self.entity.world.load().get_world_age();
+        *self
+            .interaction
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(PlayerAction {
+            player: player.gameprofile.id,
+            timestamp,
+        });
+        true
     }
 }

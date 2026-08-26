@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crossbeam::atomic::AtomicCell;
 
 use crate::entity::player::Player;
-use crate::entity::{Entity, EntityBase, EntityBaseFuture, living::LivingEntity};
+use crate::entity::{Entity, EntityBase, living::LivingEntity};
 use crate::server::Server;
 
 use pumpkin_data::damage::DamageType;
@@ -95,44 +95,45 @@ impl EntityBase for BoatEntity {
         self.vehicle.damage_with_context(amount, source)
     }
 
-    fn interact<'a>(
-        &'a self,
-        player: &'a Arc<Player>,
-        _item_stack: &'a mut ItemStack,
-    ) -> EntityBaseFuture<'a, bool> {
-        Box::pin(async move {
-            if player.get_entity().is_sneaking() {
-                return false;
-            }
+    fn interact(&self, player: &Arc<Player>, _item_stack: &mut ItemStack) -> bool {
+        if player.get_entity().is_sneaking() {
+            return false;
+        }
 
-            if self.ticks_underwater.load() >= 60.0 {
-                return false;
-            }
+        if self.ticks_underwater.load() >= 60.0 {
+            return false;
+        }
 
-            if self.vehicle.entity.passengers.lock().await.len() >= 2 {
-                return false;
-            }
+        if self
+            .vehicle
+            .entity
+            .passengers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .len()
+            >= 2
+        {
+            return false;
+        }
 
-            if player.get_entity().has_vehicle() {
-                return false;
-            }
+        if player.get_entity().has_vehicle() {
+            return false;
+        }
 
-            let world = self.vehicle.entity.world.load();
-            let Some(vehicle) = world.get_entity_by_id(self.vehicle.entity.entity_id) else {
-                return false;
-            };
+        let world = self.vehicle.entity.world.load();
+        let Some(vehicle) = world.get_entity_by_id(self.vehicle.entity.entity_id) else {
+            return false;
+        };
 
-            let Some(passenger) = world.get_player_by_id(player.entity_id()) else {
-                return false;
-            };
+        let Some(passenger) = world.get_player_by_id(player.entity_id()) else {
+            return false;
+        };
 
-            self.vehicle
-                .entity
-                .add_passenger(vehicle, passenger as Arc<dyn EntityBase>)
-                .await;
+        self.vehicle
+            .entity
+            .add_passenger(vehicle, passenger as Arc<dyn EntityBase>);
 
-            true
-        })
+        true
     }
 
     fn set_paddle_state(&self, left: bool, right: bool) {

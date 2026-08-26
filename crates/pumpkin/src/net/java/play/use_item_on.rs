@@ -120,8 +120,7 @@ impl JavaClient {
 
         server
             .item_registry
-            .use_on_block(&mut item, player, position, face, cursor_pos, block, server)
-            .await;
+            .use_on_block(&mut item, player, position, face, cursor_pos, block, server);
 
         // Check if the item is a block, because not every item can be placed :D
         let item_id = item.item.id;
@@ -157,7 +156,7 @@ impl JavaClient {
         }
 
         if !after.are_equal(&before) {
-            player.sync_hand_slot(slot_index, after.clone()).await;
+            player.sync_hand_slot(slot_index, after.clone());
             inventory.set_stack_in_hand(hand, after);
         }
 

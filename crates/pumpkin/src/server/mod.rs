@@ -703,7 +703,7 @@ impl Server {
         .await;
 
         if let Some(mut nbt_data) = nbt {
-            player.read_nbt(&mut nbt_data).await;
+            player.read_nbt(&mut nbt_data);
             // The data file itself proves this is a returning player. Older Bedrock
             // sessions could persist HasPlayedBefore as false and mask a valid Pos.
             player.has_played_before.store(true, Ordering::Relaxed);

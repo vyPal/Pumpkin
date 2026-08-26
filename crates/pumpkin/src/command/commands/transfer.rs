@@ -128,7 +128,7 @@ impl CommandExecutor for TargetPlayerExecutor {
                         "commands.transfer.success.single",
                         "commands.transfer.success.single",
                         [
-                            players[0].get_display_name().await,
+                            players[0].get_display_name(),
                             TextComponent::text(hostname.to_owned()),
                             TextComponent::text(port.to_string()),
                         ],

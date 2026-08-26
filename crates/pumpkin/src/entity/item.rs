@@ -25,7 +25,7 @@ use std::sync::{
     },
 };
 
-use super::{Entity, EntityBase, NbtFuture, living::LivingEntity, player::Player};
+use super::{Entity, EntityBase, living::LivingEntity, player::Player};
 
 pub struct ItemEntity {
     entity: Entity,
@@ -381,23 +381,18 @@ impl ItemEntity {
         if age >= 6000 {
             let entity_id = entity.entity_id;
             let world = entity.world.load_full();
-            tokio::spawn(async move {
-                let mut despawn_event =
-                    crate::plugin::api::events::entity::item_despawn::ItemDespawnEvent::new(
-                        entity_id,
-                    );
-                if let Some(server) = world.server.upgrade() {
-                    server
-                        .plugin_manager
-                        .fire(&server, &mut despawn_event)
-                        .await;
-                }
-                if !despawn_event.cancelled
-                    && let Some(e) = world.get_entity_by_id(entity_id)
-                {
-                    e.get_entity().remove();
-                }
-            });
+            let mut despawn_event =
+                crate::plugin::api::events::entity::item_despawn::ItemDespawnEvent::new(entity_id);
+            if let Some(server) = world.server.upgrade() {
+                server
+                    .plugin_manager
+                    .fire_blocking(&server, &mut despawn_event);
+            }
+            if !despawn_event.cancelled
+                && let Some(e) = world.get_entity_by_id(entity_id)
+            {
+                e.get_entity().remove();
+            }
             return false;
         }
 
@@ -608,51 +603,47 @@ impl EntityBase for ItemEntity {
         0.04
     }
 
-    fn write_custom_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            let item = self
-                .item_stack
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            let mut item_compound = NbtCompound::new();
-            item.write_item_stack(&mut item_compound);
-            nbt.put_compound("Item", item_compound);
+    fn write_custom_nbt(&self, nbt: &mut NbtCompound) {
+        let item = self
+            .item_stack
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut item_compound = NbtCompound::new();
+        item.write_item_stack(&mut item_compound);
+        nbt.put_compound("Item", item_compound);
 
-            nbt.put_short("Age", self.item_age.load(Ordering::Relaxed) as i16);
-            nbt.put_short(
-                "PickupDelay",
-                self.pickup_delay.load(Ordering::Relaxed) as i16,
-            );
-            nbt.put_short("Health", self.health.load(Relaxed) as i16);
-        })
+        nbt.put_short("Age", self.item_age.load(Ordering::Relaxed) as i16);
+        nbt.put_short(
+            "PickupDelay",
+            self.pickup_delay.load(Ordering::Relaxed) as i16,
+        );
+        nbt.put_short("Health", self.health.load(Relaxed) as i16);
     }
 
-    fn read_custom_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async {
-            // Restore the item stack from the "Item" compound
-            if let Some(item_compound) = nbt.get_compound("Item")
-                && let Some(stack) = ItemStack::read_item_stack(item_compound)
-            {
-                *self
-                    .item_stack
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner) = stack;
-            }
+    fn read_custom_nbt(&self, nbt: &NbtCompound) {
+        // Restore the item stack from the "Item" compound
+        if let Some(item_compound) = nbt.get_compound("Item")
+            && let Some(stack) = ItemStack::read_item_stack(item_compound)
+        {
+            *self
+                .item_stack
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = stack;
+        }
 
-            // Vanilla stores Age as a short
-            self.item_age
-                .store(nbt.get_short("Age").unwrap_or(0) as u32, Ordering::Relaxed);
+        // Vanilla stores Age as a short
+        self.item_age
+            .store(nbt.get_short("Age").unwrap_or(0) as u32, Ordering::Relaxed);
 
-            // Vanilla stores PickupDelay as a short
-            if let Some(delay) = nbt.get_short("PickupDelay") {
-                self.pickup_delay.store(delay as u8, Ordering::Relaxed);
-            }
+        // Vanilla stores PickupDelay as a short
+        if let Some(delay) = nbt.get_short("PickupDelay") {
+            self.pickup_delay.store(delay as u8, Ordering::Relaxed);
+        }
 
-            // Vanilla stores Health as a short
-            if let Some(health) = nbt.get_short("Health") {
-                self.health.store(health as f32, Relaxed);
-            }
-        })
+        // Vanilla stores Health as a short
+        if let Some(health) = nbt.get_short("Health") {
+            self.health.store(health as f32, Relaxed);
+        }
     }
 
     fn cast_any(&self) -> &dyn std::any::Any {

@@ -12,7 +12,7 @@ use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_protocol::java::client::play::Metadata;
 
 use crate::entity::{
-    Entity, EntityBase, EntityBaseFuture, NbtFuture,
+    Entity, EntityBase,
     ageable::{AgeableData, AgeableMob},
     ai::goal::{
         look_around::RandomLookAroundGoal, look_at_entity::LookAtEntityGoal, swim::SwimGoal,
@@ -136,21 +136,17 @@ impl Mob for HappyGhastEntity {
         Some(self)
     }
 
-    fn mob_write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            nbt.put_int(
-                "still_timeout",
-                self.server_still_timeout.load(Ordering::Relaxed),
-            );
-        })
+    fn mob_write_nbt(&self, nbt: &mut NbtCompound) {
+        nbt.put_int(
+            "still_timeout",
+            self.server_still_timeout.load(Ordering::Relaxed),
+        );
     }
 
-    fn mob_read_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(timeout) = nbt.get_int("still_timeout") {
-                self.set_server_still_timeout(timeout);
-            }
-        })
+    fn mob_read_nbt(&self, nbt: &NbtCompound) {
+        if let Some(timeout) = nbt.get_int("still_timeout") {
+            self.set_server_still_timeout(timeout);
+        }
     }
 
     fn get_mob_entity(&self) -> &MobEntity {
@@ -219,20 +215,11 @@ impl Mob for HappyGhastEntity {
         );
     }
 
-    fn mob_interact<'a>(
-        &'a self,
-        player: &'a Arc<Player>,
-        item_stack: &'a mut ItemStack,
-    ) -> EntityBaseFuture<'a, bool> {
-        Box::pin(async move {
-            if self.is_baby() {
-                return self
-                    .animal_interact(player, item_stack, Sound::EntityGhastlingAmbient)
-                    .await;
-            }
+    fn mob_interact(&self, player: &Arc<Player>, item_stack: &mut ItemStack) -> bool {
+        if self.is_baby() {
+            return self.animal_interact(player, item_stack, Sound::EntityGhastlingAmbient);
+        }
 
-            self.animal_interact(player, item_stack, Sound::EntityHappyGhastAmbient)
-                .await
-        })
+        self.animal_interact(player, item_stack, Sound::EntityHappyGhastAmbient)
     }
 }

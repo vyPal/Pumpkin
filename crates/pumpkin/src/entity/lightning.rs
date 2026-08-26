@@ -192,7 +192,7 @@ impl LightningBoltEntity {
 }
 
 impl EntityBase for LightningBoltEntity {
-    fn tick(&self, caller: &Arc<dyn EntityBase>, _server: &Server) {
+    fn tick(&self, _caller: &Arc<dyn EntityBase>, _server: &Server) {
         let entity = &self.entity;
         let life = self.life.load(Ordering::Relaxed);
 
@@ -261,14 +261,7 @@ impl EntityBase for LightningBoltEntity {
                     }
                     let hit_id = hit_entity.get_entity().entity_id;
                     if hit_guard.insert(hit_id) {
-                        let caller_clone = caller.clone();
-                        let target = hit_entity.clone();
-                        tokio::spawn(async move {
-                            if let Some(lightning) = caller_clone.cast_any().downcast_ref::<Self>()
-                            {
-                                target.on_lightning_strike(target.as_ref(), lightning).await;
-                            }
-                        });
+                        hit_entity.on_lightning_strike(hit_entity.as_ref(), self);
                     }
                 }
             }

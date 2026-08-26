@@ -76,7 +76,7 @@ impl CommandExecutor for Executor {
                             translation::bedrock::COMMANDS_ENCHANT_SUCCESS,
                             [
                                 enchantment.get_fullname(level),
-                                targets[0].get_display_name().await,
+                                targets[0].get_display_name(),
                             ],
                         );
                         sender.send_message(msg).await;
@@ -141,7 +141,7 @@ async fn enchant_target(
         let msg = TextComponent::translate_cross(
             translation::java::COMMANDS_ENCHANT_FAILED_ITEMLESS,
             translation::bedrock::COMMANDS_ENCHANT_NOITEM,
-            [target.get_display_name().await],
+            [target.get_display_name()],
         );
         return Err(CommandError::CommandFailed(msg));
     }
@@ -170,9 +170,7 @@ async fn enchant_target(
     let inventory = player.inventory();
     inventory.set_held_item(item.clone());
 
-    player
-        .sync_hand_slot(inventory.get_selected_slot() as usize, item)
-        .await;
+    player.sync_hand_slot(inventory.get_selected_slot() as usize, item);
 
     Ok(())
 }

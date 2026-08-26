@@ -41,11 +41,7 @@ impl crate::block::BlockBehaviour for PumpkinBlock {
             ItemStack::new(4, &Item::PUMPKIN_SEEDS),
         ));
         args.world.spawn_entity(item_entity);
-        let player = Arc::clone(args.player);
-        let slot = args.equipment_slot.clone();
-        tokio::spawn(async move {
-            player.damage_item_in_slot(&slot, 1).await;
-        });
+        args.player.damage_item_in_slot(args.equipment_slot, 1);
         BlockActionResult::Consume
     }
 }

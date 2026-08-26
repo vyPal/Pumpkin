@@ -1,5 +1,5 @@
 use std::sync::{
-    Arc, Weak,
+    Arc, Mutex, Weak,
     atomic::{AtomicBool, AtomicI32, Ordering},
 };
 
@@ -16,12 +16,11 @@ use pumpkin_nbt::tag::NbtTag;
 use pumpkin_protocol::java::client::play::Metadata;
 use pumpkin_util::math::boundingbox::EntityDimensions;
 use pumpkin_util::math::position::BlockPos;
-use tokio::sync::Mutex;
 
 use crate::entity::living::LivingEntity;
 use crate::entity::player::Player;
 use crate::entity::{
-    Entity, EntityBase, EntityBaseFuture, NbtFuture,
+    Entity, EntityBase,
     ai::goal::{
         active_target::ActiveTargetGoal, look_around::RandomLookAroundGoal,
         look_at_entity::LookAtEntityGoal, melee_attack::MeleeAttackGoal, open_door::OpenDoorGoal,
@@ -274,10 +273,13 @@ impl PiglinEntity {
         self.eat_cooldown_timer.load(Ordering::Relaxed) > 0
     }
 
-    pub async fn start_admiring(&self, item: ItemStack) {
+    pub fn start_admiring(&self, item: ItemStack) {
         self.admire_timer
             .store(PiglinAi::ADMIRE_DURATION, Ordering::Relaxed);
-        *self.admiring_item.lock().await = Some(item.clone());
+        *self
+            .admiring_item
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(item.clone());
 
         let mut equip = self
             .mob_entity
@@ -296,9 +298,12 @@ impl PiglinEntity {
         );
     }
 
-    pub async fn stop_holding_off_hand_item(&self, bartering_enabled: bool) {
+    pub fn stop_holding_off_hand_item(&self, bartering_enabled: bool) {
         let admired_item = {
-            let mut guard = self.admiring_item.lock().await;
+            let mut guard = self
+                .admiring_item
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             guard.take()
         };
 
@@ -329,31 +334,34 @@ impl PiglinEntity {
                         outcomes,
                     );
                 if let Some(server) = entity.world.load().server.upgrade() {
-                    server.plugin_manager.fire(&server, &mut event).await;
+                    server.plugin_manager.fire_blocking(&server, &mut event);
                 }
 
                 if !event.cancelled {
                     PiglinAi::throw_items(self, event.outcome, None);
                 }
             } else if !is_barter {
-                let remainder = self.add_to_inventory(item).await;
+                let remainder = self.add_to_inventory(item);
                 if let Some(rem) = remainder {
                     PiglinAi::throw_items(self, vec![rem], None);
                 }
             }
         } else {
-            let remainder = self.add_to_inventory(item).await;
+            let remainder = self.add_to_inventory(item);
             if let Some(rem) = remainder {
                 PiglinAi::throw_items(self, vec![rem], None);
             }
         }
     }
 
-    pub async fn cancel_admiring(&self) {
+    pub fn cancel_admiring(&self) {
         if self.is_admiring() {
             self.admire_timer.store(0, Ordering::Relaxed);
             let item = {
-                let mut guard = self.admiring_item.lock().await;
+                let mut guard = self
+                    .admiring_item
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 guard.take()
             };
             if let Some(item) = item {
@@ -371,8 +379,8 @@ impl PiglinEntity {
         }
     }
 
-    pub async fn was_hurt_by(&self, attacker: Option<&dyn EntityBase>) {
-        self.cancel_admiring().await;
+    pub fn was_hurt_by(&self, attacker: Option<&dyn EntityBase>) {
+        self.cancel_admiring();
         self.set_dancing(false);
         self.celebration_timer.store(0, Ordering::Relaxed);
 
@@ -384,8 +392,11 @@ impl PiglinEntity {
         }
     }
 
-    pub async fn add_to_inventory(&self, item: ItemStack) -> Option<ItemStack> {
-        let mut inv = self.inventory.lock().await;
+    pub fn add_to_inventory(&self, item: ItemStack) -> Option<ItemStack> {
+        let mut inv = self
+            .inventory
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if inv.len() < Self::INVENTORY_SIZE {
             inv.push(item);
             None
@@ -483,53 +494,51 @@ impl Mob for PiglinEntity {
         &self.mob_entity
     }
 
-    fn populate_default_equipment_slots<'a>(
-        &'a self,
-        _world: &'a Arc<World>,
-        _difficulty: &'a RegionalDifficulty,
-    ) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            if !self.is_baby.load(Ordering::Relaxed) {
-                let living = &self.mob_entity.living_entity;
-                let mut equipment = living
-                    .entity_equipment
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+    fn populate_default_equipment_slots(
+        &self,
+        _world: &Arc<World>,
+        _difficulty: &RegionalDifficulty,
+    ) {
+        if !self.is_baby.load(Ordering::Relaxed) {
+            let living = &self.mob_entity.living_entity;
+            let mut equipment = living
+                .entity_equipment
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
 
-                // Spawn weapon: 50% crossbow, 5% golden spear (10% of remaining 50%), 45% golden sword
-                let weapon = if rand::random::<f32>() < 0.5 {
-                    &Item::CROSSBOW
-                } else if rand::random_range(0..10) == 0 {
-                    &Item::GOLDEN_SPEAR
-                } else {
-                    &Item::GOLDEN_SWORD
-                };
-                equipment.put(&EquipmentSlot::MAIN_HAND, ItemStack::new(1, weapon));
+            // Spawn weapon: 50% crossbow, 5% golden spear (10% of remaining 50%), 45% golden sword
+            let weapon = if rand::random::<f32>() < 0.5 {
+                &Item::CROSSBOW
+            } else if rand::random_range(0..10) == 0 {
+                &Item::GOLDEN_SPEAR
+            } else {
+                &Item::GOLDEN_SWORD
+            };
+            equipment.put(&EquipmentSlot::MAIN_HAND, ItemStack::new(1, weapon));
 
-                // Armor: 10% chance per piece for golden armor
-                if rand::random::<f32>() < 0.1 {
-                    equipment.put(
-                        &EquipmentSlot::HEAD,
-                        ItemStack::new(1, &Item::GOLDEN_HELMET),
-                    );
-                }
-                if rand::random::<f32>() < 0.1 {
-                    equipment.put(
-                        &EquipmentSlot::CHEST,
-                        ItemStack::new(1, &Item::GOLDEN_CHESTPLATE),
-                    );
-                }
-                if rand::random::<f32>() < 0.1 {
-                    equipment.put(
-                        &EquipmentSlot::LEGS,
-                        ItemStack::new(1, &Item::GOLDEN_LEGGINGS),
-                    );
-                }
-                if rand::random::<f32>() < 0.1 {
-                    equipment.put(&EquipmentSlot::FEET, ItemStack::new(1, &Item::GOLDEN_BOOTS));
-                }
+            // Armor: 10% chance per piece for golden armor
+            if rand::random::<f32>() < 0.1 {
+                equipment.put(
+                    &EquipmentSlot::HEAD,
+                    ItemStack::new(1, &Item::GOLDEN_HELMET),
+                );
             }
-        })
+            if rand::random::<f32>() < 0.1 {
+                equipment.put(
+                    &EquipmentSlot::CHEST,
+                    ItemStack::new(1, &Item::GOLDEN_CHESTPLATE),
+                );
+            }
+            if rand::random::<f32>() < 0.1 {
+                equipment.put(
+                    &EquipmentSlot::LEGS,
+                    ItemStack::new(1, &Item::GOLDEN_LEGGINGS),
+                );
+            }
+            if rand::random::<f32>() < 0.1 {
+                equipment.put(&EquipmentSlot::FEET, ItemStack::new(1, &Item::GOLDEN_BOOTS));
+            }
+        }
     }
 
     fn mob_init_data_tracker(&self) {
@@ -558,100 +567,96 @@ impl Mob for PiglinEntity {
         }
     }
 
-    fn mob_write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            if self.is_immune_to_zombification() {
-                nbt.put_bool("IsImmuneToZombification", true);
-            }
-            let time_in_overworld = self.time_in_overworld.load(Ordering::Relaxed);
-            if time_in_overworld > 0 {
-                nbt.put_int("TimeInOverworld", time_in_overworld);
-            }
-            nbt.put_bool("CanPickUpLoot", true);
-            if self.is_baby() {
-                nbt.put_bool("IsBaby", true);
-            }
-            if !self.can_hunt() {
-                nbt.put_bool("CannotHunt", true);
-            }
-            if self.is_charging_crossbow() {
-                nbt.put_bool("IsChargingCrossbow", true);
-            }
-            if self.is_dancing() {
-                nbt.put_bool("IsDancing", true);
-            }
+    fn mob_write_nbt(&self, nbt: &mut NbtCompound) {
+        if self.is_immune_to_zombification() {
+            nbt.put_bool("IsImmuneToZombification", true);
+        }
+        let time_in_overworld = self.time_in_overworld.load(Ordering::Relaxed);
+        if time_in_overworld > 0 {
+            nbt.put_int("TimeInOverworld", time_in_overworld);
+        }
+        nbt.put_bool("CanPickUpLoot", true);
+        if self.is_baby() {
+            nbt.put_bool("IsBaby", true);
+        }
+        if !self.can_hunt() {
+            nbt.put_bool("CannotHunt", true);
+        }
+        if self.is_charging_crossbow() {
+            nbt.put_bool("IsChargingCrossbow", true);
+        }
+        if self.is_dancing() {
+            nbt.put_bool("IsDancing", true);
+        }
 
-            let inv = self.inventory.lock().await;
-            if !inv.is_empty() {
-                let mut items_tag = Vec::new();
-                for item in inv.iter() {
-                    if !item.is_empty() {
-                        let mut item_nbt = NbtCompound::new();
-                        item.write_item_stack(&mut item_nbt);
-                        items_tag.push(NbtTag::Compound(item_nbt));
-                    }
-                }
-                if !items_tag.is_empty() {
-                    nbt.put_list("Inventory", items_tag);
+        let inv = self
+            .inventory
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !inv.is_empty() {
+            let mut items_tag = Vec::new();
+            for item in inv.iter() {
+                if !item.is_empty() {
+                    let mut item_nbt = NbtCompound::new();
+                    item.write_item_stack(&mut item_nbt);
+                    items_tag.push(NbtTag::Compound(item_nbt));
                 }
             }
-        })
+            if !items_tag.is_empty() {
+                nbt.put_list("Inventory", items_tag);
+            }
+        }
     }
 
-    fn mob_read_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(immune) = nbt.get_bool("IsImmuneToZombification") {
-                self.set_immune_to_zombification(immune);
-            }
-            if let Some(time) = nbt.get_int("TimeInOverworld") {
-                self.time_in_overworld.store(time, Ordering::Relaxed);
-            }
-            if let Some(baby) = nbt.get_bool("IsBaby") {
-                self.set_baby(baby);
-            }
-            if let Some(cannot_hunt) = nbt.get_bool("CannotHunt") {
-                self.set_cannot_hunt(cannot_hunt);
-            }
-            if let Some(charging) = nbt.get_bool("IsChargingCrossbow") {
-                self.set_charging_crossbow(charging);
-            }
-            if let Some(dancing) = nbt.get_bool("IsDancing") {
-                self.set_dancing(dancing);
-            }
-            if let Some(inv_list) = nbt.get_list("Inventory") {
-                let mut inv = self.inventory.lock().await;
-                inv.clear();
-                for tag in inv_list {
-                    if let Some(compound) = tag.extract_compound()
-                        && let Some(stack) = ItemStack::read_item_stack(compound)
-                    {
-                        inv.push(stack);
-                    }
+    fn mob_read_nbt(&self, nbt: &NbtCompound) {
+        if let Some(immune) = nbt.get_bool("IsImmuneToZombification") {
+            self.set_immune_to_zombification(immune);
+        }
+        if let Some(time) = nbt.get_int("TimeInOverworld") {
+            self.time_in_overworld.store(time, Ordering::Relaxed);
+        }
+        if let Some(baby) = nbt.get_bool("IsBaby") {
+            self.set_baby(baby);
+        }
+        if let Some(cannot_hunt) = nbt.get_bool("CannotHunt") {
+            self.set_cannot_hunt(cannot_hunt);
+        }
+        if let Some(charging) = nbt.get_bool("IsChargingCrossbow") {
+            self.set_charging_crossbow(charging);
+        }
+        if let Some(dancing) = nbt.get_bool("IsDancing") {
+            self.set_dancing(dancing);
+        }
+        if let Some(inv_list) = nbt.get_list("Inventory") {
+            let mut inv = self
+                .inventory
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            inv.clear();
+            for tag in inv_list {
+                if let Some(compound) = tag.extract_compound()
+                    && let Some(stack) = ItemStack::read_item_stack(compound)
+                {
+                    inv.push(stack);
                 }
             }
-        })
+        }
     }
 
-    fn mob_interact<'a>(
-        &'a self,
-        player: &'a Arc<Player>,
-        item_stack: &'a mut ItemStack,
-    ) -> EntityBaseFuture<'a, bool> {
-        Box::pin(async move {
-            if PiglinAi::can_admire(self, item_stack) {
-                let mut given = item_stack.clone();
-                given.item_count = 1;
-                if player.gamemode.load() != pumpkin_util::GameMode::Creative {
-                    item_stack.item_count -= 1;
-                }
-                self.start_admiring(given).await;
-                return true;
+    fn mob_interact(&self, player: &Arc<Player>, item_stack: &mut ItemStack) -> bool {
+        if PiglinAi::can_admire(self, item_stack) {
+            let mut given = item_stack.clone();
+            given.item_count = 1;
+            if player.gamemode.load() != pumpkin_util::GameMode::Creative {
+                item_stack.item_count -= 1;
             }
-            self.mob_entity.mob_interact(player, item_stack)
-        })
+            self.start_admiring(given);
+            return true;
+        }
+        self.mob_entity.mob_interact(player, item_stack)
     }
 
-    fn mob_tick<'a>(&'a self, caller: &'a Arc<dyn EntityBase>) {
+    fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) {
         let entity = &self.mob_entity.living_entity.entity;
         if !entity.is_alive() {
             return;
@@ -686,12 +691,7 @@ impl Mob for PiglinEntity {
         if self.admire_timer.load(Ordering::Relaxed) > 0 {
             let remaining = self.admire_timer.fetch_sub(1, Ordering::Relaxed) - 1;
             if remaining <= 0 {
-                let caller_clone = caller.clone();
-                tokio::spawn(async move {
-                    if let Some(piglin) = caller_clone.cast_any().downcast_ref::<Self>() {
-                        piglin.stop_holding_off_hand_item(true).await;
-                    }
-                });
+                self.stop_holding_off_hand_item(true);
             }
         }
     }

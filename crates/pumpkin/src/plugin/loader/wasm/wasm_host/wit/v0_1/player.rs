@@ -1411,7 +1411,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         player: Resource<Player>,
     ) -> wasmtime::Result<Resource<pumpkin::plugin::text::TextComponent>> {
         let player = player_from_resource(self, &player)?;
-        let display_name = player.get_display_name().await;
+        let display_name = player.get_display_name();
         self.add_text_component(display_name)
             .map_err(|_| wasmtime::Error::msg("failed to add text-component resource"))
     }
@@ -1585,9 +1585,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         stat_id: i32,
     ) -> wasmtime::Result<i32> {
         let player = player_from_resource(self, &player)?;
-        Ok(player
-            .get_stat(from_wit_statistic_category(category), stat_id)
-            .await)
+        Ok(player.get_stat(from_wit_statistic_category(category), stat_id))
     }
 
     async fn set_statistic(
@@ -1620,9 +1618,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         stat: WitCustomStatistic,
     ) -> wasmtime::Result<i32> {
         let player = player_from_resource(self, &player)?;
-        Ok(player
-            .get_custom_stat(from_wit_custom_statistic(stat))
-            .await)
+        Ok(player.get_custom_stat(from_wit_custom_statistic(stat)))
     }
 
     async fn set_custom_statistic(
@@ -1666,7 +1662,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         duration_ticks: i32,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.start_cooldown(group, duration_ticks).await;
+        player.start_cooldown(group, duration_ticks);
         Ok(())
     }
 
@@ -1676,7 +1672,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         group: String,
     ) -> wasmtime::Result<f32> {
         let player = player_from_resource(self, &player)?;
-        Ok(player.get_cooldown(&group).await)
+        Ok(player.get_cooldown(&group))
     }
 
     async fn is_on_cooldown(
@@ -1685,7 +1681,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         group: String,
     ) -> wasmtime::Result<bool> {
         let player = player_from_resource(self, &player)?;
-        Ok(player.is_on_cooldown(&group).await)
+        Ok(player.is_on_cooldown(&group))
     }
 
     async fn set_allow_flight(
@@ -1917,7 +1913,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         ticks: i32,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.set_item_cooldown(&item_id, ticks).await;
+        player.set_item_cooldown(&item_id, ticks);
         Ok(())
     }
 
@@ -1927,7 +1923,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         item_id: String,
     ) -> wasmtime::Result<Option<i32>> {
         let player = player_from_resource(self, &player)?;
-        Ok(player.get_item_cooldown(&item_id).await)
+        Ok(player.get_item_cooldown(&item_id))
     }
 
     async fn has_item_cooldown(
@@ -1936,7 +1932,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         item_id: String,
     ) -> wasmtime::Result<bool> {
         let player = player_from_resource(self, &player)?;
-        Ok(player.has_item_cooldown(&item_id).await)
+        Ok(player.has_item_cooldown(&item_id))
     }
 
     async fn ray_trace_block(
@@ -2384,7 +2380,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         level: i32,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.set_experience_level(level, true).await;
+        player.set_experience_level(level, true);
         Ok(())
     }
 
@@ -2394,13 +2390,11 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         progress: f32,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player
-            .set_experience(
-                player.experience_level.load(Ordering::Relaxed),
-                progress,
-                player.experience_points.load(Ordering::Relaxed),
-            )
-            .await;
+        player.set_experience(
+            player.experience_level.load(Ordering::Relaxed),
+            progress,
+            player.experience_points.load(Ordering::Relaxed),
+        );
         Ok(())
     }
 
@@ -2410,13 +2404,11 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         points: i32,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player
-            .set_experience(
-                player.experience_level.load(Ordering::Relaxed),
-                player.experience_progress.load(),
-                points,
-            )
-            .await;
+        player.set_experience(
+            player.experience_level.load(Ordering::Relaxed),
+            player.experience_progress.load(),
+            points,
+        );
         Ok(())
     }
 
@@ -2426,7 +2418,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         levels: i32,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.add_experience_levels(levels).await;
+        player.add_experience_levels(levels);
         Ok(())
     }
 
@@ -2436,7 +2428,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         points: i32,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.add_experience_points(points).await;
+        player.add_experience_points(points);
         Ok(())
     }
 
@@ -2448,7 +2440,10 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     async fn set_flying(&mut self, player: Resource<Player>, flying: bool) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
         {
-            let mut abilities = player.abilities.lock().await;
+            let mut abilities = player
+                .abilities
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             abilities.flying = flying;
         };
         player.send_abilities_update().await;
@@ -2460,7 +2455,10 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         player: Resource<Player>,
     ) -> wasmtime::Result<pumpkin::plugin::player::PlayerAbilities> {
         let player = player_from_resource(self, &player)?;
-        let abilities = player.abilities.lock().await;
+        let abilities = player
+            .abilities
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         Ok(pumpkin::plugin::player::PlayerAbilities {
             invulnerable: abilities.invulnerable,
             flying: abilities.flying,
@@ -2479,7 +2477,10 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
         {
-            let mut a = player.abilities.lock().await;
+            let mut a = player
+                .abilities
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             a.invulnerable = abilities.invulnerable;
             a.flying = abilities.flying;
             a.allow_flying = abilities.allow_flying;
@@ -3312,7 +3313,10 @@ impl pumpkin::plugin::player::HostBedrockPlayer for PluginHostState {
             .clone();
 
         let ability = from_wasm_bedrock_ability(ability);
-        let abilities = player.abilities.lock().await;
+        let abilities = player
+            .abilities
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
 
         match ability {
             pumpkin_protocol::bedrock::client::update_abilities::Ability::Build
@@ -3352,7 +3356,10 @@ impl pumpkin::plugin::player::HostBedrockPlayer for PluginHostState {
 
         let ability = from_wasm_bedrock_ability(ability);
         {
-            let mut abilities = player.abilities.lock().await;
+            let mut abilities = player
+                .abilities
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             match ability {
                 pumpkin_protocol::bedrock::client::update_abilities::Ability::Build
                 | pumpkin_protocol::bedrock::client::update_abilities::Ability::Mine => {

@@ -130,7 +130,7 @@ async fn clear_command_text_output(
         ([target], true, _) => Err(TextComponent::translate_cross(
             translation::java::CLEAR_FAILED_SINGLE,
             translation::bedrock::COMMANDS_CLEAR_FAILURE,
-            [target.get_display_name().await],
+            [target.get_display_name()],
         )),
         (targets, true, _) => Err(TextComponent::translate_cross(
             translation::java::CLEAR_FAILED_MULTIPLE,
@@ -142,7 +142,7 @@ async fn clear_command_text_output(
             translation::java::COMMANDS_CLEAR_SUCCESS_SINGLE,
             [
                 TextComponent::text(item_count.to_string()),
-                target.get_display_name().await,
+                target.get_display_name(),
             ],
         )),
         (targets, false, false) => Ok(TextComponent::translate_cross(
@@ -158,7 +158,7 @@ async fn clear_command_text_output(
             translation::java::COMMANDS_CLEAR_TEST_SINGLE,
             [
                 TextComponent::text(item_count.to_string()),
-                target.get_display_name().await,
+                target.get_display_name(),
             ],
         )),
         (targets, false, true) => Ok(TextComponent::translate_cross(

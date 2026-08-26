@@ -8,7 +8,7 @@ use pumpkin_util::{Difficulty, math::vector3::Vector3};
 
 use crate::{
     entity::{
-        Entity, EntityBase, NbtFuture,
+        Entity, EntityBase,
         projectile::{ProjectileHit, ThrownItemEntity},
     },
     server::Server,
@@ -81,18 +81,14 @@ impl WitherSkullEntity {
 }
 
 impl EntityBase for WitherSkullEntity {
-    fn write_custom_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            nbt.put_bool("dangerous", self.is_dangerous());
-        })
+    fn write_custom_nbt(&self, nbt: &mut NbtCompound) {
+        nbt.put_bool("dangerous", self.is_dangerous());
     }
 
-    fn read_custom_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(dangerous) = nbt.get_bool("dangerous") {
-                self.dangerous.store(dangerous, Ordering::Relaxed);
-            }
-        })
+    fn read_custom_nbt(&self, nbt: &NbtCompound) {
+        if let Some(dangerous) = nbt.get_bool("dangerous") {
+            self.dangerous.store(dangerous, Ordering::Relaxed);
+        }
     }
 
     fn init_data_tracker(&self) {
@@ -157,8 +153,6 @@ impl EntityBase for WitherSkullEntity {
         }
 
         let hit_pos = hit.hit_pos();
-        tokio::spawn(async move {
-            world.explode(hit_pos, 1.0, ExplosionInteraction::Mob).await;
-        });
+        world.explode(hit_pos, 1.0, ExplosionInteraction::Mob);
     }
 }

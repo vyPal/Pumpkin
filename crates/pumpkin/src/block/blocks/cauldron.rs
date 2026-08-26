@@ -47,6 +47,18 @@ fn fire_cauldron_change(
     !event.cancelled
 }
 
+fn give_item_or_drop(
+    player: &crate::entity::player::Player,
+    world: &std::sync::Arc<crate::world::World>,
+    item: &'static Item,
+) {
+    let mut stack = ItemStack::new(1, item);
+    let was_added = player.inventory.insert_stack_anywhere(&mut stack);
+    if !was_added && !stack.is_empty() {
+        world.drop_stack(&player.position().to_block_pos(), stack);
+    }
+}
+
 impl BlockBehaviour for CauldronBlock {
     #[allow(clippy::too_many_lines)]
     fn use_with_item(&self, args: UseWithItemArgs<'_>) -> BlockActionResult {
@@ -78,13 +90,7 @@ impl BlockBehaviour for CauldronBlock {
                     &args.position.to_f64(),
                 );
                 args.item_stack.decrement_unless_creative(gamemode, 1);
-                let player = Arc::clone(args.player);
-                tokio::spawn(async move {
-                    player
-                        .inventory
-                        .offer_or_drop_stack(ItemStack::new(1, &Item::BUCKET), player.as_ref())
-                        .await;
-                });
+                give_item_or_drop(args.player, args.world, &Item::BUCKET);
                 return BlockActionResult::Success;
             } else if item_id == Item::LAVA_BUCKET.id {
                 args.world.set_block_state(
@@ -98,13 +104,7 @@ impl BlockBehaviour for CauldronBlock {
                     &args.position.to_f64(),
                 );
                 args.item_stack.decrement_unless_creative(gamemode, 1);
-                let player = Arc::clone(args.player);
-                tokio::spawn(async move {
-                    player
-                        .inventory
-                        .offer_or_drop_stack(ItemStack::new(1, &Item::BUCKET), player.as_ref())
-                        .await;
-                });
+                give_item_or_drop(args.player, args.world, &Item::BUCKET);
                 return BlockActionResult::Success;
             } else if item_id == Item::POWDER_SNOW_BUCKET.id {
                 let state_id = Block::POWDER_SNOW_CAULDRON
@@ -118,13 +118,7 @@ impl BlockBehaviour for CauldronBlock {
                     &args.position.to_f64(),
                 );
                 args.item_stack.decrement_unless_creative(gamemode, 1);
-                let player = Arc::clone(args.player);
-                tokio::spawn(async move {
-                    player
-                        .inventory
-                        .offer_or_drop_stack(ItemStack::new(1, &Item::BUCKET), player.as_ref())
-                        .await;
-                });
+                give_item_or_drop(args.player, args.world, &Item::BUCKET);
                 return BlockActionResult::Success;
             } else if item_id == Item::POTION.id {
                 let state_id = Block::WATER_CAULDRON
@@ -138,16 +132,7 @@ impl BlockBehaviour for CauldronBlock {
                     &args.position.to_f64(),
                 );
                 args.item_stack.decrement_unless_creative(gamemode, 1);
-                let player = Arc::clone(args.player);
-                tokio::spawn(async move {
-                    player
-                        .inventory
-                        .offer_or_drop_stack(
-                            ItemStack::new(1, &Item::GLASS_BOTTLE),
-                            player.as_ref(),
-                        )
-                        .await;
-                });
+                give_item_or_drop(args.player, args.world, &Item::GLASS_BOTTLE);
                 return BlockActionResult::Success;
             }
         }
@@ -187,13 +172,7 @@ impl BlockBehaviour for CauldronBlock {
                 args.world
                     .play_sound(sound, SoundCategory::Blocks, &args.position.to_f64());
                 args.item_stack.decrement_unless_creative(gamemode, 1);
-                let player = Arc::clone(args.player);
-                tokio::spawn(async move {
-                    player
-                        .inventory
-                        .offer_or_drop_stack(ItemStack::new(1, result_item), player.as_ref())
-                        .await;
-                });
+                give_item_or_drop(args.player, args.world, result_item);
                 return BlockActionResult::Success;
             }
         }
@@ -218,16 +197,7 @@ impl BlockBehaviour for CauldronBlock {
                     &args.position.to_f64(),
                 );
                 args.item_stack.decrement_unless_creative(gamemode, 1);
-                let player = Arc::clone(args.player);
-                tokio::spawn(async move {
-                    player
-                        .inventory
-                        .offer_or_drop_stack(
-                            ItemStack::new(1, &Item::GLASS_BOTTLE),
-                            player.as_ref(),
-                        )
-                        .await;
-                });
+                give_item_or_drop(args.player, args.world, &Item::GLASS_BOTTLE);
                 return BlockActionResult::Success;
             }
         }

@@ -199,22 +199,12 @@ impl Mob for WitchEntity {
         Some(self)
     }
 
-    fn mob_write_nbt<'a>(
-        &'a self,
-        nbt: &'a mut pumpkin_nbt::compound::NbtCompound,
-    ) -> crate::entity::NbtFuture<'a, ()> {
-        Box::pin(async move {
-            self.write_raider_nbt(nbt);
-        })
+    fn mob_write_nbt(&self, nbt: &mut pumpkin_nbt::compound::NbtCompound) {
+        self.write_raider_nbt(nbt);
     }
 
-    fn mob_read_nbt<'a>(
-        &'a self,
-        nbt: &'a pumpkin_nbt::compound::NbtCompound,
-    ) -> crate::entity::NbtFuture<'a, ()> {
-        Box::pin(async move {
-            self.read_raider_nbt(nbt);
-        })
+    fn mob_read_nbt(&self, nbt: &pumpkin_nbt::compound::NbtCompound) {
+        self.read_raider_nbt(nbt);
     }
 
     fn pre_damage(&self, _damage_type: DamageType, source: Option<&dyn EntityBase>) -> bool {

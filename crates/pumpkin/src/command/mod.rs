@@ -331,8 +331,8 @@ impl CommandSender {
                 Some(player.clone()),
                 player.position(),
                 player.rotation().into(),
-                player.get_display_name().await.get_text(),
-                player.get_display_name().await,
+                player.get_display_name().get_text(),
+                player.get_display_name(),
                 server.clone(),
             ),
             Self::CommandBlock(command_entity, world) => {
