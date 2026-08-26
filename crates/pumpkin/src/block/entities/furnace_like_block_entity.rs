@@ -552,39 +552,34 @@ macro_rules! impl_block_entity_for_cooking {
                 furnace
             }
 
-            fn write_nbt<'a>(
-                &'a self,
-                nbt: &'a mut pumpkin_nbt::compound::NbtCompound,
-            ) -> std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-                Box::pin(async move {
-                    nbt.put_short("cooking_total_time", self.get_cooking_total_time() as i16);
-                    nbt.put_short("cooking_time_spent", self.get_cooking_time_spent() as i16);
-                    nbt.put_short("lit_total_time", self.get_lit_total_time() as i16);
-                    nbt.put_short("lit_time_remaining", self.get_lit_time_remaining() as i16);
+            fn write_nbt(&self, nbt: &mut pumpkin_nbt::compound::NbtCompound) {
+                nbt.put_short("cooking_total_time", self.get_cooking_total_time() as i16);
+                nbt.put_short("cooking_time_spent", self.get_cooking_time_spent() as i16);
+                nbt.put_short("lit_total_time", self.get_lit_total_time() as i16);
+                nbt.put_short("lit_time_remaining", self.get_lit_time_remaining() as i16);
 
-                    // Save RecipesUsed in vanilla format (map of recipe ID -> craft count)
-                    {
-                        let recipes = self
-                            .recipes_used
-                            .lock()
-                            .unwrap_or_else(std::sync::PoisonError::into_inner);
-                        if !recipes.is_empty() {
-                            let mut recipes_compound = pumpkin_nbt::compound::NbtCompound::new();
-                            for (recipe_id, count) in recipes.iter() {
-                                recipes_compound.put(
-                                    recipe_id.as_str(),
-                                    pumpkin_nbt::tag::NbtTag::Int(*count as i32),
-                                );
-                            }
-                            nbt.put(
-                                "RecipesUsed",
-                                pumpkin_nbt::tag::NbtTag::Compound(recipes_compound),
+                // Save RecipesUsed in vanilla format (map of recipe ID -> craft count)
+                {
+                    let recipes = self
+                        .recipes_used
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    if !recipes.is_empty() {
+                        let mut recipes_compound = pumpkin_nbt::compound::NbtCompound::new();
+                        for (recipe_id, count) in recipes.iter() {
+                            recipes_compound.put(
+                                recipe_id.as_str(),
+                                pumpkin_nbt::tag::NbtTag::Int(*count as i32),
                             );
                         }
+                        nbt.put(
+                            "RecipesUsed",
+                            pumpkin_nbt::tag::NbtTag::Compound(recipes_compound),
+                        );
                     }
+                }
 
-                    self.write_inventory_nbt(nbt, true);
-                })
+                self.write_inventory_nbt(nbt, true);
             }
 
             fn get_inventory(

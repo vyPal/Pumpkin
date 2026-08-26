@@ -1083,7 +1083,9 @@ impl Server {
             all_players.extend(players.iter().cloned());
         }
 
+        let handle = self.runtime.clone();
         all_players.par_iter().for_each(|player| {
+            let _guard = handle.enter();
             player.tick(self);
         });
     }

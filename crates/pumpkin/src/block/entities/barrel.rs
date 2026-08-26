@@ -7,7 +7,6 @@ use pumpkin_util::math::vector3::Vector3;
 use pumpkin_util::random::xoroshiro128::Xoroshiro;
 use pumpkin_util::random::{RandomImpl, get_seed};
 use std::any::Any;
-use std::pin::Pin;
 use std::sync::RwLock;
 use std::{
     array::from_fn,
@@ -63,13 +62,8 @@ impl BlockEntity for BarrelBlockEntity {
         barrel
     }
 
-    fn write_nbt<'a>(
-        &'a self,
-        nbt: &'a mut NbtCompound,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            self.write_inventory_nbt(nbt, true);
-        })
+    fn write_nbt(&self, nbt: &mut NbtCompound) {
+        self.write_inventory_nbt(nbt, true);
     }
 
     fn tick(&self, world: &Arc<World>) {

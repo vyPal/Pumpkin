@@ -730,13 +730,9 @@ impl EntityBase for MinecartEntity {
                 if let Some(container) = self.container()
                     && container.claim_drops()
                 {
-                    let container_clone = container.clone();
-                    let world_clone = self.vehicle.entity.world.load_full();
-                    container_clone.unpack_loot();
-                    tokio::spawn(async move {
-                        let inventory: Arc<dyn Inventory> = container_clone;
-                        world_clone.scatter_inventory(&position, &inventory);
-                    });
+                    container.unpack_loot();
+                    let inventory: Arc<dyn Inventory> = container.clone();
+                    world.scatter_inventory(&position, &inventory);
                 }
                 if let Some(item) = self.drop_item() {
                     world.drop_stack(&position, ItemStack::new(1, item));

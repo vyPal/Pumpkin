@@ -6,7 +6,6 @@ use pumpkin_world::inventory::{Clearable, Inventory, sync_write_items_to_nbt};
 use rand::{RngExt, rng};
 use std::any::Any;
 use std::array::from_fn;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -18,13 +17,8 @@ pub struct DispenserBlockEntity {
 }
 
 impl BlockEntity for DispenserBlockEntity {
-    fn write_nbt<'a>(
-        &'a self,
-        nbt: &'a mut NbtCompound,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            self.write_inventory_nbt(nbt, true);
-        })
+    fn write_nbt(&self, nbt: &mut NbtCompound) {
+        self.write_inventory_nbt(nbt, true);
     }
 
     fn from_nbt(nbt: &pumpkin_nbt::compound::NbtCompound, position: BlockPos) -> Self

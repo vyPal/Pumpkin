@@ -1,4 +1,3 @@
-use std::pin::Pin;
 use std::sync::Arc;
 
 use pumpkin_data::block_properties::BlockProperties;
@@ -31,12 +30,7 @@ impl BlockEntity for DaylightDetectorBlockEntity {
         Self { position }
     }
 
-    fn write_nbt<'a>(
-        &'a self,
-        _nbt: &'a mut NbtCompound,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async {})
-    }
+    fn write_nbt(&self, _nbt: &mut NbtCompound) {}
 
     fn as_any(&self) -> &dyn std::any::Any {
         self

@@ -519,63 +519,56 @@ impl EntityBase for ArrowEntity {
                 let is_spectral = entity.entity_type.id == EntityType::SPECTRAL_ARROW.id;
                 let entity_type: &'static EntityType = entity.entity_type;
                 let owner_id = self.owner_id;
-                let target_clone = target.clone();
-                let world_clone = world.clone();
                 let pierce = self.pierce_level.load(Ordering::Relaxed);
+                let damage_succeeded = target.damage_with_context(
+                    target.as_ref(),
+                    damage as f32,
+                    DamageType::ARROW,
+                    Some(hit_pos),
+                    None,
+                    None,
+                );
 
-                tokio::spawn(async move {
-                    let damage_succeeded = target_clone.damage_with_context(
-                        &*target_clone,
-                        damage as f32,
-                        DamageType::ARROW,
-                        Some(hit_pos),
-                        None,
-                        None,
-                    );
-
-                    if let Some(living) = target_clone.get_living_entity() {
-                        if punch > 0
-                            && let Some(owner_id) = owner_id
-                            && let Some(owner_entity) = world_clone.get_entity_by_id(owner_id)
-                        {
-                            crate::entity::combat::handle_knockback(
-                                owner_entity.get_entity(),
-                                target_clone.as_ref(),
-                                f64::from(punch) * 0.6,
-                            );
-                        }
-
-                        // Play hit sound
-                        let sound_packet = CSoundEffect::new(
-                            IdOr::Id(Sound::EntityArrowHit as u16),
-                            SoundCategory::Neutral,
-                            &hit_pos,
-                            1.0,
-                            1.0,
-                            0.0,
+                if let Some(living) = target.get_living_entity() {
+                    if punch > 0
+                        && let Some(owner_id) = owner_id
+                        && let Some(owner_entity) = world.get_entity_by_id(owner_id)
+                    {
+                        crate::entity::combat::handle_knockback(
+                            owner_entity.get_entity(),
+                            target.as_ref(),
+                            f64::from(punch) * 0.6,
                         );
-                        world_clone.broadcast_packet_all(&sound_packet);
+                    }
 
-                        if Self::should_apply_post_hurt_effects(damage_succeeded) {
-                            let item_stack = ItemStack::new(1, Self::default_item(entity_type));
-                            let scale = item_stack
-                                .get_data_component::<PotionDurationScaleImpl>()
-                                .map_or(1.0, |component| component.scale);
-                            crate::item::potion::PotionContents::apply_effects_to(
-                                living,
-                                crate::item::potion::PotionContents::read_potion_effects(
-                                    &item_stack,
-                                ),
-                                scale,
-                                crate::item::potion::PotionApplicationSource::Arrow,
-                            );
+                    // Play hit sound
+                    let sound_packet = CSoundEffect::new(
+                        IdOr::Id(Sound::EntityArrowHit as u16),
+                        SoundCategory::Neutral,
+                        &hit_pos,
+                        1.0,
+                        1.0,
+                        0.0,
+                    );
+                    world.broadcast_packet_all(&sound_packet);
 
-                            if is_spectral {
-                                living.add_effect(Self::spectral_glowing_effect());
-                            }
+                    if Self::should_apply_post_hurt_effects(damage_succeeded) {
+                        let item_stack = ItemStack::new(1, Self::default_item(entity_type));
+                        let scale = item_stack
+                            .get_data_component::<PotionDurationScaleImpl>()
+                            .map_or(1.0, |component| component.scale);
+                        crate::item::potion::PotionContents::apply_effects_to(
+                            living,
+                            crate::item::potion::PotionContents::read_potion_effects(&item_stack),
+                            scale,
+                            crate::item::potion::PotionApplicationSource::Arrow,
+                        );
+
+                        if is_spectral {
+                            living.add_effect(Self::spectral_glowing_effect());
                         }
                     }
-                });
+                }
 
                 // Check pierce level
                 if pierce == 0 {

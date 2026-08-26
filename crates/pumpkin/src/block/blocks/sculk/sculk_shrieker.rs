@@ -68,7 +68,10 @@ impl SculkShriekerBlock {
         if let Some(entity) = world.get_block_entity(pos)
             && let Some(shrieker) = entity.as_any().downcast_ref::<SculkShriekerBlockEntity>()
         {
-            let mut level = shrieker.warning_level.lock().await;
+            let mut level = shrieker
+                .warning_level
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             *level = (*level + 1).min(4);
             if props.can_summon && *level >= 4 {
                 // TODO: spawn Warden near pos

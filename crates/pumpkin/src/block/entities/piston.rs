@@ -1,5 +1,5 @@
+use std::sync::Arc;
 use std::sync::atomic::Ordering;
-use std::{pin::Pin, sync::Arc};
 
 use crossbeam::atomic::AtomicCell;
 use pumpkin_data::{Block, BlockDirection, BlockState};
@@ -274,17 +274,12 @@ impl BlockEntity for PistonBlockEntity {
         }
     }
 
-    fn write_nbt<'a>(
-        &'a self,
-        nbt: &'a mut NbtCompound,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            // TODO: pushed_block_state
-            nbt.put_byte(FACING, self.facing.to_index() as i8);
-            nbt.put_float(LAST_PROGRESS, self.last_progress.load());
-            nbt.put_bool(EXTENDING, self.extending);
-            nbt.put_bool(SOURCE, self.source);
-        })
+    fn write_nbt(&self, nbt: &mut NbtCompound) {
+        // TODO: pushed_block_state
+        nbt.put_byte(FACING, self.facing.to_index() as i8);
+        nbt.put_float(LAST_PROGRESS, self.last_progress.load());
+        nbt.put_bool(EXTENDING, self.extending);
+        nbt.put_bool(SOURCE, self.source);
     }
 
     fn chunk_data_nbt(&self) -> Option<NbtCompound> {

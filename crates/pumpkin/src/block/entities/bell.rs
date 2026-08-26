@@ -6,7 +6,6 @@ use pumpkin_data::sound::{Sound, SoundCategory};
 use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_util::math::position::BlockPos;
 use std::any::Any;
-use std::pin::Pin;
 use std::sync::Arc;
 
 pub struct BellBlockEntity {
@@ -47,12 +46,7 @@ impl BellBlockEntity {
 }
 
 impl BlockEntity for BellBlockEntity {
-    fn write_nbt<'a>(
-        &'a self,
-        _nbt: &'a mut NbtCompound,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {})
-    }
+    fn write_nbt(&self, _nbt: &mut NbtCompound) {}
 
     fn from_nbt(_nbt: &NbtCompound, position: BlockPos) -> Self
     where

@@ -2441,7 +2441,7 @@ impl Player {
                     if player_pos != target_pos {
                         self.living_entity.entity.set_pos(target_pos);
                         if let Some(p) = self.world().get_player_by_uuid(self.gameprofile.id) {
-                            tokio::spawn(async move {
+                            server.runtime.spawn(async move {
                                 crate::world::chunker::update_position(&p).await;
                             });
                         }
@@ -2515,7 +2515,7 @@ impl Player {
             && !chunk_of_chunks.is_empty()
         {
             let client = self.client.clone();
-            tokio::spawn(async move {
+            server.runtime.spawn(async move {
                 client.send_chunks(&chunk_of_chunks).await;
             });
             if let ClientPlatform::Bedrock(bedrock_client) = self.client.as_ref()
@@ -2550,7 +2550,7 @@ impl Player {
         {
             let world_clone = p.world();
             let server_clone = world_clone.server.upgrade();
-            tokio::spawn(async move {
+            server.runtime.spawn(async move {
                 let pos = *p.mining_pos.lock().await;
                 let world = p.world();
                 let state = world.get_block_state(&pos);

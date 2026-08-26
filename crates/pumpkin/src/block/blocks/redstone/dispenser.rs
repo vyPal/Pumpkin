@@ -174,30 +174,27 @@ impl BlockBehaviour for DispenserBlock {
     }
 
     fn on_scheduled_tick(&self, args: OnScheduledTickArgs<'_>) {
-        let world = args.world.clone();
-        let position = *args.position;
-        tokio::spawn(async move {
-            let (block, state) = world.get_block_and_state(&position);
-            if let Some(block_entity) = world.get_block_entity(&position) {
-                let Some(dispenser) = block_entity.as_any().downcast_ref::<DispenserBlockEntity>()
-                else {
-                    return;
-                };
+        let (block, state) = args.world.get_block_and_state(args.position);
+        if let Some(block_entity) = args.world.get_block_entity(args.position) {
+            let Some(dispenser) = block_entity.as_any().downcast_ref::<DispenserBlockEntity>()
+            else {
+                return;
+            };
 
-                if let Some((slot_index, mut item)) = dispenser.get_random_slot() {
-                    let props = DispenserLikeProperties::from_state_id(state.id, block);
-                    let ctx = DispenseContext {
-                        world: &world,
-                        position: &position,
-                        facing: props.facing,
-                    };
-                    Self::dispense(&ctx, dispenser, &mut item).await;
-                    dispenser.set_stack(slot_index, item);
-                } else {
-                    world.sync_world_event(WorldEvent::SoundDispenserFail, position, 0);
-                }
+            if let Some((slot_index, mut item)) = dispenser.get_random_slot() {
+                let props = DispenserLikeProperties::from_state_id(state.id, block);
+                let ctx = DispenseContext {
+                    world: args.world,
+                    position: args.position,
+                    facing: props.facing,
+                };
+                Self::dispense(&ctx, dispenser, &mut item);
+                dispenser.set_stack(slot_index, item);
+            } else {
+                args.world
+                    .sync_world_event(WorldEvent::SoundDispenserFail, *args.position, 0);
             }
-        });
+        }
     }
 
     fn get_comparator_output(&self, args: GetComparatorOutputArgs<'_>) -> Option<u8> {
@@ -225,17 +222,13 @@ impl DispenserBlock {
     const FIREWORK_PROJECTILE_POWER: f64 = 0.5;
     const FIREWORK_PROJECTILE_UNCERTAINTY: f64 = 1.0;
 
-    async fn dispense(
-        ctx: &DispenseContext<'_>,
-        dispenser: &DispenserBlockEntity,
-        item: &mut ItemStack,
-    ) {
+    fn dispense(ctx: &DispenseContext<'_>, dispenser: &DispenserBlockEntity, item: &mut ItemStack) {
         let mut event = crate::plugin::api::events::block::block_dispense::BlockDispenseEvent::new(
             *ctx.position,
             item.item.registry_key.to_string(),
         );
         if let Some(server) = ctx.world.server.upgrade() {
-            server.plugin_manager.fire(&server, &mut event).await;
+            server.plugin_manager.fire_blocking(&server, &mut event);
         }
         if event.cancelled {
             ctx.world

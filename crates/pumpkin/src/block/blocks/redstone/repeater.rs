@@ -41,52 +41,56 @@ impl BlockBehaviour for RepeaterBlock {
     }
 
     fn on_scheduled_tick(&self, args: OnScheduledTickArgs<'_>) {
-        let world = args.world.clone();
-        let pos = *args.position;
-        tokio::spawn(async move {
-            let (block, state) = world.get_block_and_state(&pos);
-            if Self.is_locked(&world, pos, state.id, block) {
-                return;
-            }
-            let mut props = RepeaterProperties::from_state_id(state.id, block);
+        let (block, state) = args.world.get_block_and_state(args.position);
+        if self.is_locked(args.world, *args.position, state.id, block) {
+            return;
+        }
+        let mut props = RepeaterProperties::from_state_id(state.id, block);
 
-            let now_powered = props.powered;
-            let should_be_powered = Self.has_power(&world, pos, state, block);
+        let now_powered = props.powered;
+        let should_be_powered = self.has_power(args.world, *args.position, state, block);
 
-            if now_powered && !should_be_powered {
-                props.powered = false;
-                world.set_block_state(&pos, props.to_state_id(block), BlockFlags::NOTIFY_LISTENERS);
-                RedstoneGateBlock::update_target(
-                    &Self,
-                    &world,
-                    pos,
-                    props.to_state_id(block),
+        if now_powered && !should_be_powered {
+            props.powered = false;
+            args.world.set_block_state(
+                args.position,
+                props.to_state_id(block),
+                BlockFlags::NOTIFY_LISTENERS,
+            );
+            RedstoneGateBlock::update_target(
+                self,
+                args.world,
+                *args.position,
+                props.to_state_id(block),
+                block,
+            );
+        } else if !now_powered {
+            props.powered = true;
+            args.world.set_block_state(
+                args.position,
+                props.to_state_id(block),
+                BlockFlags::NOTIFY_LISTENERS,
+            );
+            if !should_be_powered {
+                args.world.schedule_block_tick(
                     block,
-                );
-            } else if !now_powered {
-                props.powered = true;
-                world.set_block_state(&pos, props.to_state_id(block), BlockFlags::NOTIFY_LISTENERS);
-                if !should_be_powered {
-                    world.schedule_block_tick(
+                    *args.position,
+                    RedstoneGateBlock::get_update_delay_internal(
+                        self,
+                        props.to_state_id(block),
                         block,
-                        pos,
-                        RedstoneGateBlock::get_update_delay_internal(
-                            &Self,
-                            props.to_state_id(block),
-                            block,
-                        ),
-                        TickPriority::VeryHigh,
-                    );
-                }
-                RedstoneGateBlock::update_target(
-                    &Self,
-                    &world,
-                    pos,
-                    props.to_state_id(block),
-                    block,
+                    ),
+                    TickPriority::VeryHigh,
                 );
             }
-        });
+            RedstoneGateBlock::update_target(
+                self,
+                args.world,
+                *args.position,
+                props.to_state_id(block),
+                block,
+            );
+        }
     }
 
     fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {

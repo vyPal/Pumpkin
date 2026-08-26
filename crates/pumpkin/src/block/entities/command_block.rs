@@ -1,9 +1,6 @@
-use std::{
-    pin::Pin,
-    sync::{
-        Mutex as StdMutex,
-        atomic::{AtomicBool, AtomicU32, Ordering},
-    },
+use std::sync::{
+    Mutex as StdMutex,
+    atomic::{AtomicBool, AtomicU32, Ordering},
 };
 
 use pumpkin_nbt::compound::NbtCompound;
@@ -102,13 +99,8 @@ impl BlockEntity for CommandBlockEntity {
         }
     }
 
-    fn write_nbt<'a>(
-        &'a self,
-        nbt: &'a mut NbtCompound,
-    ) -> Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>> {
-        Box::pin(async {
-            self.write_sync_nbt(nbt);
-        })
+    fn write_nbt(&self, nbt: &mut NbtCompound) {
+        self.write_sync_nbt(nbt);
     }
 
     fn chunk_data_nbt(&self) -> Option<NbtCompound> {

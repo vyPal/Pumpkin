@@ -1,6 +1,4 @@
 use std::any::Any;
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::{
     Arc, Mutex as StdMutex, RwLock,
     atomic::AtomicI32,
@@ -401,18 +399,13 @@ impl crate::block::entities::BlockEntity for BrewingStandBlockEntity {
         entity
     }
 
-    fn write_nbt<'a>(
-        &'a self,
-        nbt: &'a mut NbtCompound,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            // Persist brew state
-            nbt.put_int("BrewTime", self.brew_time.load(Ordering::Relaxed));
-            nbt.put_int("Fuel", self.fuel.load(Ordering::Relaxed));
+    fn write_nbt(&self, nbt: &mut NbtCompound) {
+        // Persist brew state
+        nbt.put_int("BrewTime", self.brew_time.load(Ordering::Relaxed));
+        nbt.put_int("Fuel", self.fuel.load(Ordering::Relaxed));
 
-            // Save inventory contents to NBT
-            self.write_inventory_nbt(nbt, true);
-        })
+        // Save inventory contents to NBT
+        self.write_inventory_nbt(nbt, true);
     }
 
     fn get_inventory(self: Arc<Self>) -> Option<Arc<dyn Inventory>> {

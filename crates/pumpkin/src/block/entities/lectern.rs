@@ -5,8 +5,6 @@ use pumpkin_nbt::tag::NbtTag;
 use pumpkin_util::math::position::BlockPos;
 use std::{
     any::Any,
-    future::Future,
-    pin::Pin,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -56,22 +54,17 @@ impl BlockEntity for LecternBlockEntity {
         }
     }
 
-    fn write_nbt<'a>(
-        &'a self,
-        nbt: &'a mut NbtCompound,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            let book = self
-                .book
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            if !book.is_empty() {
-                let mut book_nbt = NbtCompound::default();
-                book.write_item_stack(&mut book_nbt);
-                nbt.put_compound("Book", book_nbt);
-            }
-            nbt.put_int("Page", self.page.load(Ordering::Relaxed) as i32);
-        })
+    fn write_nbt(&self, nbt: &mut NbtCompound) {
+        let book = self
+            .book
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !book.is_empty() {
+            let mut book_nbt = NbtCompound::default();
+            book.write_item_stack(&mut book_nbt);
+            nbt.put_compound("Book", book_nbt);
+        }
+        nbt.put_int("Page", self.page.load(Ordering::Relaxed) as i32);
     }
 
     fn get_inventory(self: Arc<Self>) -> Option<Arc<dyn Inventory>> {

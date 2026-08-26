@@ -42,7 +42,10 @@ impl SculkSensorBlock {
                 if let Some(be) = world.get_block_entity(pos)
                     && let Some(sensor_be) = be.as_any().downcast_ref::<SculkSensorBlockEntity>()
                 {
-                    *sensor_be.last_vibration_frequency.blocking_lock() = power as i32;
+                    *sensor_be
+                        .last_vibration_frequency
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = power as i32;
                 }
 
                 props.sculk_sensor_phase = SculkSensorPhase::Active;
@@ -73,7 +76,10 @@ impl SculkSensorBlock {
                         .as_any()
                         .downcast_ref::<CalibratedSculkSensorBlockEntity>()
                 {
-                    *cal_be.last_vibration_frequency.blocking_lock() = power as i32;
+                    *cal_be
+                        .last_vibration_frequency
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = power as i32;
                 }
 
                 props.sculk_sensor_phase = SculkSensorPhase::Active;
@@ -136,13 +142,23 @@ impl BlockBehaviour for SculkSensorBlock {
     fn get_comparator_output(&self, args: GetComparatorOutputArgs<'_>) -> Option<u8> {
         let be = args.world.get_block_entity(args.position)?;
         if let Some(sensor_be) = be.as_any().downcast_ref::<SculkSensorBlockEntity>() {
-            return Some(*sensor_be.last_vibration_frequency.blocking_lock() as u8);
+            return Some(
+                *sensor_be
+                    .last_vibration_frequency
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) as u8,
+            );
         }
         if let Some(cal_be) = be
             .as_any()
             .downcast_ref::<CalibratedSculkSensorBlockEntity>()
         {
-            return Some(*cal_be.last_vibration_frequency.blocking_lock() as u8);
+            return Some(
+                *cal_be
+                    .last_vibration_frequency
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) as u8,
+            );
         }
         None
     }

@@ -135,73 +135,72 @@ impl BlockBehaviour for DropperBlock {
     }
 
     fn on_scheduled_tick(&self, args: OnScheduledTickArgs<'_>) {
-        let world = args.world.clone();
-        let position = *args.position;
-        tokio::spawn(async move {
-            let (block, state) = world.get_block_and_state(&position);
-            if let Some(block_entity) = world.get_block_entity(&position) {
-                let Some(dropper) = block_entity.as_any().downcast_ref::<DropperBlockEntity>()
-                else {
-                    return;
-                };
+        let (block, state) = args.world.get_block_and_state(args.position);
+        if let Some(block_entity) = args.world.get_block_entity(args.position) {
+            let Some(dropper) = block_entity.as_any().downcast_ref::<DropperBlockEntity>() else {
+                return;
+            };
 
-                if let Some((slot_index, mut item)) = dropper.get_random_slot() {
-                    let props = DispenserLikeProperties::from_state_id(state.id, block);
+            if let Some((slot_index, mut item)) = dropper.get_random_slot() {
+                let props = DispenserLikeProperties::from_state_id(state.id, block);
 
-                    let target_pos = position.offset(props.facing.to_block_direction().to_offset());
+                let target_pos = args
+                    .position
+                    .offset(props.facing.to_block_direction().to_offset());
 
-                    if let Some(entity) = world.get_block_entity(&target_pos)
-                        && let Some(container) = entity.get_inventory()
-                    {
-                        let backup = item.clone();
-                        let one_item = item.split(1);
+                if let Some(entity) = args.world.get_block_entity(&target_pos)
+                    && let Some(container) = entity.get_inventory()
+                {
+                    let backup = item.clone();
+                    let one_item = item.split(1);
 
-                        if HopperBlockEntity::add_one_item(dropper, container.as_ref(), &one_item) {
-                            dropper.set_stack(slot_index, item);
-                            return;
-                        }
-
-                        dropper.set_stack(slot_index, backup);
+                    if HopperBlockEntity::add_one_item(dropper, container.as_ref(), &one_item) {
+                        dropper.set_stack(slot_index, item);
                         return;
                     }
 
-                    // No container found, dispense item into the world
-                    let drop_item = item.split(1);
-                    dropper.set_stack(slot_index, item);
-                    let facing = to_normal(props.facing);
-                    let mut pos = position.to_centered_f64().add(&(facing * 0.7));
-
-                    pos.y -= match props.facing {
-                        Facing::Up | Facing::Down => 0.125,
-                        _ => 0.15625,
-                    };
-
-                    let entity = Entity::new(world.clone(), pos, &EntityType::ITEM);
-                    let rd = rng().random::<f64>().mul_add(0.1, 0.2);
-
-                    let velocity = Vector3::new(
-                        triangle(&mut rng(), facing.x * rd, 0.017_227_5 * 6.),
-                        triangle(&mut rng(), 0.2, 0.017_227_5 * 6.),
-                        triangle(&mut rng(), facing.z * rd, 0.017_227_5 * 6.),
-                    );
-
-                    let item_entity = Arc::new(ItemEntity::new_with_velocity(
-                        entity, drop_item, velocity, 40,
-                    ));
-                    world.spawn_entity(item_entity);
-
-                    world.sync_world_event(WorldEvent::SoundDispenserDispense, position, 0);
-
-                    world.sync_world_event(
-                        WorldEvent::ParticlesShootSmoke,
-                        position,
-                        to_data3d(props.facing),
-                    );
-                } else {
-                    world.sync_world_event(WorldEvent::SoundDispenserDispense, position, 0);
+                    dropper.set_stack(slot_index, backup);
+                    return;
                 }
+
+                // No container found, dispense item into the world
+                let drop_item = item.split(1);
+                dropper.set_stack(slot_index, item);
+                let facing = to_normal(props.facing);
+                let mut pos = args.position.to_centered_f64().add(&(facing * 0.7));
+
+                pos.y -= match props.facing {
+                    Facing::Up | Facing::Down => 0.125,
+                    _ => 0.15625,
+                };
+
+                let entity = Entity::new(args.world.clone(), pos, &EntityType::ITEM);
+                let rd = rng().random::<f64>().mul_add(0.1, 0.2);
+
+                let velocity = Vector3::new(
+                    triangle(&mut rng(), facing.x * rd, 0.017_227_5 * 6.),
+                    triangle(&mut rng(), 0.2, 0.017_227_5 * 6.),
+                    triangle(&mut rng(), facing.z * rd, 0.017_227_5 * 6.),
+                );
+
+                let item_entity = Arc::new(ItemEntity::new_with_velocity(
+                    entity, drop_item, velocity, 40,
+                ));
+                args.world.spawn_entity(item_entity);
+
+                args.world
+                    .sync_world_event(WorldEvent::SoundDispenserDispense, *args.position, 0);
+
+                args.world.sync_world_event(
+                    WorldEvent::ParticlesShootSmoke,
+                    *args.position,
+                    to_data3d(props.facing),
+                );
+            } else {
+                args.world
+                    .sync_world_event(WorldEvent::SoundDispenserDispense, *args.position, 0);
             }
-        });
+        }
     }
 
     fn get_comparator_output(&self, args: GetComparatorOutputArgs<'_>) -> Option<u8> {

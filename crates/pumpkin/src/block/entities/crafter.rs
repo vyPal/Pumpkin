@@ -5,7 +5,6 @@ use pumpkin_util::math::position::BlockPos;
 use pumpkin_world::inventory::{Clearable, Inventory, sync_write_items_to_nbt};
 use std::any::Any;
 use std::array::from_fn;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
@@ -19,22 +18,17 @@ pub struct CrafterBlockEntity {
 }
 
 impl BlockEntity for CrafterBlockEntity {
-    fn write_nbt<'a>(
-        &'a self,
-        nbt: &'a mut NbtCompound,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            let items = self
-                .items
-                .read()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            sync_write_items_to_nbt(items.as_slice(), nbt);
-            nbt.put_int(
-                "crafting_ticks_remaining",
-                self.crafting_ticks_remaining.load(Ordering::Relaxed),
-            );
-            nbt.put_bool("triggered", self.triggered.load(Ordering::Relaxed));
-        })
+    fn write_nbt(&self, nbt: &mut NbtCompound) {
+        let items = self
+            .items
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        sync_write_items_to_nbt(items.as_slice(), nbt);
+        nbt.put_int(
+            "crafting_ticks_remaining",
+            self.crafting_ticks_remaining.load(Ordering::Relaxed),
+        );
+        nbt.put_bool("triggered", self.triggered.load(Ordering::Relaxed));
     }
 
     fn from_nbt(nbt: &pumpkin_nbt::compound::NbtCompound, position: BlockPos) -> Self

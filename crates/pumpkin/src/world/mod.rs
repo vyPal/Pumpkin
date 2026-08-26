@@ -481,7 +481,7 @@ impl World {
             .map(|chunk_block_entities| *chunk_block_entities.key())
             .collect();
         for chunk_pos in chunks {
-            self.save_block_entities(&chunk_pos).await;
+            self.save_block_entities(&chunk_pos);
         }
 
         // Save portal POI to disk
@@ -520,7 +520,7 @@ impl World {
     /// `get_block_entity` takes the saved NBT out of the chunk when it wakes an
     /// entity up - so this has to run before the chunk is dropped, or everything
     /// the entity did since it was loaded is lost.
-    async fn save_block_entities(&self, chunk_pos: &Vector2<i32>) {
+    fn save_block_entities(&self, chunk_pos: &Vector2<i32>) {
         let Some(block_entities) = self
             .block_entities
             .get(chunk_pos)
@@ -531,7 +531,7 @@ impl World {
 
         for block_entity in block_entities {
             let mut nbt = NbtCompound::new();
-            block_entity.write_internal(&mut nbt).await;
+            block_entity.write_internal(&mut nbt);
             if let Some(custom_data) = self
                 .custom_block_entity_data
                 .get(&block_entity.get_position())
@@ -1238,7 +1238,9 @@ impl World {
         );
 
         let t_players = std::time::Instant::now();
+        let player_handle = handle.clone();
         players.par_iter().for_each(|player| {
+            let _guard = player_handle.enter();
             player.tick(server);
         });
         let player_elapsed = t_players.elapsed();
@@ -1664,7 +1666,7 @@ impl World {
 
         // 3. Parallel Random Ticks via Rayon
         let world = self.clone();
-        let random_handle = handle;
+        let random_handle = handle.clone();
         tick_data
             .random_ticks
             .par_chunks(BATCH_SIZE)
@@ -1737,7 +1739,9 @@ impl World {
             spawning_chunks.shuffle(&mut rng());
 
             let world = self.clone();
+            let spawn_handle = handle.clone();
             spawning_chunks.par_chunks(8).for_each(|batch| {
+                let _guard = spawn_handle.enter();
                 let world = world.clone();
                 let s_list = spawn_list.clone();
                 let s_state = spawn_state.clone();
@@ -4930,7 +4934,7 @@ impl World {
         }
 
         for chunk_pos in &chunks_set {
-            self.save_block_entities(chunk_pos).await;
+            self.save_block_entities(chunk_pos);
             self.block_entities.remove(chunk_pos);
         }
     }
@@ -6423,7 +6427,7 @@ impl World {
             .map(|chunk_block_entities| *chunk_block_entities.key())
             .collect();
         for chunk_pos in chunks {
-            self.save_block_entities(&chunk_pos).await;
+            self.save_block_entities(&chunk_pos);
         }
 
         if let Ok(mut portal_poi) = self.portal_poi.try_lock() {

@@ -1,9 +1,6 @@
-use std::{
-    pin::Pin,
-    sync::{
-        Arc,
-        atomic::{AtomicI32, Ordering},
-    },
+use std::sync::{
+    Arc,
+    atomic::{AtomicI32, Ordering},
 };
 
 use crossbeam::atomic::AtomicCell;
@@ -54,13 +51,7 @@ impl MobSpawnerBlockEntity {
         }
     }
 
-    pub fn write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) {
-        // TODO: this is ugly af
-        nbt.put_string("id", self.resource_location().to_string());
-        let position = self.get_position();
-        nbt.put_int("x", position.0.x);
-        nbt.put_int("y", position.0.y);
-        nbt.put_int("z", position.0.z);
+    pub fn write_spawner_nbt(&self, nbt: &mut NbtCompound) {
         nbt.put_short("Delay", self.delay.load(Ordering::Relaxed) as i16);
         nbt.put_short("MinSpawnDelay", self.min_delay as i16);
         nbt.put_short("MaxSpawnDelay", self.max_delay as i16);
@@ -264,13 +255,8 @@ impl BlockEntity for MobSpawnerBlockEntity {
         }
     }
 
-    fn write_nbt<'a>(
-        &'a self,
-        nbt: &'a mut NbtCompound,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            self.write_nbt(nbt);
-        })
+    fn write_nbt(&self, nbt: &mut NbtCompound) {
+        self.write_spawner_nbt(nbt);
     }
 
     fn chunk_data_nbt(&self) -> Option<NbtCompound> {

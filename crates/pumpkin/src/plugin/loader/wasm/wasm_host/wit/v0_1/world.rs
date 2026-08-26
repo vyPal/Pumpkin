@@ -1225,7 +1225,7 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
         };
 
         let mut nbt = pumpkin_nbt::NbtCompound::new();
-        entity.write_internal(&mut nbt).await;
+        entity.write_internal(&mut nbt);
 
         let bytes = pumpkin_nbt::Nbt::from(nbt).write_unnamed();
         Ok(Some(bytes.to_vec()))

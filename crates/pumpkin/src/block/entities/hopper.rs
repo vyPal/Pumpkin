@@ -13,7 +13,6 @@ use pumpkin_util::math::vector3::Vector3;
 use pumpkin_world::inventory::{Clearable, Inventory, sync_write_items_to_nbt};
 use std::any::Any;
 use std::array::from_fn;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::atomic::Ordering;
@@ -41,17 +40,12 @@ pub fn to_offset(facing: &FacingHopper) -> Vector3<i32> {
 }
 
 impl BlockEntity for HopperBlockEntity {
-    fn write_nbt<'a>(
-        &'a self,
-        nbt: &'a mut NbtCompound,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            nbt.put(
-                "TransferCooldown",
-                NbtTag::Int(self.cooldown_time.load(Ordering::Relaxed)),
-            );
-            self.write_inventory_nbt(nbt, true);
-        })
+    fn write_nbt(&self, nbt: &mut NbtCompound) {
+        nbt.put(
+            "TransferCooldown",
+            NbtTag::Int(self.cooldown_time.load(Ordering::Relaxed)),
+        );
+        self.write_inventory_nbt(nbt, true);
     }
 
     fn from_nbt(nbt: &pumpkin_nbt::compound::NbtCompound, position: BlockPos) -> Self
@@ -89,13 +83,9 @@ impl BlockEntity for HopperBlockEntity {
             );
             if state.enabled
                 && let Some(entity) = world.get_block_entity(&self.position)
+                && let Some(hopper) = entity.as_any().downcast_ref::<Self>()
             {
-                let world = world.clone();
-                tokio::spawn(async move {
-                    if let Some(hopper) = entity.as_any().downcast_ref::<Self>() {
-                        hopper.try_move_items(&state, &world).await;
-                    }
-                });
+                hopper.try_move_items(state, world);
             }
         }
     }
@@ -157,15 +147,15 @@ impl HopperBlockEntity {
             ticked_game_time: AtomicI64::new(0),
         }
     }
-    async fn try_move_items(&self, state: &HopperLikeProperties, world: &Arc<World>) {
+    fn try_move_items(&self, state: HopperLikeProperties, world: &Arc<World>) {
         if self.cooldown_time.load(Ordering::Relaxed) <= 0 && state.enabled {
             let mut success = if self.is_empty() {
                 false
             } else {
-                self.eject_items(world).await
+                self.eject_items(world)
             };
             if !self.inventory_full() {
-                success |= self.suck_in_items(world).await;
+                success |= self.suck_in_items(world);
             }
             if success {
                 self.cooldown_time.store(8, Ordering::Relaxed);
@@ -187,7 +177,7 @@ impl HopperBlockEntity {
         true
     }
 
-    async fn suck_in_items(&self, world: &Arc<World>) -> bool {
+    fn suck_in_items(&self, world: &Arc<World>) -> bool {
         // TODO getEntityContainer
         let pos_up = &self.position.up();
         let mut search_event = crate::plugin::api::events::inventory::hopper_inventory_search::HopperInventorySearchEvent::new(
@@ -195,7 +185,9 @@ impl HopperBlockEntity {
             *pos_up,
         );
         if let Some(server) = world.server.upgrade() {
-            server.plugin_manager.fire(&server, &mut search_event).await;
+            server
+                .plugin_manager
+                .fire_blocking(&server, &mut search_event);
         }
         if search_event.cancelled {
             return false;
@@ -256,7 +248,9 @@ impl HopperBlockEntity {
                                 registry_key,
                             );
                         if let Some(server) = world.server.upgrade() {
-                            server.plugin_manager.fire(&server, &mut pickup_event).await;
+                            server
+                                .plugin_manager
+                                .fire_blocking(&server, &mut pickup_event);
                         }
                         if pickup_event.cancelled {
                             continue;
@@ -292,7 +286,7 @@ impl HopperBlockEntity {
         false
     }
 
-    async fn eject_items(&self, world: &Arc<World>) -> bool {
+    fn eject_items(&self, world: &Arc<World>) -> bool {
         // TODO getEntityContainer
 
         if let Some(entity) = world.get_block_entity(&self.position.offset(to_offset(&self.facing)))
@@ -325,7 +319,9 @@ impl HopperBlockEntity {
                         1,
                     );
                     if let Some(server) = world.server.upgrade() {
-                        server.plugin_manager.fire(&server, &mut move_event).await;
+                        server
+                            .plugin_manager
+                            .fire_blocking(&server, &mut move_event);
                     }
                     if move_event.cancelled {
                         continue;

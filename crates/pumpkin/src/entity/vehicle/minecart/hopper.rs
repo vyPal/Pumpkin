@@ -42,39 +42,35 @@ impl HopperMinecart {
         let world = entity.world.load();
         let pos = entity.pos.load();
         let source_pos = BlockPos::floored(pos.x, pos.y + 1.5, pos.z);
-        let inventory = self.inventory.clone();
+        let inventory = &self.inventory;
         let cart_box = entity.bounding_box.load().expand(0.25, 0.0, 0.25);
-        let world_clone = world.clone();
 
-        tokio::spawn(async move {
-            if let Some(block_entity) = world_clone.get_block_entity(&source_pos)
-                && let Some(source) = block_entity.get_inventory()
-            {
-                for slot in 0..source.size() {
-                    let stack = source.get_stack(slot);
-                    if stack.is_empty() || !source.can_transfer_to(inventory.as_ref(), slot, &stack)
-                    {
-                        continue;
-                    }
-                    let backup = stack.clone();
-                    let one = source.remove_stack_specific(slot, 1);
-                    if HopperBlockEntity::add_one_item(source.as_ref(), inventory.as_ref(), &one) {
-                        return;
-                    }
-                    source.set_stack(slot, backup);
+        if let Some(block_entity) = world.get_block_entity(&source_pos)
+            && let Some(source) = block_entity.get_inventory()
+        {
+            for slot in 0..source.size() {
+                let stack = source.get_stack(slot);
+                if stack.is_empty() || !source.can_transfer_to(inventory.as_ref(), slot, &stack) {
+                    continue;
                 }
-                return;
+                let backup = stack.clone();
+                let one = source.remove_stack_specific(slot, 1);
+                if HopperBlockEntity::add_one_item(source.as_ref(), inventory.as_ref(), &one) {
+                    return;
+                }
+                source.set_stack(slot, backup);
             }
+            return;
+        }
 
-            let suction_box = BoundingBox::new(
-                Vector3::new(pos.x - 0.5, pos.y + 0.6875, pos.z - 0.5),
-                Vector3::new(pos.x + 0.5, pos.y + 2.0, pos.z + 0.5),
-            );
-            if Self::pick_up_item_internal(&world_clone, &inventory, &suction_box) {
-                return;
-            }
-            Self::pick_up_item_internal(&world_clone, &inventory, &cart_box);
-        });
+        let suction_box = BoundingBox::new(
+            Vector3::new(pos.x - 0.5, pos.y + 0.6875, pos.z - 0.5),
+            Vector3::new(pos.x + 0.5, pos.y + 2.0, pos.z + 0.5),
+        );
+        if Self::pick_up_item_internal(&world, inventory, &suction_box) {
+            return;
+        }
+        Self::pick_up_item_internal(&world, inventory, &cart_box);
     }
 
     fn pick_up_item_internal(

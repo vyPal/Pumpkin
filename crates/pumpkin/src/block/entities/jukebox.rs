@@ -1,6 +1,4 @@
 use std::any::Any;
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -58,26 +56,21 @@ impl BlockEntity for JukeboxBlockEntity {
         }
     }
 
-    fn write_nbt<'a>(
-        &'a self,
-        nbt: &'a mut NbtCompound,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            let record = self
-                .record_stack
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            if !record.is_empty() {
-                let mut record_nbt = NbtCompound::new();
-                record.write_item_stack(&mut record_nbt);
-                nbt.put(RECORD_ITEM_NBT_KEY, record_nbt);
-            }
+    fn write_nbt(&self, nbt: &mut NbtCompound) {
+        let record = self
+            .record_stack
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !record.is_empty() {
+            let mut record_nbt = NbtCompound::new();
+            record.write_item_stack(&mut record_nbt);
+            nbt.put(RECORD_ITEM_NBT_KEY, record_nbt);
+        }
 
-            let ticks = self.ticks_since_song_started.load(Ordering::Relaxed);
-            if ticks > 0 {
-                nbt.put_long(TICKS_SINCE_SONG_STARTED_NBT_KEY, ticks as i64);
-            }
-        })
+        let ticks = self.ticks_since_song_started.load(Ordering::Relaxed);
+        if ticks > 0 {
+            nbt.put_long(TICKS_SINCE_SONG_STARTED_NBT_KEY, ticks as i64);
+        }
     }
 
     fn tick(&self, _world: &Arc<World>) {

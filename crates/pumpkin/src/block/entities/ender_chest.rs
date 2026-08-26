@@ -4,7 +4,6 @@ use pumpkin_util::math::position::BlockPos;
 use pumpkin_util::random::xoroshiro128::Xoroshiro;
 use pumpkin_util::random::{RandomImpl, get_seed};
 use std::any::Any;
-use std::pin::Pin;
 use std::sync::Arc;
 
 use crate::block::viewer::{ViewerCountListener, ViewerCountTracker, ViewerCountTrackerExt};
@@ -38,12 +37,7 @@ impl BlockEntity for EnderChestBlockEntity {
         }
     }
 
-    fn write_nbt<'a>(
-        &'a self,
-        _nbt: &'a mut NbtCompound,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async {})
-    }
+    fn write_nbt(&self, _nbt: &mut NbtCompound) {}
 
     fn chunk_data_nbt(&self) -> Option<NbtCompound> {
         Some(NbtCompound::new())

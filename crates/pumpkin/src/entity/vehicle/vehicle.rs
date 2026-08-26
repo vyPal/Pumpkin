@@ -42,9 +42,9 @@ impl VehicleEntity {
                 self.entity.entity_id,
             );
         if let Some(server) = self.entity.world.load().server.upgrade() {
-            tokio::spawn(async move {
-                server.plugin_manager.fire(&server, &mut update_event).await;
-            });
+            server
+                .plugin_manager
+                .fire_blocking(&server, &mut update_event);
         }
     }
 

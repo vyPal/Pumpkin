@@ -180,11 +180,7 @@ impl CommandExecutor for CloneExecutor {
                     if should_clone {
                         let block_entity_nbt = world.get_block_entity(&src_pos).map(|be| {
                             let mut nbt = NbtCompound::new();
-                            if let Ok(handle) = tokio::runtime::Handle::try_current() {
-                                tokio::task::block_in_place(|| {
-                                    handle.block_on(be.write_internal(&mut nbt));
-                                });
-                            }
+                            be.write_internal(&mut nbt);
                             nbt
                         });
 

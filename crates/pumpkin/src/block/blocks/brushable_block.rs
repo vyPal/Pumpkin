@@ -30,11 +30,18 @@ impl BrushableBlock {
         if let Some(be) = world.get_block_entity(pos)
             && let Some(brush_be) = be.as_any().downcast_ref::<BrushableBlockBlockEntity>()
         {
-            let mut hits = brush_be.hits.lock().await;
+            let mut hits = brush_be
+                .hits
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             *hits += 1;
 
             if *hits >= 4 {
-                let item = brush_be.item.lock().await.take();
+                let item = brush_be
+                    .item
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .take();
                 if let Some(item_stack) = item {
                     world.drop_stack(pos, item_stack);
                 }
@@ -84,7 +91,11 @@ impl BlockBehaviour for BrushableBlock {
     fn broken(&self, args: BrokenArgs<'_>) {
         if let Some(be) = args.world.get_block_entity(args.position)
             && let Some(brush_be) = be.as_any().downcast_ref::<BrushableBlockBlockEntity>()
-            && let Some(contained) = brush_be.item.blocking_lock().take()
+            && let Some(contained) = brush_be
+                .item
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .take()
         {
             args.world.drop_stack(args.position, contained);
         }

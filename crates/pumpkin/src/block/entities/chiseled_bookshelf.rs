@@ -4,8 +4,6 @@ use pumpkin_data::item_stack::ItemStack;
 use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_util::math::position::BlockPos;
 use std::any::Any;
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::RwLock;
 use std::{
     array::from_fn,
@@ -66,21 +64,16 @@ impl BlockEntity for ChiseledBookshelfBlockEntity {
         bookshelf
     }
 
-    fn write_nbt<'a>(
-        &'a self,
-        nbt: &'a mut NbtCompound,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            let items = self
-                .items
-                .read()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            sync_write_items_to_nbt(items.as_slice(), nbt);
-            nbt.put_int(
-                LAST_INTERACTED_SLOT,
-                i32::from(self.last_interacted_slot.load(Ordering::Relaxed)),
-            );
-        })
+    fn write_nbt(&self, nbt: &mut NbtCompound) {
+        let items = self
+            .items
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        sync_write_items_to_nbt(items.as_slice(), nbt);
+        nbt.put_int(
+            LAST_INTERACTED_SLOT,
+            i32::from(self.last_interacted_slot.load(Ordering::Relaxed)),
+        );
     }
 
     fn get_inventory(self: Arc<Self>) -> Option<Arc<dyn Inventory>> {

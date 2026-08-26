@@ -196,21 +196,13 @@ impl BlockBehaviour for BedBlock {
     }
 
     fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
-        let player = Arc::clone(args.player);
-        let world = Arc::clone(args.world);
-        let block_id = args.block.id;
-        let position = *args.position;
-        tokio::spawn(async move {
-            let block = Block::from_id(block_id);
-            Self::use_bed(&world, &player, block, &position).await;
-        });
-        BlockActionResult::SuccessServer
+        Self::use_bed(args.world, args.player, args.block, args.position)
     }
 }
 
 impl BedBlock {
     #[expect(clippy::too_many_lines)]
-    async fn use_bed(
+    fn use_bed(
         world: &Arc<World>,
         player: &Arc<Player>,
         block: &Block,
@@ -341,7 +333,7 @@ impl BedBlock {
                     player.clone(),
                     bed_head_pos,
                 );
-            server.plugin_manager.fire(&server, &mut event).await;
+            server.plugin_manager.fire_blocking(&server, &mut event);
             if event.cancelled {
                 return BlockActionResult::SuccessServer;
             }

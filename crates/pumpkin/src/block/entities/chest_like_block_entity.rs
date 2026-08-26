@@ -52,33 +52,27 @@ macro_rules! impl_block_entity_for_chest {
                 chest
             }
 
-            fn write_nbt<'a>(
-                &'a self,
-                nbt: &'a mut pumpkin_nbt::compound::NbtCompound,
-            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>> {
+            fn write_nbt(&self, nbt: &mut pumpkin_nbt::compound::NbtCompound) {
                 use pumpkin_world::inventory::Inventory;
 
-                Box::pin(async move {
-                    // Clone the loot table key without holding the lock across an await.
-                    let loot_table_key = {
-                        let guard = self
-                            .loot_table
-                            .lock()
-                            .unwrap_or_else(std::sync::PoisonError::into_inner);
-                        guard.clone()
-                    };
+                let loot_table_key = {
+                    let guard = self
+                        .loot_table
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    guard.clone()
+                };
 
-                    if let Some(key) = loot_table_key {
-                        // Persist deferred loot: write the key and seed; skip items.
-                        nbt.put_string("LootTable", key);
-                        if self.loot_table_seed != 0 {
-                            nbt.put_long("LootTableSeed", self.loot_table_seed);
-                        }
-                    } else {
-                        // Loot has already been generated, so persist the actual items.
-                        self.write_inventory_nbt(nbt, true);
+                if let Some(key) = loot_table_key {
+                    // Persist deferred loot: write the key and seed; skip items.
+                    nbt.put_string("LootTable", key);
+                    if self.loot_table_seed != 0 {
+                        nbt.put_long("LootTableSeed", self.loot_table_seed);
                     }
-                })
+                } else {
+                    // Loot has already been generated, so persist the actual items.
+                    self.write_inventory_nbt(nbt, true);
+                }
             }
 
             fn tick(&self, world: &Arc<$crate::world::World>) {

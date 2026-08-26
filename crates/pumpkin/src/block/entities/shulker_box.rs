@@ -54,13 +54,8 @@ impl BlockEntity for ShulkerBoxBlockEntity {
         shulker_box
     }
 
-    fn write_nbt<'a>(
-        &'a self,
-        nbt: &'a mut NbtCompound,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            self.write_inventory_nbt(nbt, true);
-        })
+    fn write_nbt(&self, nbt: &mut NbtCompound) {
+        self.write_inventory_nbt(nbt, true);
     }
 
     fn tick(&self, world: &Arc<World>) {

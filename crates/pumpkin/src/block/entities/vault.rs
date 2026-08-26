@@ -2,8 +2,7 @@ use super::BlockEntity;
 use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_util::math::position::BlockPos;
 use std::collections::HashSet;
-use std::pin::Pin;
-use tokio::sync::Mutex;
+use std::sync::Mutex;
 use uuid::Uuid;
 
 pub struct VaultBlockEntity {
@@ -34,18 +33,17 @@ impl BlockEntity for VaultBlockEntity {
         }
     }
 
-    fn write_nbt<'a>(
-        &'a self,
-        nbt: &'a mut NbtCompound,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            if let Some(cfg) = self.config.lock().await.as_ref() {
-                nbt.put_compound("config", cfg.clone());
-            }
-            if let Some(data) = self.server_data.lock().await.as_ref() {
-                nbt.put_compound("server_data", data.clone());
-            }
-        })
+    fn write_nbt(&self, nbt: &mut NbtCompound) {
+        if let Ok(cfg) = self.config.lock()
+            && let Some(cfg) = cfg.as_ref()
+        {
+            nbt.put_compound("config", cfg.clone());
+        }
+        if let Ok(data) = self.server_data.lock()
+            && let Some(data) = data.as_ref()
+        {
+            nbt.put_compound("server_data", data.clone());
+        }
     }
 
     fn chunk_data_nbt(&self) -> Option<NbtCompound> {
@@ -82,10 +80,16 @@ impl VaultBlockEntity {
     }
 
     pub fn has_rewarded(&self, player_id: &Uuid) -> bool {
-        self.rewarded_players.blocking_lock().contains(player_id)
+        self.rewarded_players
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .contains(player_id)
     }
 
     pub fn mark_rewarded(&self, player_id: Uuid) {
-        self.rewarded_players.blocking_lock().insert(player_id);
+        self.rewarded_players
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(player_id);
     }
 }

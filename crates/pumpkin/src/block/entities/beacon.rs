@@ -1,8 +1,6 @@
-use futures::Future;
 use pumpkin_data::data_component_impl::IDSetContent;
 use pumpkin_data::tag::Taggable;
 use std::any::Any;
-use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -262,36 +260,31 @@ impl BlockEntity for BeaconBlockEntity {
         }
     }
 
-    fn write_nbt<'a>(
-        &'a self,
-        nbt: &'a mut NbtCompound,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            nbt.put_int(
-                "primary_effect",
-                self.primary_effect.load(Ordering::Relaxed),
-            );
-            nbt.put_int(
-                "secondary_effect",
-                self.secondary_effect.load(Ordering::Relaxed),
-            );
-            nbt.put_int("Levels", self.levels.load(Ordering::Relaxed));
+    fn write_nbt(&self, nbt: &mut NbtCompound) {
+        nbt.put_int(
+            "primary_effect",
+            self.primary_effect.load(Ordering::Relaxed),
+        );
+        nbt.put_int(
+            "secondary_effect",
+            self.secondary_effect.load(Ordering::Relaxed),
+        );
+        nbt.put_int("Levels", self.levels.load(Ordering::Relaxed));
 
-            if let Some(name) = &*self
-                .custom_name
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-            {
-                nbt.put_string("CustomName", name.clone());
-            }
-            if let Some(lock) = &*self
-                .lock_key
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-            {
-                nbt.put_string("Lock", lock.clone());
-            }
-        })
+        if let Some(name) = &*self
+            .custom_name
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        {
+            nbt.put_string("CustomName", name.clone());
+        }
+        if let Some(lock) = &*self
+            .lock_key
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        {
+            nbt.put_string("Lock", lock.clone());
+        }
     }
 
     fn tick(&self, world: &Arc<World>) {

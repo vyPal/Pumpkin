@@ -426,18 +426,14 @@ impl PlayerAdvancement {
             result = true;
             self.progress_changed.insert(advancement);
             if !was_done && progress.is_done() {
-                let player_c = player.clone();
-                let adv_id = advancement.id.to_string();
-                tokio::spawn(async move {
-                    if let Some(server) = player_c.world().server.upgrade() {
-                        let mut event =
-                            crate::plugin::api::events::player::player_advancement_done::PlayerAdvancementDoneEvent::new(
-                                player_c,
-                                adv_id,
-                            );
-                        server.plugin_manager.fire(&server, &mut event).await;
-                    }
-                });
+                if let Some(server) = player.world().server.upgrade() {
+                    let mut event =
+                        crate::plugin::api::events::player::player_advancement_done::PlayerAdvancementDoneEvent::new(
+                            player.clone(),
+                            advancement.id.to_string(),
+                        );
+                    server.plugin_manager.fire_blocking(&server, &mut event);
+                }
                 Self::grant_reward(&player, advancement.reward);
                 if let Some(display) = advancement.display
                     && display.announce_to_chat
@@ -448,24 +444,22 @@ impl PlayerAdvancement {
                         .game_rules
                         .show_advancement_messages
                 {
-                    tokio::spawn(async move {
-                        let player_name = player.get_display_name();
-                        let je_component = TextComponent::translate(
-                            display.frame_type.get_translation(),
-                            [player_name.clone(), advancement.name()],
-                        );
-                        let je_packet = CSystemChatMessage::new(&je_component, false);
+                    let player_name = player.get_display_name();
+                    let je_component = TextComponent::translate(
+                        display.frame_type.get_translation(),
+                        [player_name.clone(), advancement.name()],
+                    );
+                    let je_packet = CSystemChatMessage::new(&je_component, false);
 
-                        let be_packet = SText::translation(
-                            translation::bedrock::CHAT_TYPE_ACHIEVEMENT.to_string(),
-                            vec![
-                                player_name.0.to_bedrock_string(),
-                                display.get_title().0.to_bedrock_string(),
-                            ],
-                        );
+                    let be_packet = SText::translation(
+                        translation::bedrock::CHAT_TYPE_ACHIEVEMENT.to_string(),
+                        vec![
+                            player_name.0.to_bedrock_string(),
+                            display.get_title().0.to_bedrock_string(),
+                        ],
+                    );
 
-                        player.world().broadcast_editioned(&je_packet, &be_packet);
-                    });
+                    player.world().broadcast_editioned(&je_packet, &be_packet);
                 }
             }
         }

@@ -1,8 +1,7 @@
 use super::BlockEntity;
 use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_util::math::position::BlockPos;
-use std::pin::Pin;
-use tokio::sync::Mutex;
+use std::sync::Mutex;
 
 pub struct SculkCatalystBlockEntity {
     pub position: BlockPos,
@@ -29,13 +28,10 @@ impl BlockEntity for SculkCatalystBlockEntity {
         }
     }
 
-    fn write_nbt<'a>(
-        &'a self,
-        nbt: &'a mut NbtCompound,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            nbt.put_int("decay_delay", *self.decay_delay.lock().await);
-        })
+    fn write_nbt(&self, nbt: &mut NbtCompound) {
+        if let Ok(decay_delay) = self.decay_delay.lock() {
+            nbt.put_int("decay_delay", *decay_delay);
+        }
     }
 
     fn chunk_data_nbt(&self) -> Option<NbtCompound> {
