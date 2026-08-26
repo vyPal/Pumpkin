@@ -51,7 +51,7 @@ impl BlockEntity for SculkSensorBlockEntity {
 impl SculkSensorBlockEntity {
     pub const ID: &'static str = "minecraft:sculk_sensor";
     #[must_use]
-    pub fn new(position: BlockPos) -> Self {
+    pub const fn new(position: BlockPos) -> Self {
         Self {
             position,
             last_vibration_frequency: Mutex::new(0),

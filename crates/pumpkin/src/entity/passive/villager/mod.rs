@@ -610,7 +610,8 @@ impl VillagerEntity {
             target.0.z,
             2,
         );
-        map.blocking_lock()
+        map.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .decorations
             .push(crate::world::map::MapDecoration {
                 icon_type,
@@ -811,7 +812,7 @@ impl VillagerEntity {
                 < range * range
     }
 
-    async fn complete_trade(&self, offer_index: usize, world: &Arc<World>, player_uuid: Uuid) {
+    fn complete_trade(&self, offer_index: usize, world: &Arc<World>, player_uuid: Uuid) {
         let (xp_gain, reward_exp) = {
             let mut offers = self
                 .offers
@@ -855,11 +856,11 @@ impl VillagerEntity {
                     .or_default();
                 *value = (*value + 2).min(GossipType::Trading.max_value());
             };
-            self.resend_offers_to_player(&player).await;
+            self.resend_offers_to_player(&player);
         }
     }
 
-    async fn resend_offers_to_player(&self, player: &Arc<Player>) {
+    fn resend_offers_to_player(&self, player: &Arc<Player>) {
         let trading_player = *self
             .trading_player
             .lock()
@@ -904,11 +905,10 @@ impl VillagerEntity {
         if !ok {
             return;
         }
-        self.send_trade_offers(player, sync_id, offers, villager_data)
-            .await;
+        self.send_trade_offers(player, sync_id, &offers, villager_data);
     }
 
-    async fn resend_offers_to_trading_player(&self) {
+    fn resend_offers_to_trading_player(&self) {
         let trading_player = *self
             .trading_player
             .lock()
@@ -954,8 +954,7 @@ impl VillagerEntity {
         if !ok {
             return;
         }
-        self.send_trade_offers(&player, sync_id, offers, villager_data)
-            .await;
+        self.send_trade_offers(&player, sync_id, &offers, villager_data);
     }
 
     fn decay_gossips(&self, game_time: i64) {
@@ -997,9 +996,7 @@ impl VillagerEntity {
                 .as_ref()
                 .and_then(Weak::upgrade)
         {
-            tokio::spawn(async move {
-                villager.resend_offers_to_trading_player().await;
-            });
+            villager.resend_offers_to_trading_player();
         }
     }
 
@@ -1298,7 +1295,7 @@ impl VillagerEntity {
         entity.play_sound(pumpkin_data::sound::Sound::EntityVillagerNo);
     }
 
-    pub async fn open_trading_screen(&self, player: &Arc<Player>) {
+    pub fn open_trading_screen(&self, player: &Arc<Player>) {
         // Open the merchant screen and then send the current offers packet
         if let Some(sync_id) = player.open_handled_screen(self, None) {
             let offers = self
@@ -1310,8 +1307,7 @@ impl VillagerEntity {
                 .villager_data
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            self.send_trade_offers(player, sync_id, offers, villager_data)
-                .await;
+            self.send_trade_offers(player, sync_id, &offers, villager_data);
         }
     }
 
@@ -1421,18 +1417,18 @@ impl VillagerEntity {
         data
     }
 
-    async fn send_trade_offers(
+    fn send_trade_offers(
         &self,
         player: &Player,
         sync_id: u8,
-        offers: Vec<pumpkin_protocol::java::client::play::MerchantOffer>,
+        offers: &[pumpkin_protocol::java::client::play::MerchantOffer],
         villager_data: VillagerData,
     ) {
         use pumpkin_protocol::{bedrock::client::CUpdateTrade, codec::var_long::VarLong};
 
         let java = CMerchantOffers::new(
             VarInt(i32::from(sync_id)),
-            offers.clone(),
+            offers.to_owned(),
             villager_data.level,
             VarInt(self.xp.load(Ordering::Relaxed)),
             true,
@@ -1448,12 +1444,9 @@ impl VillagerEntity {
             display_name: ScreenHandlerFactory::get_display_name(self).to_pretty_console(),
             use_new_trade_screen: true,
             using_economy_trade: true,
-            data: Self::bedrock_trade_data(&offers, villager_data.level.0),
+            data: Self::bedrock_trade_data(offers, villager_data.level.0),
         };
-        player
-            .client
-            .enqueue_packet_editioned(&java, &bedrock)
-            .await;
+        player.client.try_enqueue_packet_editioned(&java, &bedrock);
     }
 }
 
@@ -1531,12 +1524,7 @@ impl ScreenHandlerFactory for VillagerEntity {
 
         handler.on_trade = Some(Box::new(move |offer_index| {
             if let Some(villager) = self_weak.upgrade() {
-                let world = world.clone();
-                tokio::spawn(async move {
-                    villager
-                        .complete_trade(offer_index, &world, player_uuid)
-                        .await;
-                });
+                villager.complete_trade(offer_index, &world, player_uuid);
             }
         }));
 
@@ -2357,10 +2345,7 @@ impl Mob for VillagerEntity {
             .as_ref()
             .and_then(Weak::upgrade);
         if let Some(villager) = villager {
-            let player = player.clone();
-            tokio::spawn(async move {
-                villager.open_trading_screen(&player).await;
-            });
+            villager.open_trading_screen(player);
         }
 
         true

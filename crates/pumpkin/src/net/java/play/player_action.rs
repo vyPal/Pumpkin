@@ -129,7 +129,10 @@ impl JavaClient {
                             self.sync_block_state_to_client(&world, position).await;
                         } else {
                             player.mining.store(true, Ordering::Relaxed);
-                            *player.mining_pos.lock().await = position;
+                            *player
+                                .mining_pos
+                                .lock()
+                                .unwrap_or_else(std::sync::PoisonError::into_inner) = position;
                             let progress = (speed * 10.0) as i32;
                             player
                                 .current_block_breaking_speed

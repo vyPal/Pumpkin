@@ -1450,7 +1450,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         player: Resource<Player>,
     ) -> wasmtime::Result<Option<Resource<pumpkin::plugin::text::TextComponent>>> {
         let player = player_from_resource(self, &player)?;
-        let tab_list_name = player.get_tab_list_name().await;
+        let tab_list_name = player.get_tab_list_name();
         tab_list_name.map_or_else(
             || Ok(None),
             |name| {
@@ -1468,7 +1468,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     ) -> wasmtime::Result<()> {
         let name = name.map(|n| text_component_from_resource(self, &n));
         let player = player_from_resource(self, &player)?;
-        player.set_tab_list_name(name).await;
+        player.set_tab_list_name(name);
         Ok(())
     }
 
@@ -1879,7 +1879,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
         let other = player_from_resource(self, &other)?;
-        player.hide_player(other.gameprofile.id).await;
+        player.hide_player(other.gameprofile.id);
         Ok(())
     }
 
@@ -1890,7 +1890,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
         let other = player_from_resource(self, &other)?;
-        player.show_player(other.gameprofile.id).await;
+        player.show_player(other.gameprofile.id);
         Ok(())
     }
 
@@ -1901,7 +1901,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     ) -> wasmtime::Result<bool> {
         let player = player_from_resource(self, &player)?;
         let other = player_from_resource(self, &other)?;
-        Ok(player.can_see(&other.gameprofile.id).await)
+        Ok(player.can_see(&other.gameprofile.id))
     }
 
     async fn can_see_player(
@@ -1911,7 +1911,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     ) -> wasmtime::Result<bool> {
         let player = player_from_resource(self, &player)?;
         let other = player_from_resource(self, &other)?;
-        Ok(player.can_see(&other.gameprofile.id).await)
+        Ok(player.can_see(&other.gameprofile.id))
     }
 
     async fn set_tab_list_ping(
@@ -2625,7 +2625,10 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         else {
             return Ok(None);
         };
-        let guard = player.advancements.lock().await;
+        let guard = player
+            .advancements
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let progress = guard.progress.map.get(advancement).map_or_else(
             || pumpkin::plugin::advancement::AdvancementProgress {
                 advancement_id: advancement.id.to_string(),
@@ -2667,7 +2670,10 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         else {
             return Ok(false);
         };
-        let mut guard = player.advancements.lock().await;
+        let mut guard = player
+            .advancements
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let awarded = guard.award(advancement, &criterion);
         if awarded {
             guard.flush_dirty(&player, true);
@@ -2689,7 +2695,10 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         else {
             return Ok(false);
         };
-        let mut guard = player.advancements.lock().await;
+        let mut guard = player
+            .advancements
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let revoked = guard.revoke(advancement, &criterion);
         if revoked {
             guard.flush_dirty(&player, true);
@@ -2710,7 +2719,10 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         else {
             return Ok(false);
         };
-        let mut guard = player.advancements.lock().await;
+        let mut guard = player
+            .advancements
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let progress = guard.progress.get_mut_or_start_progress(advancement);
         if progress.is_done() {
             return Ok(false);
@@ -2741,7 +2753,10 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         else {
             return Ok(false);
         };
-        let mut guard = player.advancements.lock().await;
+        let mut guard = player
+            .advancements
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let progress = guard.progress.get_mut_or_start_progress(advancement);
         if !progress.has_progress() {
             return Ok(false);
@@ -2772,7 +2787,10 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         else {
             return Ok(false);
         };
-        let guard = player.advancements.lock().await;
+        let guard = player
+            .advancements
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let done = guard
             .progress
             .map
@@ -2786,7 +2804,10 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         player: Resource<Player>,
     ) -> wasmtime::Result<Vec<String>> {
         let player = player_from_resource(self, &player)?;
-        let guard = player.advancements.lock().await;
+        let guard = player
+            .advancements
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let list = guard
             .progress
             .map
@@ -2802,7 +2823,10 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         player: Resource<Player>,
     ) -> wasmtime::Result<Option<String>> {
         let player = player_from_resource(self, &player)?;
-        let guard = player.advancements.lock().await;
+        let guard = player
+            .advancements
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         Ok(guard.last_selected_tab.map(|adv| adv.id.to_string()))
     }
 
@@ -2815,8 +2839,11 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         let target_adv = tab_id.as_deref().and_then(
             crate::plugin::loader::wasm::wasm_host::wit::v0_1::advancement::find_advancement,
         );
-        let mut guard = player.advancements.lock().await;
-        guard.set_selected_tab(target_adv).await;
+        let mut guard = player
+            .advancements
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        guard.set_selected_tab(target_adv);
         Ok(())
     }
 

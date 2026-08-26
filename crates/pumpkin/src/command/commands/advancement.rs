@@ -146,7 +146,10 @@ impl Action {
         advancements: &[&'static Advancement],
         show_advancement: bool,
     ) -> i32 {
-        let mut guard = player.advancements.blocking_lock();
+        let mut guard = player
+            .advancements
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if !show_advancement {
             guard.flush_dirty(player, true);
         }
@@ -166,7 +169,10 @@ impl Action {
         advancement: &'static Advancement,
         criterion: &str,
     ) -> bool {
-        let mut guard = player.advancements.blocking_lock();
+        let mut guard = player
+            .advancements
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         match self {
             Self::Grant => guard.award(advancement, criterion),
             Self::Revoke => guard.revoke(advancement, criterion),

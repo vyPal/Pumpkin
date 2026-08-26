@@ -48,7 +48,7 @@ impl BlockEntity for SculkCatalystBlockEntity {
 impl SculkCatalystBlockEntity {
     pub const ID: &'static str = "minecraft:sculk_catalyst";
     #[must_use]
-    pub fn new(position: BlockPos) -> Self {
+    pub const fn new(position: BlockPos) -> Self {
         Self {
             position,
             decay_delay: Mutex::new(0),

@@ -247,10 +247,4 @@ impl JavaClient {
             }
         }
     }
-
-    /// Checks if the block placed was a sign, then opens a dialog.
-    pub async fn send_sign_packet(&self, block_position: BlockPos, is_front_text: bool) {
-        self.enqueue_client_packet(&COpenSignEditor::new(block_position, is_front_text))
-            .await;
-    }
 }

@@ -2041,7 +2041,11 @@ impl LivingEntity {
         self.last_damage_taken.store(0f32);
 
         self.entity.portal_cooldown.store(0, Relaxed);
-        *self.entity.portal_manager.blocking_lock() = None;
+        *self
+            .entity
+            .portal_manager
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
 
         // Clear fall/fire state
         self.fall_distance.store(0f32);

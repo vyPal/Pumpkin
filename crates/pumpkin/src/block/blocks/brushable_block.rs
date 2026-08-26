@@ -17,7 +17,7 @@ impl BlockMetadata for BrushableBlock {
 }
 
 impl BrushableBlock {
-    pub async fn brush(
+    pub fn brush(
         world: &Arc<crate::world::World>,
         pos: &pumpkin_util::math::position::BlockPos,
         block: &Block,

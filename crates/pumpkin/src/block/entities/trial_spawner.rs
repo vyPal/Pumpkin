@@ -77,7 +77,7 @@ impl BlockEntity for TrialSpawnerBlockEntity {
 impl TrialSpawnerBlockEntity {
     pub const ID: &'static str = "minecraft:trial_spawner";
     #[must_use]
-    pub fn new(position: BlockPos) -> Self {
+    pub const fn new(position: BlockPos) -> Self {
         Self {
             position,
             normal_config: Mutex::new(None),

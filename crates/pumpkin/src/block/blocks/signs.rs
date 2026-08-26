@@ -32,8 +32,8 @@ use crate::item::items::dye::DyeItem;
 use crate::item::items::glowing_ink_sac::GlowingInkSacItem;
 use crate::item::items::honeycomb::HoneyCombItem;
 use crate::item::items::ink_sac::InkSacItem;
-use crate::net::ClientPlatform;
 use crate::world::World;
+use pumpkin_protocol::java::client::play::COpenSignEditor;
 
 #[pumpkin_block_from_tag("minecraft:all_signs")]
 pub struct SignBlock;
@@ -315,13 +315,8 @@ impl BlockBehaviour for SignBlock {
     }
 
     fn player_placed(&self, args: PlayerPlacedArgs<'_>) {
-        let client = args.player.client.clone();
-        let pos = *args.position;
-        tokio::spawn(async move {
-            if let crate::net::ClientPlatform::Java(java) = client.as_ref() {
-                java.send_sign_packet(pos, true).await;
-            }
-        });
+        args.player
+            .try_send_client_packet(&COpenSignEditor::new(*args.position, true));
     }
 
     fn can_place_at(&self, args: CanPlaceAtArgs<'_>) -> bool {
@@ -454,13 +449,8 @@ impl BlockBehaviour for SignBlock {
 
         let is_facing_front_text =
             is_facing_front_text(args.world, args.position, args.block, args.player);
-        let client = args.player.client.clone();
-        let pos = *args.position;
-        tokio::spawn(async move {
-            if let ClientPlatform::Java(java) = client.as_ref() {
-                java.send_sign_packet(pos, is_facing_front_text).await;
-            }
-        });
+        args.player
+            .try_send_client_packet(&COpenSignEditor::new(*args.position, is_facing_front_text));
 
         BlockActionResult::SuccessServer
     }

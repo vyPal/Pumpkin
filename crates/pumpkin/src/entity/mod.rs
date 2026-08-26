@@ -79,7 +79,6 @@ use std::sync::{
         Ordering::{self, Relaxed},
     },
 };
-use tokio::sync::Mutex;
 use uuid::Uuid;
 
 pub mod ageable;
@@ -846,7 +845,7 @@ pub struct Entity {
 
     pub portal_cooldown: AtomicU32,
 
-    pub portal_manager: Mutex<Option<Mutex<PortalProcessor>>>,
+    pub portal_manager: std::sync::Mutex<Option<PortalProcessor>>,
     /// Custom name for the entity
     pub custom_name: ArcSwap<Option<TextComponent>>,
     /// Indicates whether the entity's custom name is visible
@@ -994,7 +993,7 @@ impl Entity {
             current_biome: ArcSwap::new(Arc::new(current_biome)),
             last_biome_update_pos: AtomicCell::new(BlockPos::new(floor_x, floor_y, floor_z)),
             portal_cooldown: AtomicU32::new(0),
-            portal_manager: Mutex::new(None),
+            portal_manager: std::sync::Mutex::new(None),
             custom_name: ArcSwap::new(Arc::new(None)),
             custom_name_visible: AtomicBool::new(false),
             silent: AtomicBool::new(false),
@@ -2331,10 +2330,7 @@ impl Entity {
             return;
         };
         let mut should_remove = false;
-        if let Some(pmanager_mutex) = manager_guard.as_ref() {
-            let Ok(mut portal_processor) = pmanager_mutex.try_lock() else {
-                return;
-            };
+        if let Some(portal_processor) = manager_guard.as_mut() {
             if portal_processor.process_portal_teleportation(
                 &self.world.load(),
                 caller.as_ref(),
@@ -2495,7 +2491,10 @@ impl Entity {
             return;
         }
 
-        let mut manager = self.portal_manager.blocking_lock();
+        let mut manager = self
+            .portal_manager
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let world = self.world.load();
         if manager.is_none() {
             let portal_type = if portal_world.dimension == Dimension::THE_END
@@ -2534,9 +2533,8 @@ impl Entity {
                 });
             }
 
-            *manager = Some(Mutex::new(new_manager));
-        } else if let Some(manager) = manager.as_ref() {
-            let mut manager = manager.blocking_lock();
+            *manager = Some(new_manager);
+        } else if let Some(manager) = manager.as_mut() {
             manager.entry_position = pos;
             manager.inside_portal_this_tick = true;
         }
@@ -3561,7 +3559,11 @@ impl Entity {
                 // Use fallback position as placeholder — updated below with real position
                 let placeholder =
                     Vector3::new(self.pos.load().x, vehicle_box.max.y, self.pos.load().z);
-                *player.awaiting_teleport.lock().await = Some((id.into(), placeholder));
+                *player
+                    .awaiting_teleport
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) =
+                    Some((id.into(), placeholder));
                 Some(id)
             } else {
                 None
@@ -3774,7 +3776,11 @@ impl Entity {
                 if let Some(id) = teleport_id {
                     player.get_entity().set_pos(dismount_pos);
                     // Update awaiting_teleport with the real dismount position
-                    *player.awaiting_teleport.lock().await = Some((id.into(), dismount_pos));
+                    *player
+                        .awaiting_teleport
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) =
+                        Some((id.into(), dismount_pos));
                     // Use send_client_packet so the teleport goes through
                     // the same packet queue as CSetPassengers, preserving send order.
                     // Vanilla uses DELTA | ROT flags: position absolute, delta/rotation relative.

@@ -33,9 +33,13 @@ impl BedrockClient {
                 let (block, state) = world.get_block_and_state(&location);
 
                 if player.mining.load(Ordering::Relaxed)
-                    && *player.mining_pos.lock().await != location
+                    && *player
+                        .mining_pos
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        != location
                 {
-                    player.stop_mining().await;
+                    player.stop_mining();
                 }
 
                 if player.gamemode.load() == GameMode::Creative {
@@ -52,7 +56,7 @@ impl BedrockClient {
                 } else if !state.is_air() {
                     let speed = crate::block::calc_block_breaking(player, state, block);
                     if speed >= 1.0 {
-                        player.stop_mining().await;
+                        player.stop_mining();
                         let broken_state = world.get_block_state(&location);
                         let can_harvest = player.can_harvest(broken_state, block);
                         let new_state = world.break_block(
@@ -75,7 +79,10 @@ impl BedrockClient {
                             }
                         }
                     } else {
-                        let mut mining_pos = player.mining_pos.lock().await;
+                        let mut mining_pos = player
+                            .mining_pos
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
                         let starts_breaking =
                             !player.mining.load(Ordering::Relaxed) || *mining_pos != location;
                         let progress = if starts_breaking {
@@ -133,12 +140,16 @@ impl BedrockClient {
                     let elapsed = player.tick_counter.load(Ordering::Relaxed)
                         - player.start_mining_time.load(Ordering::Relaxed)
                         + 1;
-                    let same_block = *player.mining_pos.lock().await == location;
+                    let same_block = *player
+                        .mining_pos
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        == location;
                     if player.mining.load(Ordering::Relaxed)
                         && same_block
                         && speed * elapsed as f32 >= MIN_PREDICTED_BREAK_PROGRESS
                     {
-                        player.stop_mining().await;
+                        player.stop_mining();
 
                         let can_harvest = player.can_harvest(state, block);
                         let flags = if can_harvest {
@@ -163,7 +174,7 @@ impl BedrockClient {
                         self.enqueue_client_packet(&CUpdateBlock::new(location, runtime_id as u32))
                             .await;
                         if matches!(action, PlayerAction::StopDestroyBlock) {
-                            player.stop_mining().await;
+                            player.stop_mining();
                         } else {
                             world.set_block_breaking(
                                 entity,
@@ -178,7 +189,7 @@ impl BedrockClient {
                         }
                     }
                 } else if matches!(action, PlayerAction::StopDestroyBlock) {
-                    player.stop_mining().await;
+                    player.stop_mining();
                 }
             }
             PlayerAction::CrackBlock => {
@@ -186,7 +197,7 @@ impl BedrockClient {
                 // cracking is done fully server-side.
             }
             PlayerAction::AbortDestroyBlock => {
-                player.stop_mining().await;
+                player.stop_mining();
             }
             PlayerAction::DropItem => {
                 player.drop_held_item(false).await;

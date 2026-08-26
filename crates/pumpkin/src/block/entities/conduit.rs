@@ -62,7 +62,7 @@ impl BlockEntity for ConduitBlockEntity {
 impl ConduitBlockEntity {
     pub const ID: &'static str = "minecraft:conduit";
     #[must_use]
-    pub fn new(position: BlockPos) -> Self {
+    pub const fn new(position: BlockPos) -> Self {
         Self {
             position,
             active: Mutex::new(false),

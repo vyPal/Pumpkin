@@ -7,7 +7,7 @@ use std::f64::consts::TAU;
 use std::num::NonZero;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicI8, AtomicI32, AtomicU8, AtomicU32, Ordering};
-use std::sync::{Arc, Weak};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 
 use crate::plugin::api::events::enchantment::{EnchantItemEvent, PrepareItemEnchantEvent};
@@ -41,7 +41,6 @@ use pumpkin_util::translation::Locale;
 use pumpkin_util::version::JavaMinecraftVersion;
 use pumpkin_world::chunk::{ChunkData, ChunkEntityData};
 use pumpkin_world::inventory::Inventory;
-use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tracing::{debug, warn};
 use uuid::Uuid;
@@ -1136,8 +1135,14 @@ impl Player {
     }
 
     pub async fn set_tab_list_header_footer(&self, header: TextComponent, footer: TextComponent) {
-        *self.tab_list_header.lock().await = header.clone();
-        *self.tab_list_footer.lock().await = footer.clone();
+        *self
+            .tab_list_header
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = header.clone();
+        *self
+            .tab_list_footer
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = footer.clone();
         self.send_client_packet(&CTabList::new(&header, &footer))
             .await;
     }
@@ -1204,18 +1209,25 @@ impl Player {
         ));
     }
 
-    pub async fn get_tab_list_name(&self) -> Option<TextComponent> {
-        self.tab_list_name.lock().await.clone()
+    pub fn get_tab_list_name(&self) -> Option<TextComponent> {
+        self.tab_list_name
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
     }
 
-    pub async fn set_tab_list_name(&self, name: Option<TextComponent>) {
-        *self.tab_list_name.lock().await = name.clone();
+    pub fn set_tab_list_name(&self, name: Option<TextComponent>) {
+        let mut guard = self
+            .tab_list_name
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *guard = name;
         let world = self.world();
         world.broadcast_packet_all(&CPlayerInfoUpdate::new(
             PlayerInfoFlags::UPDATE_DISPLAY_NAME.bits(),
             &[pumpkin_protocol::java::client::play::Player {
                 uuid: self.gameprofile.id,
-                actions: &[PlayerAction::UpdateDisplayName(name.as_ref())],
+                actions: &[PlayerAction::UpdateDisplayName(guard.as_ref())],
             }],
         ));
     }
@@ -1331,7 +1343,10 @@ impl Player {
         world.remove_player(self, true).await;
 
         let cylindrical = self.watched_section.load();
-        self.chunk_manager.lock().await.clean_up(&world.level);
+        self.chunk_manager
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clean_up(&world.level);
 
         // Radial chunks are all of the chunks the player is theoretically viewing.
         // Given enough time, all of these chunks will be in memory.
@@ -2551,12 +2566,15 @@ impl Player {
             let world_clone = p.world();
             let server_clone = world_clone.server.upgrade();
             server.runtime.spawn(async move {
-                let pos = *p.mining_pos.lock().await;
+                let pos = *p
+                    .mining_pos
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 let world = p.world();
                 let state = world.get_block_state(&pos);
                 // Is the block broken?
                 if state.is_air() {
-                    p.stop_mining().await;
+                    p.stop_mining();
                 } else {
                     let finished = p.continue_mining(
                         pos,
@@ -2565,7 +2583,7 @@ impl Player {
                         p.start_mining_time.load(Ordering::Relaxed),
                     );
                     if finished && matches!(p.client.as_ref(), ClientPlatform::Bedrock(_)) {
-                        p.stop_mining().await;
+                        p.stop_mining();
 
                         let block = Block::from_state_id(state.id);
                         let can_harvest = p.can_harvest(state, block);
@@ -2677,14 +2695,17 @@ impl Player {
         total_progress >= 1.0
     }
 
-    pub(crate) async fn stop_mining(&self) {
+    pub(crate) fn stop_mining(&self) {
         let was_mining = self.mining.swap(false, Ordering::Relaxed);
         let stage = self.current_block_destroy_stage.swap(-1, Ordering::Relaxed);
         self.current_block_breaking_speed
             .store(0, Ordering::Relaxed);
 
         if was_mining || stage >= 0 {
-            let pos = *self.mining_pos.lock().await;
+            let pos = *self
+                .mining_pos
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             self.world().set_block_breaking(
                 &self.living_entity.entity,
                 pos,
@@ -3355,20 +3376,30 @@ impl Player {
         self.respawn_location.load()
     }
 
-    pub async fn hide_player(&self, other_id: uuid::Uuid) {
-        self.hidden_players.lock().await.insert(other_id);
+    pub fn hide_player(&self, other_id: uuid::Uuid) {
+        self.hidden_players
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(other_id);
     }
 
-    pub async fn show_player(&self, other_id: uuid::Uuid) {
-        self.hidden_players.lock().await.remove(&other_id);
+    pub fn show_player(&self, other_id: uuid::Uuid) {
+        self.hidden_players
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&other_id);
     }
 
-    pub async fn can_see(&self, other_id: &uuid::Uuid) -> bool {
-        !self.hidden_players.lock().await.contains(other_id)
+    pub fn can_see(&self, other_id: &uuid::Uuid) -> bool {
+        !self
+            .hidden_players
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .contains(other_id)
     }
 
-    pub async fn can_see_player(&self, other_id: &uuid::Uuid) -> bool {
-        self.can_see(other_id).await
+    pub fn can_see_player(&self, other_id: &uuid::Uuid) -> bool {
+        self.can_see(other_id)
     }
 
     // --- Experience & Leveling API ---
@@ -3537,7 +3568,10 @@ impl Player {
                 });
                 self.unload_watched_chunks(&current_world).await;
 
-                self.chunk_manager.lock().await.change_world(&current_world.level, new_world.clone());
+                self.chunk_manager
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .change_world(&current_world.level, new_world.clone());
                 self.living_entity.entity.set_world(new_world.clone());
 
                 if new_world.dimension == pumpkin_data::dimension::Dimension::THE_NETHER {
@@ -3651,7 +3685,10 @@ impl Player {
                 entity.set_rotation(yaw, pitch);
                 match self.client.as_ref() {
                     ClientPlatform::Java(client) => {
-                        *self.awaiting_teleport.lock().await =
+                        *self
+                            .awaiting_teleport
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner) =
                             Some((teleport_id.into(), position));
                         let packet = CPlayerPosition::new(
                             teleport_id.into(),
@@ -6747,16 +6784,14 @@ impl AsRef<[Box<[u8]>]> for LastSeen {
 impl LastSeen {
     /// The sender's `last_seen` signatures are sent as ID's if the recipient has them in their cache.
     /// Otherwise, the full signature is sent. (ID:0 indicates full signature is being sent)
-    pub async fn indexed_for(&self, recipient: &Arc<Player>) -> Box<[PreviousMessage]> {
+    pub fn indexed_for(&self, recipient: &Arc<Player>) -> Box<[PreviousMessage]> {
         let mut indexed = Vec::new();
+        let cache = recipient
+            .signature_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         for signature in &self.0 {
-            let index = recipient
-                .signature_cache
-                .lock()
-                .await
-                .full_cache
-                .iter()
-                .position(|s| s == signature);
+            let index = cache.full_cache.iter().position(|s| s == signature);
             if let Some(index) = index {
                 indexed.push(PreviousMessage {
                     // Send ID reference to recipient's cache (index + 1 because 0 is reserved for full signature)

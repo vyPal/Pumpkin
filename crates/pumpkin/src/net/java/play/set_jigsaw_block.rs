@@ -2,7 +2,7 @@
 use super::*;
 
 impl JavaClient {
-    pub async fn handle_set_jigsaw_block(&self, player: &Arc<Player>, jigsaw: SSetJigsawBlock<'_>) {
+    pub fn handle_set_jigsaw_block(&self, player: &Arc<Player>, jigsaw: &SSetJigsawBlock<'_>) {
         if !player.is_creative() {
             return;
         }

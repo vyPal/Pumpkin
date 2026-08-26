@@ -481,7 +481,7 @@ impl World {
             .map(|chunk_block_entities| *chunk_block_entities.key())
             .collect();
         for chunk_pos in chunks {
-            self.save_block_entities(&chunk_pos);
+            self.save_block_entities(chunk_pos);
         }
 
         // Save portal POI to disk
@@ -520,10 +520,10 @@ impl World {
     /// `get_block_entity` takes the saved NBT out of the chunk when it wakes an
     /// entity up - so this has to run before the chunk is dropped, or everything
     /// the entity did since it was loaded is lost.
-    fn save_block_entities(&self, chunk_pos: &Vector2<i32>) {
+    fn save_block_entities(&self, chunk_pos: Vector2<i32>) {
         let Some(block_entities) = self
             .block_entities
-            .get(chunk_pos)
+            .get(&chunk_pos)
             .map(|chunk_block_entities| chunk_block_entities.values().cloned().collect::<Vec<_>>())
         else {
             return;
@@ -851,14 +851,25 @@ impl World {
         chat_message: &SChatMessage<'_>,
         decorated_message: &TextComponent,
     ) {
-        let messages_sent: i32 = sender.chat_session.lock().await.messages_sent;
+        let messages_sent: i32 = sender
+            .chat_session
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .messages_sent;
         let sender_last_seen = {
-            let cache = sender.signature_cache.lock().await;
+            let cache = sender
+                .signature_cache
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             cache.last_seen.clone()
         };
 
         for recipient in self.players.load().iter() {
-            let messages_received: i32 = recipient.chat_session.lock().await.messages_received;
+            let messages_received: i32 = recipient
+                .chat_session
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .messages_received;
             let packet = &CPlayerChatMessage::new(
                 VarInt(messages_received),
                 sender.gameprofile.id,
@@ -867,7 +878,7 @@ impl World {
                 chat_message.message.into(),
                 chat_message.timestamp,
                 chat_message.salt,
-                sender_last_seen.indexed_for(recipient).await,
+                sender_last_seen.indexed_for(recipient),
                 Some(decorated_message.clone()),
                 FilterType::PassThrough,
                 (RAW + 1).into(), // Custom registry chat_type with no sender name
@@ -888,7 +899,10 @@ impl World {
             }
 
             if let Some(signature) = chat_message.signature {
-                let mut cache = recipient.signature_cache.lock().await;
+                let mut cache = recipient
+                    .signature_cache
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 cache.add_seen_signature(signature);
                 cache.last_seen_validator.add_pending(signature);
                 let tracked_count = cache.last_seen_validator.tracked_messages_count();
@@ -911,13 +925,21 @@ impl World {
                 recipient
                     .signature_cache
                     .lock()
-                    .await
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
                     .cache_signatures(sender_last_seen.as_ref());
             }
-            recipient.chat_session.lock().await.messages_received += 1;
+            recipient
+                .chat_session
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .messages_received += 1;
         }
 
-        sender.chat_session.lock().await.messages_sent += 1;
+        sender
+            .chat_session
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .messages_sent += 1;
     }
 
     pub fn broadcast_packet_except_editioned<J: ClientPacket, B: BClientPacket>(
@@ -1739,7 +1761,7 @@ impl World {
             spawning_chunks.shuffle(&mut rng());
 
             let world = self.clone();
-            let spawn_handle = handle.clone();
+            let spawn_handle = handle;
             spawning_chunks.par_chunks(8).for_each(|batch| {
                 let _guard = spawn_handle.enter();
                 let world = world.clone();
@@ -3249,7 +3271,7 @@ impl World {
         self.broadcast_editioned(&player_info_update, &bedrock_player_list);
 
         // If the player has a custom tab_list_name, send an update for it
-        if let Some(tab_list_name) = player.get_tab_list_name().await {
+        if let Some(tab_list_name) = player.get_tab_list_name() {
             let actions = [PlayerAction::UpdateDisplayName(Some(&tab_list_name))];
             let java_player = [pumpkin_protocol::java::client::play::Player {
                 uuid: gameprofile.id,
@@ -3276,8 +3298,11 @@ impl World {
 
             let mut current_player_data = Vec::new();
             for (properties, player) in &data_to_process {
-                let chat_session = player.chat_session.lock().await;
-                let tab_list_name = player.get_tab_list_name().await;
+                let chat_session = player
+                    .chat_session
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                let tab_list_name = player.get_tab_list_name();
 
                 let mut player_actions = vec![PlayerAction::AddPlayer {
                     name: &player.gameprofile.name,
@@ -4088,7 +4113,7 @@ impl World {
                         player
                             .chunk_manager
                             .lock()
-                            .await
+                            .unwrap_or_else(std::sync::PoisonError::into_inner)
                             .change_world(&self.level, destination.clone());
                         player.living_entity.entity.set_world(destination.clone());
                         destination.players.rcu(|current_list| {
@@ -4934,7 +4959,7 @@ impl World {
         }
 
         for chunk_pos in &chunks_set {
-            self.save_block_entities(chunk_pos);
+            self.save_block_entities(*chunk_pos);
             self.block_entities.remove(chunk_pos);
         }
     }
@@ -6427,7 +6452,7 @@ impl World {
             .map(|chunk_block_entities| *chunk_block_entities.key())
             .collect();
         for chunk_pos in chunks {
-            self.save_block_entities(&chunk_pos);
+            self.save_block_entities(chunk_pos);
         }
 
         if let Ok(mut portal_poi) = self.portal_poi.try_lock() {
@@ -6793,32 +6818,26 @@ impl WorldPortalExt for WorldPortal {
     }
 
     fn spawn_structure_entities(&self, entities: Vec<NbtCompound>) {
-        let world = self.0.clone();
-        let Some(server) = world.server.upgrade() else {
-            return;
-        };
-        server.spawn_task(async move {
-            for nbt in entities {
-                let Some(id) = nbt.get_string("id") else {
-                    continue;
-                };
-                let Some(entity_type) =
-                    EntityType::from_name(id.strip_prefix("minecraft:").unwrap_or(id))
-                else {
-                    warn!("Unknown structure entity type: {id}");
-                    continue;
-                };
-                let entity = from_type(
-                    entity_type,
-                    Vector3::new(0.0, 0.0, 0.0),
-                    &world,
-                    Uuid::new_v4(),
-                );
-                entity.get_entity().read_nbt_non_mut(&nbt);
-                entity.read_nbt_non_mut(&nbt);
-                world.spawn_entity(entity);
-            }
-        });
+        for nbt in entities {
+            let Some(id) = nbt.get_string("id") else {
+                continue;
+            };
+            let Some(entity_type) =
+                EntityType::from_name(id.strip_prefix("minecraft:").unwrap_or(id))
+            else {
+                warn!("Unknown structure entity type: {id}");
+                continue;
+            };
+            let entity = from_type(
+                entity_type,
+                Vector3::new(0.0, 0.0, 0.0),
+                &self.0,
+                Uuid::new_v4(),
+            );
+            entity.get_entity().read_nbt_non_mut(&nbt);
+            entity.read_nbt_non_mut(&nbt);
+            self.0.spawn_entity(entity);
+        }
     }
 }
 

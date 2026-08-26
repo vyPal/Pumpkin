@@ -56,7 +56,12 @@ impl JavaClient {
             return;
         }
         // Ignore movement packets while awaiting a teleport confirmation (vanilla behavior)
-        if player.awaiting_teleport.lock().await.is_some() {
+        if player
+            .awaiting_teleport
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_some()
+        {
             return;
         }
         // y = feet Y
@@ -185,7 +190,12 @@ impl JavaClient {
             return;
         }
         // Ignore movement packets while awaiting a teleport confirmation (vanilla behavior)
-        if player.awaiting_teleport.lock().await.is_some() {
+        if player
+            .awaiting_teleport
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_some()
+        {
             return;
         }
         // y = feet Y
@@ -325,7 +335,11 @@ impl JavaClient {
 
     pub async fn force_tp(&self, player: &Arc<Player>, position: Vector3<f64>) {
         let teleport_id = player.teleport_id_count.fetch_add(1, Ordering::Relaxed) + 1;
-        *player.awaiting_teleport.lock().await = Some((teleport_id.into(), position));
+        *player
+            .awaiting_teleport
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) =
+            Some((teleport_id.into(), position));
         self.enqueue_client_packet(&CPlayerPosition::new(
             teleport_id.into(),
             player.get_entity().pos.load(),

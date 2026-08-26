@@ -177,6 +177,7 @@ impl HopperBlockEntity {
         true
     }
 
+    #[allow(clippy::too_many_lines)]
     fn suck_in_items(&self, world: &Arc<World>) -> bool {
         // TODO getEntityContainer
         let pos_up = &self.position.up();

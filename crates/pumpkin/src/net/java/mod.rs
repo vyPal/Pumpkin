@@ -929,13 +929,14 @@ impl JavaClient {
             id if id == SSetJigsawBlock::to_id(version) => {
                 self.handle_set_jigsaw_block(
                     player,
-                    SSetJigsawBlock::read(&mut payload, &version)?,
-                )
-                .await;
+                    &SSetJigsawBlock::read(&mut payload, &version)?,
+                );
             }
             id if id == SJigsawGenerate::to_id(version) => {
-                self.handle_jigsaw_generate(player, SJigsawGenerate::read(&mut payload, &version)?)
-                    .await;
+                self.handle_jigsaw_generate(
+                    player,
+                    &SJigsawGenerate::read(&mut payload, &version)?,
+                );
             }
             id if id == SPlayerCommand::to_id(version) => {
                 self.handle_player_command(
@@ -1016,8 +1017,7 @@ impl JavaClient {
                 );
             }
             id if id == SChunkBatch::to_id(version) => {
-                self.handle_chunk_batch(player, SChunkBatch::read(&mut payload, &version)?)
-                    .await;
+                self.handle_chunk_batch(player, &SChunkBatch::read(&mut payload, &version)?);
             }
             id if id == SPlayerSession::to_id(version) => {
                 self.handle_chat_session_update(
@@ -1083,8 +1083,7 @@ impl JavaClient {
                 self.handle_seen_advancement(
                     player,
                     SSeenAdvancement::read(&mut payload, &version)?,
-                )
-                .await;
+                );
             }
             id if id == SPlayResourcePack::to_id(version) => {
                 self.handle_play_resource_pack_response(

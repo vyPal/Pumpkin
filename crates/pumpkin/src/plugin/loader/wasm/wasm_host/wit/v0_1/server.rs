@@ -315,9 +315,7 @@ impl pumpkin::plugin::server::HostServer for PluginHostState {
             .server
             .as_ref()
             .ok_or_else(|| wasmtime::Error::msg("Server not available"))?;
-        server
-            .broadcast_tab_list_header_footer(&header, &footer)
-            .await;
+        server.broadcast_tab_list_header_footer(&header, &footer);
         Ok(())
     }
 

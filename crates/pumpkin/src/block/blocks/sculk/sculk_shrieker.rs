@@ -27,7 +27,7 @@ impl BlockMetadata for SculkShriekerBlock {
 }
 
 impl SculkShriekerBlock {
-    pub async fn try_activate(world: &Arc<World>, pos: &BlockPos) -> bool {
+    pub fn try_activate(world: &Arc<World>, pos: &BlockPos) -> bool {
         let block = world.get_block(pos);
         if block.id != BlockId::SCULK_SHRIEKER {
             return false;

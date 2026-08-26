@@ -65,10 +65,19 @@ impl BlockBehaviour for LeavesBlock {
         &self,
         args: GetStateForNeighborUpdateArgs<'_>,
     ) -> BlockStateId {
+        let current_props = OakLeavesLikeProperties::from_state_id(args.state_id, args.block);
+        if current_props.waterlogged {
+            args.world.schedule_fluid_tick(
+                &pumpkin_data::fluid::Fluid::WATER,
+                *args.position,
+                pumpkin_data::fluid::Fluid::WATER.flow_speed as u8,
+                TickPriority::Normal,
+            );
+        }
+
         let neighbor_block = args.world.get_block(args.neighbor_position);
         let distance_from_neighbor =
             get_distance_at(neighbor_block, args.neighbor_state_id).saturating_add(1);
-        let current_props = OakLeavesLikeProperties::from_state_id(args.state_id, args.block);
 
         if distance_from_neighbor != 1 || current_props.distance != distance_from_neighbor {
             args.world

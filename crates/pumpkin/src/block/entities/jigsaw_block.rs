@@ -74,7 +74,7 @@ impl JigsawBlockEntity {
         }
     }
 
-    pub async fn generate(&self, world: &Arc<World>, levels: i32, keep_jigsaws: bool) {
+    pub fn generate(&self, world: &Arc<World>, levels: i32, keep_jigsaws: bool) {
         let pool = self
             .pool
             .lock()

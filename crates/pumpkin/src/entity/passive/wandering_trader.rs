@@ -297,14 +297,14 @@ impl WanderingTraderEntity {
         add_offers_from_trade_set(&mut offers, TRADES_WANDERING_TRADER_COMMON, 5, &mut rng);
     }
 
-    pub async fn open_trading_screen(&self, player: &Arc<Player>) {
+    pub fn open_trading_screen(&self, player: &Arc<Player>) {
         if let Some(sync_id) = player.open_handled_screen(self, None) {
             let offers = self
                 .offers
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .clone();
-            self.send_trade_offers(player, sync_id, offers).await;
+            self.send_trade_offers(player, sync_id, &offers);
         }
     }
 
@@ -395,17 +395,17 @@ impl WanderingTraderEntity {
         data
     }
 
-    async fn send_trade_offers(
+    fn send_trade_offers(
         &self,
         player: &Player,
         sync_id: u8,
-        offers: Vec<pumpkin_protocol::java::client::play::MerchantOffer>,
+        offers: &[pumpkin_protocol::java::client::play::MerchantOffer],
     ) {
         use pumpkin_protocol::{bedrock::client::CUpdateTrade, codec::var_long::VarLong};
 
         let java = CMerchantOffers::new(
             VarInt(i32::from(sync_id)),
-            offers.clone(),
+            offers.to_owned(),
             VarInt(1),
             VarInt(0),
             false,
@@ -421,12 +421,9 @@ impl WanderingTraderEntity {
             display_name: ScreenHandlerFactory::get_display_name(self).to_pretty_console(),
             use_new_trade_screen: true,
             using_economy_trade: true,
-            data: Self::bedrock_trade_data(&offers),
+            data: Self::bedrock_trade_data(offers),
         };
-        player
-            .client
-            .enqueue_packet_editioned(&java, &bedrock)
-            .await;
+        player.client.try_enqueue_packet_editioned(&java, &bedrock);
     }
 
     fn can_continue_trading(
@@ -782,10 +779,7 @@ impl Mob for WanderingTraderEntity {
             .as_ref()
             .and_then(Weak::upgrade);
         if let Some(trader) = trader {
-            let player = player.clone();
-            tokio::spawn(async move {
-                trader.open_trading_screen(&player).await;
-            });
+            trader.open_trading_screen(player);
         }
         true
     }
