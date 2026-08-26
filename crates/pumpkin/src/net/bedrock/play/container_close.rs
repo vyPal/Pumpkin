@@ -28,16 +28,17 @@ impl BedrockClient {
         .await;
 
         // Sync the inventory content to Bedrock client
+        let slots = player
+            .inventory()
+            .main_inventory
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .map(NetworkItemStackDescriptor::from)
+            .collect();
         self.enqueue_client_packet(&CInventoryContent {
             container_id: VarUInt(0), // player inventory
-            slots: player
-                .inventory()
-                .main_inventory
-                .read()
-                .await
-                .iter()
-                .map(NetworkItemStackDescriptor::from)
-                .collect(),
+            slots,
             full_container_name: FullContainerName {
                 container_name: ContainerName::Inventory,
                 dynamic_id: None,

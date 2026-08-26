@@ -104,27 +104,28 @@ fn set_waterlogged(block: &Block, state: BlockStateId, waterlogged: bool) -> Blo
 
 async fn give_player_bucket_item(player: &Player, item: &'static Item) {
     if player.gamemode.load() == GameMode::Creative {
-        let inv = player.inventory.main_inventory.read().await;
-        for stack in inv.iter() {
-            if stack.item.id == item.id {
-                return;
-            }
+        let has_item = {
+            let inv = player
+                .inventory
+                .main_inventory
+                .read()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            inv.iter().any(|stack| stack.item.id == item.id)
+        };
+        if has_item {
+            return;
         }
-        drop(inv);
         let mut item_stack = ItemStack::new(1, item);
-        player
-            .inventory
-            .insert_stack_anywhere(&mut item_stack)
-            .await;
+        player.inventory.insert_stack_anywhere(&mut item_stack);
     } else {
         let item_stack = ItemStack::new(1, item);
-        let mut held_stack = player.inventory.held_item().await;
+        let mut held_stack = player.inventory.held_item();
 
         if held_stack.item_count == 1 {
-            player.inventory.set_held_item(item_stack).await;
+            player.inventory.set_held_item(item_stack);
         } else {
             held_stack.decrement(1);
-            player.inventory.set_held_item(held_stack).await;
+            player.inventory.set_held_item(held_stack);
             player
                 .inventory
                 .offer_or_drop_stack(item_stack, player)
@@ -142,36 +143,28 @@ pub(crate) async fn try_pickup_fluid_at(
     let (block, state) = world.get_block_and_state_id(&block_pos);
 
     if block == &Block::POWDER_SNOW {
-        world
-            .break_block(
-                &block_pos,
-                None,
-                BlockFlags::NOTIFY_ALL | BlockFlags::SKIP_DROPS,
-            )
-            .await;
+        world.break_block(
+            &block_pos,
+            None,
+            BlockFlags::NOTIFY_ALL | BlockFlags::SKIP_DROPS,
+        );
         return Some(&Item::POWDER_SNOW_BUCKET);
     }
 
     if is_waterlogged(block, state) {
         let state_id = set_waterlogged(block, state, false);
-        world
-            .set_block_state(&block_pos, state_id, BlockFlags::NOTIFY_NEIGHBORS)
-            .await;
+        world.set_block_state(&block_pos, state_id, BlockFlags::NOTIFY_NEIGHBORS);
         world.schedule_fluid_tick(&Fluid::WATER, block_pos, 5, TickPriority::Normal);
         return Some(&Item::WATER_BUCKET);
     }
 
     if state == Block::LAVA.default_state.id || state == Block::WATER.default_state.id {
-        world
-            .break_block(&block_pos, None, BlockFlags::NOTIFY_NEIGHBORS)
-            .await;
-        world
-            .set_block_state(
-                &block_pos,
-                Block::AIR.default_state.id,
-                BlockFlags::NOTIFY_NEIGHBORS,
-            )
-            .await;
+        world.break_block(&block_pos, None, BlockFlags::NOTIFY_NEIGHBORS);
+        world.set_block_state(
+            &block_pos,
+            Block::AIR.default_state.id,
+            BlockFlags::NOTIFY_NEIGHBORS,
+        );
         return Some(if state == Block::LAVA.default_state.id {
             &Item::LAVA_BUCKET
         } else {
@@ -195,9 +188,7 @@ async fn try_pickup_bucket_item(
     let (block, state) = world.get_block_and_state_id(&target_pos);
     if waterlogged_check(block, state).is_some() {
         let state_id = set_waterlogged(block, state, false);
-        world
-            .set_block_state(&target_pos, state_id, BlockFlags::NOTIFY_NEIGHBORS)
-            .await;
+        world.set_block_state(&target_pos, state_id, BlockFlags::NOTIFY_NEIGHBORS);
         world.schedule_fluid_tick(&Fluid::WATER, target_pos, 5, TickPriority::Normal);
         return Some(&Item::WATER_BUCKET);
     }
@@ -221,11 +212,7 @@ pub(crate) fn play_bucket_evaporation(world: &Arc<World>, position: &Vector3<f64
     );
 }
 
-async fn try_place_powder_snow(
-    world: &Arc<World>,
-    pos: BlockPos,
-    direction: BlockDirection,
-) -> bool {
+fn try_place_powder_snow(world: &Arc<World>, pos: BlockPos, direction: BlockDirection) -> bool {
     let state = world.get_block_state(&pos);
     let target_pos = if state.replaceable() {
         pos
@@ -236,13 +223,11 @@ async fn try_place_powder_snow(
     if !target_state.is_air() && !target_state.is_liquid() && !target_state.replaceable() {
         return false;
     }
-    world
-        .set_block_state(
-            &target_pos,
-            Block::POWDER_SNOW.default_state.id,
-            BlockFlags::NOTIFY_NEIGHBORS,
-        )
-        .await;
+    world.set_block_state(
+        &target_pos,
+        Block::POWDER_SNOW.default_state.id,
+        BlockFlags::NOTIFY_NEIGHBORS,
+    );
     true
 }
 
@@ -254,14 +239,12 @@ pub(crate) async fn try_place_filled_bucket(
 ) -> bool {
     let (block, state) = world.get_block_and_state(&pos);
     if item.id == Item::POWDER_SNOW_BUCKET.id {
-        return try_place_powder_snow(world, pos, direction).await;
+        return try_place_powder_snow(world, pos, direction);
     }
 
     if is_waterlogged(block, state.id) && item.id == Item::WATER_BUCKET.id {
         let state_id = set_waterlogged(block, state.id, true);
-        world
-            .set_block_state(&pos, state_id, BlockFlags::NOTIFY_NEIGHBORS)
-            .await;
+        world.set_block_state(&pos, state_id, BlockFlags::NOTIFY_NEIGHBORS);
         world.schedule_fluid_tick(&Fluid::WATER, pos, 5, TickPriority::Normal);
         return true;
     }
@@ -274,25 +257,21 @@ pub(crate) async fn try_place_filled_bucket(
             return false;
         }
         let state_id = set_waterlogged(block, state.id, true);
-        world
-            .set_block_state(&target_pos, state_id, BlockFlags::NOTIFY_NEIGHBORS)
-            .await;
+        world.set_block_state(&target_pos, state_id, BlockFlags::NOTIFY_NEIGHBORS);
         world.schedule_fluid_tick(&Fluid::WATER, target_pos, 5, TickPriority::Normal);
         return true;
     }
 
     if state.id == Block::AIR.default_state.id || state.is_liquid() {
-        world
-            .set_block_state(
-                &target_pos,
-                if item.id == Item::LAVA_BUCKET.id {
-                    Block::LAVA.default_state.id
-                } else {
-                    Block::WATER.default_state.id
-                },
-                BlockFlags::NOTIFY_NEIGHBORS,
-            )
-            .await;
+        world.set_block_state(
+            &target_pos,
+            if item.id == Item::LAVA_BUCKET.id {
+                Block::LAVA.default_state.id
+            } else {
+                Block::WATER.default_state.id
+            },
+            BlockFlags::NOTIFY_NEIGHBORS,
+        );
         return true;
     }
 
@@ -309,7 +288,7 @@ impl ItemBehaviour for EmptyBucketItem {
             let world = player.world();
             let (start_pos, end_pos) = get_start_and_end_pos(player);
 
-            let checker = async |pos: &BlockPos, world_inner: &Arc<World>| {
+            let checker = |pos: &BlockPos, world_inner: &Arc<World>| {
                 let state_id = world_inner.get_block_state_id(pos);
 
                 let block = Block::from_state_id(state_id);
@@ -323,8 +302,7 @@ impl ItemBehaviour for EmptyBucketItem {
                         || (block.id == Block::LAVA.id && state_id == Block::LAVA.default_state.id))
             };
 
-            let Some((block_pos, direction)) = world.raycast(start_pos, end_pos, checker).await
-            else {
+            let Some((block_pos, direction)) = world.raycast(start_pos, end_pos, checker) else {
                 return;
             };
 
@@ -365,7 +343,7 @@ impl ItemBehaviour for FilledBucketItem {
         Box::pin(async move {
             let world = player.world();
             let (start_pos, end_pos) = get_start_and_end_pos(player);
-            let checker = async |pos: &BlockPos, world_inner: &Arc<World>| {
+            let checker = |pos: &BlockPos, world_inner: &Arc<World>| {
                 let state_id = world_inner.get_block_state_id(pos);
                 if Fluid::from_state_id(state_id).is_some() {
                     return false;
@@ -373,7 +351,7 @@ impl ItemBehaviour for FilledBucketItem {
                 state_id != Block::AIR.default_state.id
             };
 
-            let Some((pos, direction)) = world.raycast(start_pos, end_pos, checker).await else {
+            let Some((pos, direction)) = world.raycast(start_pos, end_pos, checker) else {
                 return;
             };
 
@@ -420,11 +398,10 @@ impl ItemBehaviour for MilkBucketItem {
         player: &'a Player,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
         Box::pin(async move {
-            let stack = player.inventory().held_item().await;
+            let stack = player.inventory().held_item();
             player
                 .living_entity
-                .set_active_hand(pumpkin_util::Hand::Right, stack, 32)
-                .await;
+                .set_active_hand(pumpkin_util::Hand::Right, stack, 32);
         })
     }
 
@@ -434,7 +411,7 @@ impl ItemBehaviour for MilkBucketItem {
         player: &'a Player,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
         Box::pin(async move {
-            player.living_entity.reset_effects_and_attributes().await;
+            player.living_entity.reset_effects_and_attributes();
             give_player_bucket_item(player, &Item::BUCKET).await;
         })
     }

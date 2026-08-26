@@ -55,13 +55,11 @@ impl MobEffect for WeavingMobEffect {
             }
 
             for target_pos in positions_to_transform {
-                world
-                    .set_block_state(
-                        &target_pos,
-                        Block::COBWEB.default_state.id,
-                        BlockFlags::NOTIFY_ALL,
-                    )
-                    .await;
+                world.set_block_state(
+                    &target_pos,
+                    Block::COBWEB.default_state.id,
+                    BlockFlags::NOTIFY_ALL,
+                );
                 world.sync_world_event(WorldEvent::AnimationSpawnCobweb, target_pos, 0);
             }
         })

@@ -52,7 +52,7 @@ impl JavaClient {
         if !player.has_client_loaded() {
             return;
         }
-        if player.get_entity().has_vehicle().await {
+        if player.get_entity().has_vehicle() {
             return;
         }
         // Ignore movement packets while awaiting a teleport confirmation (vanilla behavior)
@@ -95,9 +95,7 @@ impl JavaClient {
                 let cm = (distance * 100.0) as i32;
                 if cm > 0 {
                     let stat = player.get_movement_statistic().await;
-                    player
-                        .increment_stat(StatisticCategory::Custom, stat as i32, cm)
-                        .await;
+                    player.increment_stat(StatisticCategory::Custom, stat as i32, cm);
                 }
 
                 let height_difference = pos.y - last_pos.y;
@@ -115,7 +113,7 @@ impl JavaClient {
                 // TODO: Warn when player moves to quickly
                 if !Self::sync_position(player, world, pos, last_pos, entity.yaw.load(), entity.pitch.load(), packet.collision & FLAG_ON_GROUND != 0) {
                     // Send the new position to all other players.
-                    world.broadcast_packet_except_editioned_sync(
+                    world.broadcast_packet_except_editioned(
                         &[player.gameprofile.id],
                         &CUpdateEntityPos::new(
                             player.entity_id().into(),
@@ -147,14 +145,12 @@ impl JavaClient {
                     && player.living_entity.health.load() > 0.0
                     && !player.living_entity.dead.load(Ordering::Relaxed)
                 {
-                    player.living_entity
-                        .fall(
-                            player.clone(),
-                            height_difference,
-                            packet.collision & FLAG_ON_GROUND != 0,
-                            player.gamemode.load() == GameMode::Creative,
-                        )
-                        .await;
+                    player.living_entity.fall(
+                        player.as_ref(),
+                        height_difference,
+                        packet.collision & FLAG_ON_GROUND != 0,
+                        player.gamemode.load() == GameMode::Creative,
+                    );
                 }
                 chunker::update_position(player).await;
                 let delta = Vector3::new(
@@ -185,7 +181,7 @@ impl JavaClient {
         if !player.has_client_loaded() {
             return;
         }
-        if player.get_entity().has_vehicle().await {
+        if player.get_entity().has_vehicle() {
             return;
         }
         // Ignore movement packets while awaiting a teleport confirmation (vanilla behavior)
@@ -233,9 +229,7 @@ impl JavaClient {
                 let cm = (distance * 100.0) as i32;
                 if cm > 0 {
                     let stat = player.get_movement_statistic().await;
-                    player
-                        .increment_stat(StatisticCategory::Custom, stat as i32, cm)
-                        .await;
+                    player.increment_stat(StatisticCategory::Custom, stat as i32, cm);
                 }
 
                 let height_difference = pos.y - last_pos.y;
@@ -263,7 +257,7 @@ impl JavaClient {
                     sync_position(player, &world, pos, last_pos, yaw, pitch, (packet.collision & FLAG_ON_GROUND) != 0)
                 {
                     // Send the new position to all other players.
-                    world.broadcast_packet_except_editioned_sync(
+                    world.broadcast_packet_except_editioned(
                         &[player.gameprofile.id],
                         &CUpdateEntityPosRot::new(
                             entity_id.into(),
@@ -303,14 +297,12 @@ impl JavaClient {
                     && player.living_entity.health.load() > 0.0
                     && !player.living_entity.dead.load(Ordering::Relaxed)
                 {
-                    player.living_entity
-                        .fall(
-                            player.clone(),
-                            height_difference,
-                            (packet.collision & FLAG_ON_GROUND) != 0,
-                            player.gamemode.load() == GameMode::Creative,
-                        )
-                        .await;
+                    player.living_entity.fall(
+                        player.as_ref(),
+                        height_difference,
+                        (packet.collision & FLAG_ON_GROUND) != 0,
+                        player.gamemode.load() == GameMode::Creative,
+                    );
                 }
                 chunker::update_position(player).await;
                 let delta = Vector3::new(

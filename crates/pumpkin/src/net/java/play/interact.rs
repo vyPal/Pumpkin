@@ -99,12 +99,12 @@ impl JavaClient {
                                     return;
                                 }
                             }
-                            let mut stack = player.inventory().held_item().await;
+                            let mut stack = player.inventory().held_item();
                             let target_entity = event.target.get_entity();
                             if target_entity.entity_type.resource_name == "zombie_villager"
                                 && stack.item.registry_key == "golden_apple"
                             {
-                                player.trigger_advancement(crate::entity::player::advancement::trigger::AdvancementTrigger::CuredZombieVillager).await;
+                                player.trigger_advancement(crate::entity::player::advancement::trigger::AdvancementTrigger::CuredZombieVillager);
                             }
 
                             let interacted = event.target.interact(player, &mut stack).await;
@@ -114,7 +114,7 @@ impl JavaClient {
                                     .use_on_entity(&mut stack, player, event.target)
                                     .await;
                             }
-                            player.inventory().set_held_item(stack).await;
+                            player.inventory().set_held_item(stack);
                         }
                     }
                 }

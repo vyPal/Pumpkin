@@ -33,14 +33,17 @@ const MAX_NO_CLEAR_BUT_SIMULATE: i32 = 0;
 /// If `max` provided is [`MAX_NO_UPPER_LIMIT`] (`-1`), then there is no limit in clearing.
 ///
 /// Otherwise, at most `max` items are cleared.
-async fn clear_player(target: &Player, item: &ItemPredicate, max: i32) -> i32 {
+fn clear_player(target: &Player, item: &ItemPredicate, max: i32) -> i32 {
     let inventory = target.inventory();
     let mut count: i32 = 0;
     let mut max: i32 = max;
     let mut is_done: bool = false;
 
     {
-        let mut main_inv = inventory.main_inventory.write().await;
+        let mut main_inv = inventory
+            .main_inventory
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         for slot in main_inv.iter_mut() {
             test_and_clear(&mut count, &mut max, item, slot, &mut is_done);
             if is_done {
@@ -50,7 +53,10 @@ async fn clear_player(target: &Player, item: &ItemPredicate, max: i32) -> i32 {
     }
 
     if !is_done {
-        let mut entity_equipment_lock = inventory.entity_equipment.lock().await;
+        let mut entity_equipment_lock = inventory
+            .entity_equipment
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         for slot in entity_equipment_lock.equipment.values_mut() {
             test_and_clear(&mut count, &mut max, item, slot, &mut is_done);
             if is_done {
@@ -182,8 +188,7 @@ impl CommandExecutor for SelfExecutor {
         Box::pin(async move {
             let target = sender.as_player().ok_or(CommandError::InvalidRequirement)?;
 
-            let items_cleared =
-                clear_player(&target, &ItemPredicate::Any, MAX_NO_UPPER_LIMIT).await;
+            let items_cleared = clear_player(&target, &ItemPredicate::Any, MAX_NO_UPPER_LIMIT);
 
             command_result(sender, items_cleared, MAX_NO_UPPER_LIMIT, &[target]).await
         })
@@ -207,7 +212,7 @@ impl CommandExecutor for Executor {
             let mut total_items_cleared = 0;
             for target in targets {
                 total_items_cleared +=
-                    clear_player(target, &ItemPredicate::Any, MAX_NO_UPPER_LIMIT).await;
+                    clear_player(target, &ItemPredicate::Any, MAX_NO_UPPER_LIMIT);
             }
 
             command_result(sender, total_items_cleared, MAX_NO_UPPER_LIMIT, targets).await
@@ -233,7 +238,7 @@ impl CommandExecutor for ItemExecutor {
 
             let mut total_items_cleared = 0;
             for target in targets {
-                total_items_cleared += clear_player(target, &item, MAX_NO_UPPER_LIMIT).await;
+                total_items_cleared += clear_player(target, &item, MAX_NO_UPPER_LIMIT);
             }
 
             command_result(sender, total_items_cleared, MAX_NO_UPPER_LIMIT, targets).await
@@ -266,7 +271,7 @@ impl CommandExecutor for ItemCountExecutor {
 
             let mut total_items_cleared = 0;
             for target in targets {
-                total_items_cleared += clear_player(target, &item, max).await;
+                total_items_cleared += clear_player(target, &item, max);
             }
 
             command_result(sender, total_items_cleared, max, targets).await

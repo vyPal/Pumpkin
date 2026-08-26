@@ -105,10 +105,10 @@ impl ChiseledBookshelfBlockEntity {
         }
     }
 
-    pub async fn update_state(
+    pub fn update_state(
         &self,
         mut properties: ChiseledBookshelfLikeProperties,
-        world: Arc<World>,
+        world: &Arc<World>,
         slot: usize,
     ) {
         if (0..Self::INVENTORY_SIZE).contains(&slot) {
@@ -116,7 +116,7 @@ impl ChiseledBookshelfBlockEntity {
                 .store(slot as i8, Ordering::Relaxed);
             self.mark_dirty();
 
-            let occupied = !self.get_stack(slot).await.is_empty();
+            let occupied = !self.items.blocking_read()[slot].is_empty();
             match slot {
                 0 => properties.slot_0_occupied = occupied,
                 1 => properties.slot_1_occupied = occupied,
@@ -127,19 +127,34 @@ impl ChiseledBookshelfBlockEntity {
                 _ => {}
             }
 
-            world
-                .set_block_state(
-                    &self.position,
-                    properties.to_state_id(&Block::CHISELED_BOOKSHELF),
-                    BlockFlags::NOTIFY_LISTENERS,
-                )
-                .await;
+            world.set_block_state(
+                &self.position,
+                properties.to_state_id(&Block::CHISELED_BOOKSHELF),
+                BlockFlags::NOTIFY_LISTENERS,
+            );
         } else {
             warn!(
                 "Invalid interacted slot: {} for chiseled bookshelf at position {:?}",
                 slot, self.position
             );
         }
+    }
+
+    pub fn set_book(&self, slot: usize, stack: ItemStack) {
+        let mut items = self.items.blocking_write();
+        items[slot] = stack;
+        self.mark_dirty();
+    }
+
+    pub fn remove_book(&self, slot: usize, amount: u8) -> ItemStack {
+        let mut items = self.items.blocking_write();
+        let res = if !items[slot].is_empty() && amount > 0 {
+            items[slot].split(amount)
+        } else {
+            ItemStack::EMPTY.clone()
+        };
+        self.mark_dirty();
+        res
     }
 }
 

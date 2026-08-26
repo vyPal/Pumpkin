@@ -30,7 +30,7 @@ impl MobEffect for WitherMobEffect {
                 .load()
                 .get_entity_by_id(living.entity.entity_id);
             if let Some(dyn_self) = dyn_self {
-                dyn_self.damage(&*dyn_self, 1.0, DamageType::WITHER).await;
+                dyn_self.damage(&*dyn_self, 1.0, DamageType::WITHER);
             }
         })
     }

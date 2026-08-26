@@ -8,7 +8,7 @@ impl RideableMinecart {
     pub(super) async fn interact(&self, entity: &Entity, player: &Arc<Player>) -> bool {
         if player.get_entity().is_sneaking()
             || !entity.passengers.lock().await.is_empty()
-            || player.get_entity().has_vehicle().await
+            || player.get_entity().has_vehicle()
         {
             return false;
         }

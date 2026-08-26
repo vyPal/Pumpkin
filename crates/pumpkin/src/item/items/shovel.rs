@@ -46,13 +46,11 @@ impl ItemBehaviour for ShovelItem {
                 && face != BlockDirection::Down
                 && world.get_block_state(&location.up()).is_air()
             {
-                world
-                    .set_block_state(
-                        &location,
-                        Block::DIRT_PATH.default_state.id,
-                        BlockFlags::NOTIFY_ALL,
-                    )
-                    .await;
+                world.set_block_state(
+                    &location,
+                    Block::DIRT_PATH.default_state.id,
+                    BlockFlags::NOTIFY_ALL,
+                );
                 true
             } else {
                 false
@@ -66,13 +64,11 @@ impl ItemBehaviour for ShovelItem {
                     world.sync_world_event(WorldEvent::SoundExtinguishFire, location, 0);
 
                     campfire_props.lit = false;
-                    world
-                        .set_block_state(
-                            &location,
-                            campfire_props.to_state_id(block),
-                            BlockFlags::NOTIFY_ALL,
-                        )
-                        .await;
+                    world.set_block_state(
+                        &location,
+                        campfire_props.to_state_id(block),
+                        BlockFlags::NOTIFY_ALL,
+                    );
                     let seed = rng().random::<f64>();
                     player
                         .play_sound(

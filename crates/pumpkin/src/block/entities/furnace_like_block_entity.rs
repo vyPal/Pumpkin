@@ -30,12 +30,8 @@ pub trait CookingBlockEntityBase:
     fn set_lit_total_time(&self, total_time: u16);
 
     fn is_burning(&self) -> bool;
-    fn can_accept_recipe_output(
-        &self,
-        recipe: Option<&CookingRecipe>,
-        max_count: u8,
-    ) -> impl Future<Output = bool>;
-    fn craft_recipe(&self, recipe: Option<&CookingRecipe>) -> impl Future<Output = bool>;
+    fn can_accept_recipe_output(&self, recipe: Option<&CookingRecipe>, max_count: u8) -> bool;
+    fn craft_recipe(&self, recipe: Option<&CookingRecipe>) -> bool;
 }
 
 #[macro_export]
@@ -127,13 +123,15 @@ macro_rules! impl_cooking_block_entity_base {
                 total_xp.floor() as i32
             }
 
-            async fn can_accept_recipe_output(
+            fn can_accept_recipe_output(
                 &self,
                 recipe: Option<&pumpkin_data::recipes::CookingRecipe>,
                 max_count: u8,
             ) -> bool {
                 let Some(recipe) = recipe else { return false };
-                let items = self.items.read().await;
+                let Ok(items) = self.items.try_read() else {
+                    return false;
+                };
 
                 let is_top_items_empty = items[0].is_empty();
                 let side_item_stack = &items[2];
@@ -157,16 +155,14 @@ macro_rules! impl_cooking_block_entity_base {
                 }
                 false
             }
-            async fn craft_recipe(
-                &self,
-                recipe: Option<&pumpkin_data::recipes::CookingRecipe>,
-            ) -> bool {
-                let can_accept_output = self
-                    .can_accept_recipe_output(recipe, self.get_max_count_per_stack())
-                    .await;
+            fn craft_recipe(&self, recipe: Option<&pumpkin_data::recipes::CookingRecipe>) -> bool {
+                let can_accept_output =
+                    self.can_accept_recipe_output(recipe, self.get_max_count_per_stack());
                 if let Some(recipe) = recipe {
                     if can_accept_output {
-                        let mut items = self.items.write().await;
+                        let Ok(mut items) = self.items.try_write() else {
+                            return false;
+                        };
                         let Some(output_item) = pumpkin_data::item::Item::from_registry_key(
                             recipe
                                 .result
@@ -186,18 +182,17 @@ macro_rules! impl_cooking_block_entity_base {
 
                         // Track recipe usage for XP calculation (vanilla RecipesUsed format)
                         self.add_recipe_used(recipe);
-                    }
 
-                    let mut items = self.items.write().await;
-                    if items[0].item.id == pumpkin_data::item::Item::WET_SPONGE.id
-                        && !items[1].is_empty()
-                        && items[1].item.id == pumpkin_data::item::Item::BUCKET.id
-                    {
-                        items[1] = ItemStack::new(1, &pumpkin_data::item::Item::WATER_BUCKET);
-                    }
+                        if items[0].item.id == pumpkin_data::item::Item::WET_SPONGE.id
+                            && !items[1].is_empty()
+                            && items[1].item.id == pumpkin_data::item::Item::BUCKET.id
+                        {
+                            items[1] = ItemStack::new(1, &pumpkin_data::item::Item::WATER_BUCKET);
+                        }
 
-                    items[0].decrement(1);
-                    return true;
+                        items[0].decrement(1);
+                        return true;
+                    }
                 }
 
                 false
@@ -368,169 +363,148 @@ macro_rules! impl_block_entity_for_cooking {
     ($struct_name:ty,$recipe_kind:expr) => {
         impl $crate::block::entities::BlockEntity for $struct_name {
             #[expect(clippy::too_many_lines)]
-            fn tick<'a>(
-                &'a self,
-                world: &'a Arc<$crate::world::World>,
-            ) -> std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-                Box::pin(async move {
-                    let is_burning = self.is_burning();
-                    let mut is_dirty = false;
-                    if self.is_burning() {
-                        self.lit_time_remaining.fetch_sub(1, Ordering::Relaxed);
-                    }
+            fn tick(
+                &self,
+                world: &Arc<$crate::world::World>,
+            ) {
+                let is_burning = self.is_burning();
+                let mut is_dirty = false;
+                if self.is_burning() {
+                    self.lit_time_remaining.fetch_sub(1, Ordering::Relaxed);
+                }
 
-                    let items_guard = self.items.read().await;
-                    let top_item = items_guard[0].clone();
-                    let bottom_item = items_guard[1].clone();
-                    drop(items_guard);
+                let (top_item, bottom_item) = if let Ok(items_guard) = self.items.try_read() {
+                    (items_guard[0].clone(), items_guard[1].clone())
+                } else {
+                    return;
+                };
 
-                    let is_top_items_empty = top_item.is_empty();
+                let is_top_items_empty = top_item.is_empty();
 
-                    let furnace_recipe = pumpkin_data::recipes::get_cooking_recipe_with_ingredient(
-                        top_item.item,
-                        $recipe_kind,
-                    );
+                let furnace_recipe = pumpkin_data::recipes::get_cooking_recipe_with_ingredient(
+                    top_item.item,
+                    $recipe_kind,
+                );
 
-                    let can_accept_output = self
-                        .can_accept_recipe_output(furnace_recipe, self.get_max_count_per_stack())
-                        .await;
+                let can_accept_output = self
+                    .can_accept_recipe_output(furnace_recipe, self.get_max_count_per_stack());
 
-                    let bottom_items_is_empty = bottom_item.is_empty();
-                    if self.is_burning() || !bottom_items_is_empty && !is_top_items_empty {
-                        if !self.is_burning() && can_accept_output {
-                            let base_fuel_ticks =
-                                pumpkin_data::fuels::get_item_burn_ticks(bottom_item.item.id)
-                                    .unwrap_or(0);
+                let bottom_items_is_empty = bottom_item.is_empty();
+                if self.is_burning() || !bottom_items_is_empty && !is_top_items_empty {
+                    if !self.is_burning() && can_accept_output {
+                        let base_fuel_ticks =
+                            pumpkin_data::fuels::get_item_burn_ticks(bottom_item.item.id)
+                                .unwrap_or(0);
 
-                            let adjusted_fuel_ticks = if matches!(
-                                $recipe_kind,
-                                CookingRecipeKind::Blasting | CookingRecipeKind::Smoking
-                            ) {
-                                base_fuel_ticks / 2
-                            } else {
-                                base_fuel_ticks
-                            };
-
-                             let mut burn_event = $crate::plugin::api::events::inventory::furnace_burn::FurnaceBurnEvent::new(
-                                 self.position,
-                                 bottom_item.item.registry_key.to_string(),
-                                 adjusted_fuel_ticks as u32,
-                             );
-                             if let Some(server) = world.server.upgrade() {
-                                 server.plugin_manager.fire(&server, &mut burn_event).await;
-                             }
-                             if burn_event.cancelled {
-                                 self.set_lit_time_remaining(0);
-                             } else {
-                                 self.set_lit_time_remaining(adjusted_fuel_ticks);
-                                 self.set_lit_total_time(adjusted_fuel_ticks);
-                             }
-
-                             if self.is_burning() {
-                                 is_dirty = true;
-                                 let mut items_guard = self.items.write().await;
-                                 if !items_guard[1].is_empty() {
-                                     items_guard[1].decrement(1);
-                                     if let Some(remainder_id) =
-                                         pumpkin_data::recipe_remainder::get_recipe_remainder_id(
-                                             items_guard[1].item.id,
-                                         )
-                                         && items_guard[1].is_empty()
-                                         && let Some(remainder_item) =
-                                             pumpkin_data::item::Item::from_id(remainder_id)
-                                     {
-                                         items_guard[1] = ItemStack::new(1, remainder_item);
-                                     }
-                                 }
-                             }
-                         }
-
-                         if self.is_burning() && can_accept_output {
-                             if self.get_cooking_time_spent() == 0 {
-                                 let mut start_event = $crate::plugin::api::events::inventory::furnace_start_smelt::FurnaceStartSmeltEvent::new(
-                                     self.position,
-                                     top_item.item.registry_key.to_string(),
-                                     self.get_cooking_total_time() as u32,
-                                 );
-                                 if let Some(server) = world.server.upgrade() {
-                                     server.plugin_manager.fire(&server, &mut start_event).await;
-                                 }
-                             }
-                             self.cooking_time_spent.fetch_add(1, Ordering::Relaxed);
-
-                             if self.get_cooking_time_spent() == self.get_cooking_total_time() {
-                                 self.set_cooking_time_spent(0);
-                                 if let Some(cooking_recipe) = furnace_recipe {
-                                     let cooking_total_time = cooking_recipe.cookingtime;
-                                     self.set_cooking_total_time(cooking_total_time as u16);
-
-                                     let mut smelt_event = $crate::plugin::api::events::inventory::furnace_smelt::FurnaceSmeltEvent::new(
-                                         self.position,
-                                         top_item.item.registry_key.to_string(),
-                                         cooking_recipe.result.id.to_string(),
-                                     );
-                                     if let Some(server) = world.server.upgrade() {
-                                         server.plugin_manager.fire(&server, &mut smelt_event).await;
-                                     }
-                                     if !smelt_event.cancelled {
-                                         self.craft_recipe(Some(cooking_recipe)).await;
-                                         is_dirty = true;
-                                     }
-                                 }
-                             }
+                        let adjusted_fuel_ticks = if matches!(
+                            $recipe_kind,
+                            CookingRecipeKind::Blasting | CookingRecipeKind::Smoking
+                        ) {
+                            base_fuel_ticks / 2
                         } else {
-                            self.set_cooking_time_spent(0);
-                        }
-                    } else if !self.is_burning() && self.get_cooking_time_spent() > 0 {
-                        let _ = self.cooking_time_spent.try_update(
-                            Ordering::Acquire,
-                            Ordering::Acquire,
-                            |v| {
-                                Some(
-                                    v.saturating_sub(2)
-                                        .min(self.cooking_total_time.load(Ordering::Acquire)),
-                                )
-                            },
-                        );
-                    }
+                            base_fuel_ticks
+                        };
 
-                    if is_burning != self.is_burning() {
-                        is_dirty = true;
-                        let world = world.clone();
-
-                        let (furnace_block, furnace_block_state) =
-                            world.get_block_and_state(&self.position);
-                        let mut props =
-                            pumpkin_data::block_properties::FurnaceLikeProperties::from_state_id(
-                                furnace_block_state.id,
-                                furnace_block,
+                        if let Some(server) = world.server.upgrade() {
+                            let mut burn_event = $crate::plugin::api::events::inventory::furnace_burn::FurnaceBurnEvent::new(
+                                self.position,
+                                bottom_item.item.registry_key.to_string(),
+                                adjusted_fuel_ticks as u32,
                             );
+                            server.plugin_manager.fire_blocking(&server, &mut burn_event);
+                        }
+                        self.set_lit_time_remaining(adjusted_fuel_ticks);
+                        self.set_lit_total_time(adjusted_fuel_ticks);
 
                         if self.is_burning() {
-                            props.lit = true;
-                            world
-                                .set_block_state(
-                                    &self.position,
-                                    props.to_state_id(furnace_block),
-                                    $crate::world::BlockFlags::NOTIFY_ALL,
-                                )
-                                .await;
-                        } else {
-                            props.lit = false;
-                            world
-                                .set_block_state(
-                                    &self.position,
-                                    props.to_state_id(furnace_block),
-                                    $crate::world::BlockFlags::NOTIFY_ALL,
-                                )
-                                .await;
+                            is_dirty = true;
+                            if let Ok(mut items_guard) = self.items.try_write() {
+                                if !items_guard[1].is_empty() {
+                                    items_guard[1].decrement(1);
+                                    if let Some(remainder_id) =
+                                        pumpkin_data::recipe_remainder::get_recipe_remainder_id(
+                                            items_guard[1].item.id,
+                                        )
+                                        && items_guard[1].is_empty()
+                                        && let Some(remainder_item) =
+                                            pumpkin_data::item::Item::from_id(remainder_id)
+                                    {
+                                        items_guard[1] = ItemStack::new(1, remainder_item);
+                                    }
+                                }
+                            }
                         }
                     }
 
-                    if is_dirty {
-                        self.mark_dirty();
+                    if self.is_burning() && can_accept_output {
+                        if self.get_cooking_time_spent() == 0 {
+                            if let Some(server) = world.server.upgrade() {
+                                let mut start_event = $crate::plugin::api::events::inventory::furnace_start_smelt::FurnaceStartSmeltEvent::new(
+                                    self.position,
+                                    top_item.item.registry_key.to_string(),
+                                    self.get_cooking_total_time() as u32,
+                                );
+                                server.plugin_manager.fire_blocking(&server, &mut start_event);
+                            }
+                        }
+                        self.cooking_time_spent.fetch_add(1, Ordering::Relaxed);
+
+                        if self.get_cooking_time_spent() == self.get_cooking_total_time() {
+                            self.set_cooking_time_spent(0);
+                            if let Some(cooking_recipe) = furnace_recipe {
+                                let cooking_total_time = cooking_recipe.cookingtime;
+                                self.set_cooking_total_time(cooking_total_time as u16);
+
+                                if let Some(server) = world.server.upgrade() {
+                                    let mut smelt_event = $crate::plugin::api::events::inventory::furnace_smelt::FurnaceSmeltEvent::new(
+                                        self.position,
+                                        top_item.item.registry_key.to_string(),
+                                        cooking_recipe.result.id.to_string(),
+                                    );
+                                    server.plugin_manager.fire_blocking(&server, &mut smelt_event);
+                                }
+                                self.craft_recipe(Some(cooking_recipe));
+                                is_dirty = true;
+                            }
+                        }
+                    } else {
+                        self.set_cooking_time_spent(0);
                     }
-                })
+                } else if !self.is_burning() && self.get_cooking_time_spent() > 0 {
+                    let _ = self.cooking_time_spent.try_update(
+                        Ordering::Acquire,
+                        Ordering::Acquire,
+                        |v| {
+                            Some(
+                                v.saturating_sub(2)
+                                    .min(self.cooking_total_time.load(Ordering::Acquire)),
+                            )
+                        },
+                    );
+                }
+
+                if is_burning != self.is_burning() {
+                    is_dirty = true;
+
+                    let (furnace_block, furnace_block_state) =
+                        world.get_block_and_state(&self.position);
+                    let mut props =
+                        pumpkin_data::block_properties::FurnaceLikeProperties::from_state_id(
+                            furnace_block_state.id,
+                            furnace_block,
+                        );
+
+                    props.lit = self.is_burning();
+                    world.set_block_state(
+                        &self.position,
+                        props.to_state_id(furnace_block),
+                        $crate::world::BlockFlags::NOTIFY_ALL,
+                    );
+                }
+
+                if is_dirty {
+                    self.mark_dirty();
+                }
             }
 
             fn resource_location(&self) -> &'static str {

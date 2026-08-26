@@ -1,4 +1,3 @@
-use crate::entity::EntityBase;
 use crate::entity::effect::{EffectFuture, MobEffect};
 use crate::entity::living::LivingEntity;
 
@@ -23,7 +22,10 @@ impl MobEffect for RaidOmenMobEffect {
                 let raid_pos = player
                     .get_raid_omen_position()
                     .unwrap_or_else(|| living.entity.block_pos.load());
-                let mut raids = world.raids.lock().await;
+                let mut raids = world
+                    .raids
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 raids.create_or_extend_raid(player, raid_pos, &world);
                 player.clear_raid_omen_position();
             }

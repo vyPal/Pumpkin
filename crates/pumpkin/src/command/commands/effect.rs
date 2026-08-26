@@ -91,21 +91,18 @@ impl CommandExecutor for GiveExecutor {
                 let should_skip = target
                     .living_entity
                     .get_effect(effect)
-                    .await
                     .is_some_and(|existing| existing.amplifier >= amplifier);
 
                 if !should_skip {
-                    target
-                        .add_effect(Effect {
-                            effect_type: effect,
-                            duration: second,
-                            amplifier,
-                            ambient: false, //this is not a beacon effect
-                            show_particles: !hide_particles,
-                            show_icon: true,
-                            blend: true, //Currently only used in the DARKNESS effect to apply extra void fog and adjust the gamma value for lighting.
-                        })
-                        .await;
+                    target.add_effect(Effect {
+                        effect_type: effect,
+                        duration: second,
+                        amplifier,
+                        ambient: false, //this is not a beacon effect
+                        show_particles: !hide_particles,
+                        show_icon: true,
+                        blend: false,
+                    });
                     successes += 1;
                 }
             }
@@ -208,7 +205,7 @@ impl CommandExecutor for ClearExecutor {
 
                 let mut succeeded_clears: i32 = 0;
                 for target in targets {
-                    if target.living_entity.has_effect(effect).await {
+                    if target.living_entity.has_effect(effect) {
                         target.remove_effect(effect).await;
                         succeeded_clears += 1;
                     }

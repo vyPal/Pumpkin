@@ -238,7 +238,7 @@ impl CommandExecutor for EntityReplaceExecutor {
                         living
                             .entity_equipment
                             .lock()
-                            .await
+                            .unwrap_or_else(std::sync::PoisonError::into_inner)
                             .put(&eq, item_stack.clone());
                         living.send_equipment_changes(&[(eq, item_stack.clone())]);
                         modified_count += 1;

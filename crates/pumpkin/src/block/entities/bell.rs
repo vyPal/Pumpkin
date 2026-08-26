@@ -61,37 +61,33 @@ impl BlockEntity for BellBlockEntity {
         Self::new(position)
     }
 
-    fn tick<'a>(&'a self, world: &'a Arc<World>) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            if self.ringing.load() {
-                self.ring_ticks.fetch_add(1);
-            }
-            if self.ring_ticks.load() >= 50 {
-                self.ringing.store(false);
-                self.ring_ticks.store(0);
-            }
-            if self.ring_ticks.load() >= 5
-                && self.resonate_time.load() == 0
-                && self.raiders_hear_bell()
-            {
-                self.resonating.store(true);
-                world.play_sound_fine(
-                    Sound::BlockBellResonate,
-                    SoundCategory::Blocks,
-                    &self.position.to_f64(),
-                    1.0,
-                    1.0,
-                );
-            }
+    fn tick(&self, world: &Arc<World>) {
+        if self.ringing.load() {
+            self.ring_ticks.fetch_add(1);
+        }
+        if self.ring_ticks.load() >= 50 {
+            self.ringing.store(false);
+            self.ring_ticks.store(0);
+        }
+        if self.ring_ticks.load() >= 5 && self.resonate_time.load() == 0 && self.raiders_hear_bell()
+        {
+            self.resonating.store(true);
+            world.play_sound_fine(
+                Sound::BlockBellResonate,
+                SoundCategory::Blocks,
+                &self.position.to_f64(),
+                1.0,
+                1.0,
+            );
+        }
 
-            if self.resonating.load() {
-                if self.resonate_time.load() < 40 {
-                    self.resonate_time.fetch_add(1);
-                } else {
-                    self.resonating.store(false);
-                }
+        if self.resonating.load() {
+            if self.resonate_time.load() < 40 {
+                self.resonate_time.fetch_add(1);
+            } else {
+                self.resonating.store(false);
             }
-        })
+        }
     }
 
     fn resource_location(&self) -> &'static str {

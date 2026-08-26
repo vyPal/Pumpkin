@@ -123,7 +123,7 @@ impl CreeperEntity {
             )
             .await;
         // TODO: spawn area effect cloud with potion effects
-        entity.remove().await;
+        entity.remove();
     }
 }
 
@@ -183,45 +183,48 @@ impl Mob for CreeperEntity {
         })
     }
 
-    fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            let entity = &self.mob_entity.living_entity.entity;
-            if !entity.is_alive() {
-                return;
-            }
+    fn mob_tick<'a>(&'a self, caller: &'a Arc<dyn EntityBase>) {
+        let entity = &self.mob_entity.living_entity.entity;
+        if !entity.is_alive() {
+            return;
+        }
 
-            self.last_fuse_time.store(
-                self.current_fuse_time.load(Ordering::Relaxed),
-                Ordering::Relaxed,
+        self.last_fuse_time.store(
+            self.current_fuse_time.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+
+        if self.ignited.load(Ordering::Relaxed) {
+            self.set_fuse_speed(1);
+        }
+
+        let fuse_speed = self.fuse_speed.load(Ordering::Relaxed);
+        let current = self.current_fuse_time.load(Ordering::Relaxed);
+
+        if fuse_speed > 0 && current == 0 {
+            let world = entity.world.load();
+            world.play_sound_fine(
+                Sound::EntityCreeperPrimed,
+                SoundCategory::Hostile,
+                &entity.pos.load(),
+                1.0,
+                0.5,
             );
+        }
 
-            if self.ignited.load(Ordering::Relaxed) {
-                self.set_fuse_speed(1);
-            }
+        let fuse_time = self.fuse_time.load(Ordering::Relaxed);
+        let new_fuse = (current + fuse_speed).max(0);
+        self.current_fuse_time.store(new_fuse, Ordering::Relaxed);
 
-            let fuse_speed = self.fuse_speed.load(Ordering::Relaxed);
-            let current = self.current_fuse_time.load(Ordering::Relaxed);
-
-            if fuse_speed > 0 && current == 0 {
-                let world = entity.world.load();
-                world.play_sound_fine(
-                    Sound::EntityCreeperPrimed,
-                    SoundCategory::Hostile,
-                    &entity.pos.load(),
-                    1.0,
-                    0.5,
-                );
-            }
-
-            let fuse_time = self.fuse_time.load(Ordering::Relaxed);
-            let new_fuse = (current + fuse_speed).max(0);
-            self.current_fuse_time.store(new_fuse, Ordering::Relaxed);
-
-            if new_fuse >= fuse_time {
-                self.current_fuse_time.store(fuse_time, Ordering::Relaxed);
-                self.explode().await;
-            }
-        })
+        if new_fuse >= fuse_time {
+            self.current_fuse_time.store(fuse_time, Ordering::Relaxed);
+            let caller_clone = caller.clone();
+            tokio::spawn(async move {
+                if let Some(creeper) = caller_clone.cast_any().downcast_ref::<Self>() {
+                    creeper.explode().await;
+                }
+            });
+        }
     }
 
     fn mob_interact<'a>(
@@ -231,7 +234,7 @@ impl Mob for CreeperEntity {
     ) -> EntityBaseFuture<'a, bool> {
         Box::pin(async move {
             if item_stack.item.id != Item::FLINT_AND_STEEL.id {
-                return self.mob_entity.mob_interact(player, item_stack).await;
+                return self.mob_entity.mob_interact(player, item_stack);
             }
 
             let entity = &self.mob_entity.living_entity.entity;

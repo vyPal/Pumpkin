@@ -73,7 +73,11 @@ impl CommandExecutor for QueryExecutor {
             let mode = self.0;
             let worlds = server.worlds.load();
             let world = worlds.first().ok_or(CommandError::InvalidRequirement)?;
-            let level_time = world.level_time.lock().await;
+            let level_time = world
+                .level_time
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
 
             match mode {
                 QueryMode::GameTime => {
@@ -129,6 +133,7 @@ impl CommandExecutor for QueryExecutor {
 struct ActionExecutor(Action);
 
 impl CommandExecutor for ActionExecutor {
+    #[allow(clippy::too_many_lines)]
     fn execute<'a>(
         &'a self,
         sender: &'a CommandSender,
@@ -141,7 +146,6 @@ impl CommandExecutor for ActionExecutor {
             let action = self.0;
             let worlds = server.worlds.load();
             let world = worlds.first().ok_or(CommandError::InvalidRequirement)?;
-            let mut level_time = world.level_time.lock().await;
 
             match action {
                 Action::Set(preset) => {
@@ -150,8 +154,15 @@ impl CommandExecutor for ActionExecutor {
                     } else {
                         TimeArgumentConsumer::find_arg(args, ARG_TIME)?
                     };
-                    level_time.set_time(time_count.into());
-                    level_time.send_time(world).await;
+                    let level_time = {
+                        let mut guard = world
+                            .level_time
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
+                        guard.set_time(time_count.into());
+                        guard.clone()
+                    };
+                    level_time.send_time(world);
                     sender
                         .send_message(pumpkin_macros::translate_cross!(
                             translation::java::COMMANDS_TIME_SET_ABSOLUTE,
@@ -164,9 +175,16 @@ impl CommandExecutor for ActionExecutor {
                 }
                 Action::Add => {
                     let time_count = TimeArgumentConsumer::find_arg(args, ARG_TIME)?;
-                    level_time.add_time(time_count.into());
-                    level_time.send_time(world).await;
-                    let total_ticks = level_time.time_of_day;
+                    let (level_time, total_ticks) = {
+                        let mut guard = world
+                            .level_time
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
+                        guard.add_time(time_count.into());
+                        let total_ticks = guard.time_of_day;
+                        (guard.clone(), total_ticks)
+                    };
+                    level_time.send_time(world);
                     sender
                         .send_message(pumpkin_macros::translate_cross!(
                             translation::java::COMMANDS_TIME_SET_ABSOLUTE,
@@ -178,8 +196,15 @@ impl CommandExecutor for ActionExecutor {
                     Ok(wrap_time(total_ticks))
                 }
                 Action::Pause => {
-                    level_time.set_paused(true);
-                    level_time.send_time(world).await;
+                    let level_time = {
+                        let mut guard = world
+                            .level_time
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
+                        guard.set_paused(true);
+                        guard.clone()
+                    };
+                    level_time.send_time(world);
                     sender
                         .send_message(pumpkin_macros::translate_cross!(
                             translation::java::COMMANDS_TIME_PAUSE,
@@ -190,8 +215,15 @@ impl CommandExecutor for ActionExecutor {
                     Ok(1)
                 }
                 Action::Resume => {
-                    level_time.set_paused(false);
-                    level_time.send_time(world).await;
+                    let level_time = {
+                        let mut guard = world
+                            .level_time
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
+                        guard.set_paused(false);
+                        guard.clone()
+                    };
+                    level_time.send_time(world);
                     sender
                         .send_message(pumpkin_macros::translate_cross!(
                             translation::java::COMMANDS_TIME_RESUME,
@@ -207,8 +239,15 @@ impl CommandExecutor for ActionExecutor {
                         Ok(val) => val,
                         Err(err) => return Err(err.into()),
                     };
-                    level_time.set_rate(rate);
-                    level_time.send_time(world).await;
+                    let level_time = {
+                        let mut guard = world
+                            .level_time
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
+                        guard.set_rate(rate);
+                        guard.clone()
+                    };
+                    level_time.send_time(world);
                     sender
                         .send_message(pumpkin_macros::translate_cross!(
                             translation::java::COMMANDS_TIME_RATE,

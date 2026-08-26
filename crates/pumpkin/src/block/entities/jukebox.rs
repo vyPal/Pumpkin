@@ -78,22 +78,20 @@ impl BlockEntity for JukeboxBlockEntity {
         })
     }
 
-    fn tick<'a>(&'a self, _world: &'a Arc<World>) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            // Increment ticks if we're playing
-            let song_length = self.song_length_ticks.load(Ordering::Relaxed);
-            if song_length > 0 {
-                let ticks = self
-                    .ticks_since_song_started
-                    .fetch_add(1, Ordering::Relaxed);
-                // Check if song has finished
-                if ticks >= song_length {
-                    self.stop_playing();
-                    // TODO: Update block state to has_record = false? Or just stop redstone?
-                    // In vanilla, the disc stays but music stops and redstone turns off
-                }
+    fn tick(&self, _world: &Arc<World>) {
+        // Increment ticks if we're playing
+        let song_length = self.song_length_ticks.load(Ordering::Relaxed);
+        if song_length > 0 {
+            let ticks = self
+                .ticks_since_song_started
+                .fetch_add(1, Ordering::Relaxed);
+            // Check if song has finished
+            if ticks >= song_length {
+                self.stop_playing();
+                // TODO: Update block state to has_record = false? Or just stop redstone?
+                // In vanilla, the disc stays but music stops and redstone turns off
             }
-        })
+        }
     }
 
     fn is_dirty(&self) -> bool {
@@ -140,21 +138,21 @@ impl JukeboxBlockEntity {
     }
 
     /// Get the current record stack
-    pub async fn get_record(&self) -> ItemStack {
-        self.record_stack.lock().await.clone()
+    pub fn get_record(&self) -> ItemStack {
+        self.record_stack.blocking_lock().clone()
     }
 
     /// Set the record stack - matches vanilla's `setStack()`
     /// Note: The caller is responsible for updating block state and playing music
-    pub async fn set_record(&self, stack: ItemStack) {
-        *self.record_stack.lock().await = stack;
+    pub fn set_record(&self, stack: ItemStack) {
+        *self.record_stack.blocking_lock() = stack;
         self.mark_dirty();
     }
 
     /// Clear the stack and return what was there - used for dropping
-    pub async fn clear_record(&self) -> ItemStack {
+    pub fn clear_record(&self) -> ItemStack {
         self.stop_playing();
-        let mut record = self.record_stack.lock().await;
+        let mut record = self.record_stack.blocking_lock();
         let taken = record.clone();
         *record = ItemStack::EMPTY.clone();
         self.mark_dirty();

@@ -45,7 +45,7 @@ impl ItemBehaviour for FireworkRocketItem {
                 &EntityType::FIREWORK_ROCKET,
             );
             let entity = FireworkRocketEntity::new(entity);
-            world.spawn_entity(Arc::new(entity)).await;
+            world.spawn_entity(Arc::new(entity));
         })
     }
 
@@ -63,7 +63,7 @@ impl ItemBehaviour for FireworkRocketItem {
                     &EntityType::FIREWORK_ROCKET,
                 );
                 let entity = FireworkRocketEntity::new_shot(entity, player.get_entity());
-                world.spawn_entity(Arc::new(entity)).await;
+                world.spawn_entity(Arc::new(entity));
             }
         })
     }

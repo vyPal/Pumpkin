@@ -250,7 +250,7 @@ impl BedrockClient {
                         let count = count.min(source_stack.item_count);
                         if count > 0 {
                             let dropped_stack = source_stack.copy_with_count(count);
-                            player.drop_item(dropped_stack).await;
+                            player.drop_item(dropped_stack);
 
                             source_stack.decrement(count);
                             let source_stack = if source_stack.is_empty() {
@@ -518,16 +518,17 @@ impl BedrockClient {
             .await;
 
         if inventory_updated {
+            let slots = player
+                .inventory()
+                .main_inventory
+                .read()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .iter()
+                .map(NetworkItemStackDescriptor::from)
+                .collect();
             self.enqueue_client_packet(&CInventoryContent {
                 container_id: VarUInt(0),
-                slots: player
-                    .inventory()
-                    .main_inventory
-                    .read()
-                    .await
-                    .iter()
-                    .map(NetworkItemStackDescriptor::from)
-                    .collect(),
+                slots,
                 full_container_name: FullContainerName {
                     container_name: ContainerName::Inventory,
                     dynamic_id: None,
@@ -924,7 +925,7 @@ mod tests {
         build_equipment_slots, crafting::crafting_screen_handler::CraftingTableScreenHandler,
         entity_equipment::EntityEquipment,
     };
-    use tokio::sync::Mutex;
+    use std::sync::Mutex;
 
     #[tokio::test]
     async fn crafting_table_maps_bedrock_player_inventory_after_its_ten_slots() {

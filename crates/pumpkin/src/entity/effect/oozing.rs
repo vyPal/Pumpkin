@@ -40,7 +40,7 @@ impl MobEffect for OozingMobEffect {
                     slime.set_size(2, true);
                 }
 
-                world.spawn_entity(entity_arc).await;
+                world.spawn_entity(entity_arc);
             }
         })
     }

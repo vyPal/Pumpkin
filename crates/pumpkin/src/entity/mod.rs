@@ -171,18 +171,12 @@ pub trait EntityBase: Send + Sync + std::any::Any {
     /// but in some scenarios (e.g., interactions or events), it might be a different entity.
     ///
     /// The `server` parameter provides access to the game server instance.
-    fn tick<'a>(
-        &'a self,
-        caller: &'a Arc<dyn EntityBase>,
-        server: &'a Server,
-    ) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(living) = self.get_living_entity() {
-                living.tick(caller, server).await;
-            } else {
-                self.get_entity().tick(caller, server).await;
-            }
-        })
+    fn tick(&self, caller: &Arc<dyn EntityBase>, server: &Server) {
+        if let Some(living) = self.get_living_entity() {
+            living.tick(caller, server);
+        } else {
+            self.get_entity().tick(caller, server);
+        }
     }
 
     fn get_job_site_pos(&self) -> Option<pumpkin_util::math::position::BlockPos> {
@@ -213,22 +207,20 @@ pub trait EntityBase: Send + Sync + std::any::Any {
         Vector3::from_yaw_pitch(entity.yaw.load(), entity.pitch.load())
     }
 
-    fn init_data_tracker(&self) -> EntityBaseFuture<'_, ()> {
-        Box::pin(async move {
-            let entity = self.get_entity();
+    fn init_data_tracker(&self) {
+        let entity = self.get_entity();
 
-            // If the internal age is negative, it's a baby
-            let is_baby = entity.age.load(Ordering::Relaxed) < 0;
+        // If the internal age is negative, it's a baby
+        let is_baby = entity.age.load(Ordering::Relaxed) < 0;
 
-            if is_baby {
-                let mut bedrock_meta = SyncedActorDataList::new();
-                bedrock_meta.set_flag(entity_data_key::FLAGS, entity_data_flag::BABY as u8, true);
-                entity.send_meta_data(
-                    &[Metadata::new(tracked_data::ageable_mob::DATA_BABY_ID, true)],
-                    Some(&bedrock_meta),
-                );
-            }
-        })
+        if is_baby {
+            let mut bedrock_meta = SyncedActorDataList::new();
+            bedrock_meta.set_flag(entity_data_key::FLAGS, entity_data_flag::BABY as u8, true);
+            entity.send_meta_data(
+                &[Metadata::new(tracked_data::ageable_mob::DATA_BABY_ID, true)],
+                Some(&bedrock_meta),
+            );
+        }
     }
     fn set_variant_name(&self, _name: &str) {}
 
@@ -265,22 +257,13 @@ pub trait EntityBase: Send + Sync + std::any::Any {
         None
     }
 
-    fn tick_in_void<'a>(&'a self, _dyn_self: &'a dyn EntityBase) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move { self.get_entity().remove().await })
+    fn tick_in_void(&self, _dyn_self: &dyn EntityBase) {
+        self.get_entity().remove();
     }
 
     /// Returns if damage was successful or not
-    fn damage<'a>(
-        &'a self,
-        caller: &'a dyn EntityBase,
-        amount: f32,
-        damage_type: DamageType,
-    ) -> EntityBaseFuture<'a, bool> {
-        Box::pin(async move {
-            caller
-                .damage_with_context(caller, amount, damage_type, None, None, None)
-                .await
-        })
+    fn damage(&self, caller: &dyn EntityBase, amount: f32, damage_type: DamageType) -> bool {
+        caller.damage_with_context(caller, amount, damage_type, None, None, None)
     }
 
     fn on_lightning_strike<'a>(
@@ -291,7 +274,7 @@ pub trait EntityBase: Send + Sync + std::any::Any {
         Box::pin(async move {
             if self.get_living_entity().is_some() {
                 self.set_on_fire_for(8.0);
-                let cause = lightning.get_cause().await;
+                let cause = lightning.get_cause();
                 self.damage_with_context(
                     caller,
                     5.0,
@@ -299,8 +282,7 @@ pub trait EntityBase: Send + Sync + std::any::Any {
                     None,
                     Some(lightning),
                     cause.as_deref().map(|p| p as &dyn EntityBase),
-                )
-                .await;
+                );
             }
         })
     }
@@ -407,23 +389,26 @@ pub trait EntityBase: Send + Sync + std::any::Any {
         })
     }
 
-    fn damage_with_context<'a>(
-        &'a self,
-        caller: &'a dyn EntityBase,
+    fn damage_with_context(
+        &self,
+        caller: &dyn EntityBase,
         amount: f32,
         damage_type: DamageType,
         position: Option<Vector3<f64>>,
-        source: Option<&'a dyn EntityBase>,
-        cause: Option<&'a dyn EntityBase>,
-    ) -> EntityBaseFuture<'a, bool> {
-        Box::pin(async move {
-            if caller.get_living_entity().is_some() {
-                return caller
-                    .damage_with_context(caller, amount, damage_type, position, source, cause)
-                    .await;
-            }
-            false
-        })
+        source: Option<&dyn EntityBase>,
+        cause: Option<&dyn EntityBase>,
+    ) -> bool {
+        if let Some(living) = caller.get_living_entity() {
+            return living.damage_with_context(
+                caller,
+                amount,
+                damage_type,
+                position,
+                source,
+                cause,
+            );
+        }
+        false
     }
 
     /// Called when a player right-clicks this entity with an item.
@@ -451,11 +436,7 @@ pub trait EntityBase: Send + Sync + std::any::Any {
             ticks as f32 / 20.0,
         );
         if let Some(server) = entity.world.load().server.upgrade() {
-            tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async {
-                    server.plugin_manager.fire(&server, &mut event).await;
-                });
-            });
+            server.plugin_manager.fire_blocking(&server, &mut event);
             if event.cancelled {
                 return;
             }
@@ -466,17 +447,15 @@ pub trait EntityBase: Send + Sync + std::any::Any {
         // TODO: defrost
     }
 
-    /// Called when a player collides with a entity
-    fn on_player_collision<'a>(&'a self, _player: &'a Arc<Player>) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async {})
-    }
+    /// Called when a player collides with an entity
+    fn on_player_collision(&self, _player: &Arc<Player>) {}
 
     fn is_passenger(&self) -> EntityBaseFuture<'_, bool> {
-        Box::pin(async move { self.get_entity().has_vehicle().await })
+        Box::pin(async move { self.get_entity().has_vehicle() })
     }
 
     fn is_vehicle(&self) -> EntityBaseFuture<'_, bool> {
-        Box::pin(async move { self.get_entity().has_passengers().await })
+        Box::pin(async move { self.get_entity().has_passengers() })
     }
 
     fn has_passenger<'a>(&'a self, other: &'a Arc<dyn EntityBase>) -> EntityBaseFuture<'a, bool> {
@@ -490,14 +469,8 @@ pub trait EntityBase: Send + Sync + std::any::Any {
         })
     }
 
-    fn move_entity<'a>(
-        &'a self,
-        caller: &'a Arc<dyn EntityBase>,
-        motion: Vector3<f64>,
-    ) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            self.get_entity().move_entity(caller, motion).await;
-        })
+    fn move_entity(&self, caller: &Arc<dyn EntityBase>, motion: Vector3<f64>) {
+        self.get_entity().move_entity(caller, motion);
     }
 
     fn is_pushable(&self) -> bool {
@@ -509,8 +482,8 @@ pub trait EntityBase: Send + Sync + std::any::Any {
             let self_entity = self.get_entity();
             let other_entity = entity.get_entity();
 
-            if self_entity.no_clip.load(Ordering::Relaxed)
-                || other_entity.no_clip.load(Ordering::Relaxed)
+            if self_entity.no_physics.load(Ordering::Relaxed)
+                || other_entity.no_physics.load(Ordering::Relaxed)
             {
                 return;
             }
@@ -550,7 +523,7 @@ pub trait EntityBase: Send + Sync + std::any::Any {
                 dx *= 0.05;
                 dz *= 0.05;
 
-                if !self_entity.has_passengers().await && self.is_pushable() {
+                if !self_entity.has_passengers() && self.is_pushable() {
                     let mut vel = self_entity.velocity.load();
                     vel.x -= dx;
                     vel.z -= dz;
@@ -558,7 +531,7 @@ pub trait EntityBase: Send + Sync + std::any::Any {
                     self_entity.send_velocity();
                 }
 
-                if !other_entity.has_passengers().await && entity.is_pushable() {
+                if !other_entity.has_passengers() && entity.is_pushable() {
                     let mut vel = other_entity.velocity.load();
                     vel.x += dx;
                     vel.z += dz;
@@ -648,7 +621,7 @@ pub trait EntityBase: Send + Sync + std::any::Any {
                             if (is_iron_golem
                                 || is_other_minecart
                                 || is_vehicle
-                                || !other.get_entity().has_vehicle().await)
+                                || !other.get_entity().has_vehicle())
                                 && other.is_pushable()
                             {
                                 dyn_self.push(&other).await;
@@ -698,13 +671,9 @@ pub trait EntityBase: Send + Sync + std::any::Any {
         })
     }
 
-    fn on_hit(&self, _hit: crate::entity::projectile::ProjectileHit) -> EntityBaseFuture<'_, ()> {
-        Box::pin(async {})
-    }
+    fn on_hit(&self, _hit: crate::entity::projectile::ProjectileHit) {}
 
-    fn set_paddle_state(&self, _left: bool, _right: bool) -> EntityBaseFuture<'_, ()> {
-        Box::pin(async {})
-    }
+    fn set_paddle_state(&self, _left: bool, _right: bool) {}
 
     fn is_in_love(&self) -> bool {
         false
@@ -777,12 +746,10 @@ pub trait EntityBase: Send + Sync + std::any::Any {
     fn kill<'a>(&'a self, caller: &'a dyn EntityBase) -> EntityBaseFuture<'a, ()> {
         Box::pin(async move {
             if self.get_living_entity().is_some() {
-                caller
-                    .damage(caller, f32::MAX, DamageType::GENERIC_KILL)
-                    .await;
+                caller.damage(caller, f32::MAX, DamageType::GENERIC_KILL);
             } else {
                 // TODO this should be removed once all entities are implemented
-                self.get_entity().remove().await;
+                self.get_entity().remove();
             }
         })
     }
@@ -894,7 +861,7 @@ pub struct Entity {
     /// Whether this entity is invulnerable to all damage
     pub invulnerable: AtomicBool,
     /// List of damage types this entity is immune to
-    pub damage_immunities: Mutex<Vec<DamageType>>,
+    pub damage_immunities: std::sync::Mutex<Vec<DamageType>>,
     // Whether the entity is immune to fire (to disable visual fire and fire damage)
     pub fire_immune: AtomicBool,
     pub fire_ticks: AtomicI32,
@@ -912,7 +879,7 @@ pub struct Entity {
     /// The vehicle that entity is in
     pub vehicle: Mutex<Option<Arc<dyn EntityBase>>>,
     /// The entity this entity is attached/leashed to (if any)
-    pub leashed_to: Mutex<Option<Arc<dyn EntityBase>>>,
+    pub leashed_to: std::sync::Mutex<Option<Arc<dyn EntityBase>>>,
     /// Cooldown before entity can mount again after dismounting
     pub riding_cooldown: AtomicI32,
     /// The age of the entity in ticks. Negative values indicate a baby.
@@ -941,8 +908,8 @@ pub struct Entity {
     pub bedrock_flags: std::sync::atomic::AtomicI64,
     /// Stores more Bedrock-specific entity boolean flags (bit 0-63)
     pub bedrock_flags_two: std::sync::atomic::AtomicI64,
-    /// If true, the entity cannot collide with anything (e.g. spectator)
-    pub no_clip: AtomicBool,
+    /// If true, the entity bypasses physics, collisions, and block effects (e.g. spectator, markers, display entities)
+    pub no_physics: AtomicBool,
     /// Multiplies movement for one tick before being reset
     pub movement_multiplier: AtomicCell<Vector3<f64>>,
     /// Determines whether the entity's velocity needs to be sent
@@ -1006,6 +973,10 @@ impl Entity {
             eye_height: entity_type.eye_height,
         };
 
+        let current_biome = world
+            .level
+            .get_rough_biome(&BlockPos::new(floor_x, floor_y, floor_z));
+
         Self {
             entity_id,
             entity_uuid,
@@ -1046,7 +1017,7 @@ impl Entity {
             )),
             entity_dimension: AtomicCell::new(bounding_box_size),
             invulnerable: AtomicBool::new(false),
-            damage_immunities: Mutex::new(Vec::new()),
+            damage_immunities: std::sync::Mutex::new(Vec::new()),
             data: AtomicI32::new(0),
             flags: std::sync::atomic::AtomicI8::new(0),
             bedrock_flags: std::sync::atomic::AtomicI64::new(0),
@@ -1060,11 +1031,11 @@ impl Entity {
             removal_reason: AtomicCell::new(None),
             passengers: Mutex::new(Vec::new()),
             vehicle: Mutex::new(None),
-            leashed_to: Mutex::new(None),
+            leashed_to: std::sync::Mutex::new(None),
 
             riding_cooldown: AtomicI32::new(0),
             age: AtomicI32::new(0),
-            current_biome: ArcSwap::new(Arc::new(&Biome::PLAINS)),
+            current_biome: ArcSwap::new(Arc::new(current_biome)),
             last_biome_update_pos: AtomicCell::new(BlockPos::new(floor_x, floor_y, floor_z)),
             portal_cooldown: AtomicU32::new(0),
             portal_manager: Mutex::new(None),
@@ -1073,7 +1044,7 @@ impl Entity {
             silent: AtomicBool::new(false),
             has_no_gravity: AtomicBool::new(false),
             scoreboard_tags: Mutex::new(HashSet::new()),
-            no_clip: AtomicBool::new(false),
+            no_physics: AtomicBool::new(false),
             movement_multiplier: AtomicCell::new(Vector3::default()),
             velocity_dirty: AtomicBool::new(true),
             removed: AtomicBool::new(false),
@@ -1097,6 +1068,10 @@ impl Entity {
     /// Updates the world reference for this entity.
     /// Called when the entity changes dimensions (e.g., through a nether portal).
     pub fn set_world(&self, world: Arc<World>) {
+        let block_pos = self.block_pos.load();
+        let biome = world.level.get_rough_biome(&block_pos);
+        self.current_biome.store(Arc::new(biome));
+        self.last_biome_update_pos.store(block_pos);
         self.world.store(world);
     }
 
@@ -1260,7 +1235,7 @@ impl Entity {
     pub fn send_velocity(&self) {
         let velocity = self.velocity.load();
         let chunk_pos = self.chunk_pos.load();
-        self.world.load().broadcast_to_chunk_editioned_sync(
+        self.world.load().broadcast_to_chunk_editioned(
             chunk_pos,
             &CEntityVelocity::new(self.entity_id.into(), velocity),
             &CSetActorMotion {
@@ -1313,7 +1288,13 @@ impl Entity {
                 || floor_z != block_pos_vec.z
             {
                 let new_block_pos = Vector3::new(floor_x, floor_y, floor_z);
-                self.block_pos.store(BlockPos(new_block_pos));
+                let new_bp = BlockPos(new_block_pos);
+                self.block_pos.store(new_bp);
+
+                let world = self.world.load();
+                let biome = world.level.get_rough_biome(&new_bp);
+                self.current_biome.store(Arc::new(biome));
+                self.last_biome_update_pos.store(new_bp);
 
                 let chunk_pos = self.chunk_pos.load();
                 if get_section_cord(floor_x) != chunk_pos.x
@@ -1413,7 +1394,7 @@ impl Entity {
     }
 
     #[expect(clippy::float_cmp)]
-    async fn adjust_movement_for_collisions(
+    fn adjust_movement_for_collisions(
         &self,
         movement: Vector3<f64>,
         caller: &dyn EntityBase,
@@ -1431,8 +1412,7 @@ impl Entity {
         let (collisions, block_positions) = self
             .world
             .load()
-            .get_block_collisions(bounding_box.stretch(movement), caller)
-            .await;
+            .get_block_collisions(bounding_box.stretch(movement), caller);
 
         if collisions.is_empty() {
             return movement;
@@ -1646,7 +1626,11 @@ impl Entity {
         */
     }
 
-    async fn tick_block_collisions(&self, caller: &Arc<dyn EntityBase>, server: &Server) -> bool {
+    pub fn tick_block_collisions(&self, caller: &Arc<dyn EntityBase>, _server: &Server) -> bool {
+        if !self.is_affected_by_blocks() {
+            return false;
+        }
+
         let bounding_box = self.bounding_box.load();
         let aabb = bounding_box.expand(-1.0e-7, -1.0e-7, -1.0e-7);
 
@@ -1689,22 +1673,26 @@ impl Entity {
                     caller.as_ref(),
                     &pos,
                 )
-                .await
             } else {
                 world
                     .block_registry
                     .get_inside_collision_shape(block, &world, state, &pos)
-                    .await
             };
 
             if bounding_box.intersects(&collision_shape.at_pos(pos)) {
                 if block == &Block::POWDER_SNOW {
                     self.is_in_powder_snow.store(true, Relaxed);
                 }
-                world
-                    .block_registry
-                    .on_entity_collision(block, &world, caller.as_ref(), &pos, state, server)
-                    .await;
+                if let Some(server_arc) = world.server.upgrade() {
+                    world.block_registry.on_entity_collision(
+                        block,
+                        &world,
+                        caller.as_ref(),
+                        &pos,
+                        state,
+                        &server_arc,
+                    );
+                }
             }
         }
 
@@ -1752,7 +1740,7 @@ impl Entity {
                 self.on_ground.load(Relaxed),
             );
             if self.entity_type == &EntityType::PLAYER {
-                self.world.load().broadcast_to_chunk_editioned_sync(
+                self.world.load().broadcast_to_chunk_editioned(
                     chunk_pos,
                     &je_packet,
                     &CMovePlayer::new(
@@ -1779,7 +1767,7 @@ impl Entity {
                 if self.on_ground.load(Relaxed) {
                     flags |= MOVE_ACTOR_DELTA_FLAG_ON_GROUND;
                 }
-                self.world.load().broadcast_to_chunk_editioned_sync(
+                self.world.load().broadcast_to_chunk_editioned(
                     chunk_pos,
                     &je_packet,
                     &CMoveActorDelta::new(
@@ -1801,7 +1789,7 @@ impl Entity {
                 self.on_ground.load(Relaxed),
             );
             if self.entity_type == &EntityType::PLAYER {
-                self.world.load().broadcast_to_chunk_editioned_sync(
+                self.world.load().broadcast_to_chunk_editioned(
                     chunk_pos,
                     &je_packet,
                     &CMovePlayer::new(
@@ -1826,7 +1814,7 @@ impl Entity {
                     flags |= MOVE_ACTOR_DELTA_FLAG_ON_GROUND;
                 }
 
-                self.world.load().broadcast_to_chunk_editioned_sync(
+                self.world.load().broadcast_to_chunk_editioned(
                     chunk_pos,
                     &je_packet,
                     &CMoveActorDelta::new(
@@ -1849,7 +1837,7 @@ impl Entity {
                 self.on_ground.load(Relaxed),
             );
             if self.entity_type == &EntityType::PLAYER {
-                self.world.load().broadcast_to_chunk_editioned_sync(
+                self.world.load().broadcast_to_chunk_editioned(
                     chunk_pos,
                     &je_packet,
                     &CMovePlayer::new(
@@ -1873,7 +1861,7 @@ impl Entity {
                 if self.on_ground.load(Relaxed) {
                     flags |= MOVE_ACTOR_DELTA_FLAG_ON_GROUND;
                 }
-                self.world.load().broadcast_to_chunk_editioned_sync(
+                self.world.load().broadcast_to_chunk_editioned(
                     chunk_pos,
                     &je_packet,
                     &CMoveActorDelta::new(
@@ -1947,7 +1935,7 @@ impl Entity {
         );
 
         if self.entity_type == &EntityType::PLAYER {
-            self.world.load().broadcast_to_chunk_editioned_sync(
+            self.world.load().broadcast_to_chunk_editioned(
                 chunk_pos,
                 &je_packet,
                 &CMovePlayer::new(
@@ -1972,7 +1960,7 @@ impl Entity {
                 flags |= MOVE_ACTOR_DELTA_FLAG_ON_GROUND;
             }
 
-            self.world.load().broadcast_to_chunk_editioned_sync(
+            self.world.load().broadcast_to_chunk_editioned(
                 chunk_pos,
                 &je_packet,
                 &CMoveActorDelta::new(
@@ -1991,7 +1979,7 @@ impl Entity {
 
     // updateWaterState() in yarn
 
-    async fn update_fluid_state(&self, caller: &Arc<dyn EntityBase>) {
+    fn update_fluid_state(&self, caller: &Arc<dyn EntityBase>) {
         let is_pushed = caller.is_pushed_by_fluids();
         let mut fluids = BTreeMap::new();
 
@@ -2069,8 +2057,7 @@ impl Entity {
         for (_, fluid) in fluids {
             world
                 .block_registry
-                .on_entity_collision_fluid(fluid, caller.as_ref())
-                .await;
+                .on_entity_collision_fluid(fluid, caller.as_ref());
         }
 
         let lava_speed = if world.dimension == Dimension::THE_NETHER {
@@ -2272,17 +2259,15 @@ impl Entity {
     // Move by a delta, adjust for collisions, and send
 
     // Does not send movement. That must be done separately
-    pub async fn move_entity<'a>(
-        &'a self,
-        caller: &'a Arc<dyn EntityBase>,
-        mut motion: Vector3<f64>,
-    ) {
+    pub fn move_entity(&self, caller: &Arc<dyn EntityBase>, mut motion: Vector3<f64>) {
         if caller.get_player().is_some() {
             return;
         }
 
-        if self.no_clip.load(Ordering::Relaxed) {
+        if self.no_physics.load(Ordering::Relaxed) {
             self.move_pos(motion);
+            self.horizontal_collision.store(false, Ordering::Relaxed);
+            self.on_ground.store(false, Ordering::Relaxed);
 
             return;
         }
@@ -2299,9 +2284,7 @@ impl Entity {
             self.velocity.store(Vector3::default());
         }
 
-        let final_move = self
-            .adjust_movement_for_collisions(motion, caller.as_ref())
-            .await;
+        let final_move = self.adjust_movement_for_collisions(motion, caller.as_ref());
 
         self.move_pos(final_move);
 
@@ -2310,14 +2293,8 @@ impl Entity {
         self.velocity.store(final_move * velocity_multiplier);
 
         if let Some(living) = caller.get_living_entity() {
-            living
-                .fall(
-                    caller.clone(),
-                    final_move.y,
-                    self.on_ground.load(Ordering::SeqCst),
-                    false,
-                )
-                .await;
+            let on_ground = self.on_ground.load(Ordering::SeqCst);
+            living.fall(caller.as_ref(), final_move.y, on_ground, false);
         }
 
         if motion.y != final_move.y {
@@ -2325,8 +2302,7 @@ impl Entity {
             let block = self.get_block_with_y_offset(0.2).1;
             world
                 .block_registry
-                .update_entity_movement_after_fall_on(block, caller.as_ref())
-                .await;
+                .update_entity_movement_after_fall_on(block, caller.as_ref());
         }
     }
 
@@ -2385,14 +2361,18 @@ impl Entity {
         self.velocity.store(velo);
     }
 
-    async fn tick_portal(&self, caller: &Arc<dyn EntityBase>) {
+    fn tick_portal(&self, caller: &Arc<dyn EntityBase>) {
         if self.portal_cooldown.load(Ordering::Relaxed) > 0 {
             self.portal_cooldown.fetch_sub(1, Ordering::Relaxed);
         }
-        let mut manager_guard = self.portal_manager.lock().await;
+        let Ok(mut manager_guard) = self.portal_manager.try_lock() else {
+            return;
+        };
         let mut should_remove = false;
         if let Some(pmanager_mutex) = manager_guard.as_ref() {
-            let mut portal_processor = pmanager_mutex.lock().await;
+            let Ok(mut portal_processor) = pmanager_mutex.try_lock() else {
+                return;
+            };
             if portal_processor.process_portal_teleportation(
                 &self.world.load(),
                 caller.as_ref(),
@@ -2401,36 +2381,50 @@ impl Entity {
                 self.portal_cooldown
                     .store(self.default_portal_cooldown(), Ordering::Relaxed);
 
-                let transition = portal_processor
-                    .portal_type
-                    .get_portal_destination(
-                        &self.world.load(),
-                        portal_processor.destination_world.clone(),
-                        caller,
-                        portal_processor.entry_position,
-                        portal_processor.source_portal.clone(),
-                    )
-                    .await;
+                let caller_clone = caller.clone();
+                let world_clone = self.world.load_full();
+                let portal_type = portal_processor.portal_type;
+                let dest_world_opt = portal_processor.destination_world.clone();
+                let entry_pos = portal_processor.entry_position;
+                let src_portal = portal_processor.source_portal.clone();
+                let entity_id = self.entity_id;
+                let yaw = self.yaw.load();
 
-                drop(portal_processor);
-
-                if let Some(transition) = transition {
-                    let dest_world = transition.new_world.clone();
-                    let yaw = transition.yaw;
-                    let pitch = transition.pitch;
-                    let teleport_pos = transition.position;
-
-                    // Teleport the main entity
-                    caller
-                        .clone()
-                        .teleport(teleport_pos, yaw, pitch, dest_world.clone())
+                tokio::spawn(async move {
+                    let transition = portal_type
+                        .get_portal_destination(
+                            &world_clone,
+                            dest_world_opt,
+                            &caller_clone,
+                            entry_pos,
+                            src_portal,
+                        )
                         .await;
 
-                    // Teleport all passengers recursively along with the vehicle
-                    let yaw_delta = yaw.map(|y| y - self.yaw.load());
-                    Self::teleport_passengers_recursive(self, teleport_pos, yaw_delta, &dest_world)
-                        .await;
-                }
+                    if let Some(transition) = transition {
+                        let dest_world = transition.new_world.clone();
+                        let yaw_val = transition.yaw;
+                        let pitch = transition.pitch;
+                        let teleport_pos = transition.position;
+
+                        // Teleport the main entity
+                        caller_clone
+                            .teleport(teleport_pos, yaw_val, pitch, dest_world.clone())
+                            .await;
+
+                        // Teleport all passengers recursively along with the vehicle
+                        if let Some(entity) = world_clone.get_entity_by_id(entity_id) {
+                            let yaw_delta = yaw_val.map(|y| y - yaw);
+                            Self::teleport_passengers_recursive(
+                                entity.get_entity(),
+                                teleport_pos,
+                                yaw_delta,
+                                &dest_world,
+                            )
+                            .await;
+                        }
+                    }
+                });
             } else if portal_processor.portal_time == 0 {
                 should_remove = true;
             }
@@ -2479,26 +2473,23 @@ impl Entity {
         })
     }
 
-    pub async fn try_use_portal(
-        &self,
-        _portal_delay: u32,
-        portal_world: Arc<World>,
-        pos: BlockPos,
-    ) {
+    pub fn try_use_portal(&self, _portal_delay: u32, portal_world: Arc<World>, pos: BlockPos) {
         let mut portal_event =
             crate::plugin::api::events::entity::entity_portal::EntityPortalEvent::new(
                 self.entity_id,
                 pos,
             );
         if let Some(server) = self.world.load().server.upgrade() {
-            server.plugin_manager.fire(&server, &mut portal_event).await;
+            server
+                .plugin_manager
+                .fire_blocking(&server, &mut portal_event);
         }
         if portal_event.cancelled {
             return;
         }
 
         // Passengers don't teleport independently - they wait for their vehicle
-        if self.has_vehicle().await {
+        if self.has_vehicle() {
             return;
         }
 
@@ -2518,7 +2509,7 @@ impl Entity {
             return;
         }
 
-        let mut manager = self.portal_manager.lock().await;
+        let mut manager = self.portal_manager.blocking_lock();
         let world = self.world.load();
         if manager.is_none() {
             let portal_type = if portal_world.dimension == Dimension::THE_END
@@ -2559,7 +2550,7 @@ impl Entity {
 
             *manager = Some(Mutex::new(new_manager));
         } else if let Some(manager) = manager.as_ref() {
-            let mut manager = manager.lock().await;
+            let mut manager = manager.blocking_lock();
             manager.entry_position = pos;
             manager.inside_portal_this_tick = true;
         }
@@ -2592,7 +2583,7 @@ impl Entity {
 
     /// Mirrors vanilla `LivingEntity#canFreeze`: spectators and entities wearing
     /// freeze-immune wearables (e.g. leather armor) cannot freeze.
-    async fn can_freeze(&self, caller: &dyn EntityBase) -> bool {
+    fn can_freeze(&self, caller: &dyn EntityBase) -> bool {
         if caller.is_spectator() || self.is_freeze_immune() {
             return false;
         }
@@ -2601,17 +2592,18 @@ impl Entity {
             return true;
         };
 
-        let equipment = living.entity_equipment.lock().await;
-        for (slot, stack) in &equipment.equipment {
-            if (*slot == EquipmentSlot::HEAD
-                || *slot == EquipmentSlot::CHEST
-                || *slot == EquipmentSlot::LEGS
-                || *slot == EquipmentSlot::FEET)
-                && stack
-                    .get_item()
-                    .has_tag(&tag::Item::MINECRAFT_FREEZE_IMMUNE_WEARABLES)
-            {
-                return false;
+        if let Ok(equipment) = living.entity_equipment.try_lock() {
+            for (slot, stack) in &equipment.equipment {
+                if (*slot == EquipmentSlot::HEAD
+                    || *slot == EquipmentSlot::CHEST
+                    || *slot == EquipmentSlot::LEGS
+                    || *slot == EquipmentSlot::FEET)
+                    && stack
+                        .get_item()
+                        .has_tag(&tag::Item::MINECRAFT_FREEZE_IMMUNE_WEARABLES)
+                {
+                    return false;
+                }
             }
         }
 
@@ -2622,8 +2614,8 @@ impl Entity {
     /// In powder snow and freezeable: `frozen_ticks` increases by 1 (up to `MAX_FROZEN_TICKS`)
     /// Otherwise: `frozen_ticks` decreases by 2 (down to 0)
     /// When fully frozen, deals 1 damage every 40 ticks
-    pub async fn tick_frozen(&self, caller: &dyn EntityBase) {
-        let can_freeze = self.can_freeze(caller).await;
+    pub fn tick_frozen(&self, caller: &dyn EntityBase) {
+        let can_freeze = self.can_freeze(caller);
         let in_powder_snow = self.is_in_powder_snow();
         let old_frozen_ticks = self.frozen_ticks.load(Ordering::Relaxed);
 
@@ -2657,7 +2649,10 @@ impl Entity {
             && new_frozen_ticks >= Self::MAX_FROZEN_TICKS
             && self.age.load(Ordering::Relaxed) % Self::FREEZE_DAMAGE_INTERVAL == 0
         {
-            caller.damage(caller, 1.0, DamageType::FREEZE).await;
+            let world = self.world.load_full();
+            if let Some(entity) = world.get_entity_by_id(self.entity_id) {
+                entity.damage(entity.as_ref(), 1.0, DamageType::FREEZE);
+            }
         }
     }
 
@@ -2673,8 +2668,8 @@ impl Entity {
     }
 
     /// Removes the `Entity` from their current `World`
-    pub async fn remove(&self) {
-        self.world.load().remove_entity(self).await;
+    pub fn remove(&self) {
+        self.world.load().remove_entity(self);
     }
 
     pub fn create_spawn_packet(&self) -> CSpawnEntity {
@@ -2751,7 +2746,7 @@ impl Entity {
         self.sneaking.load(Ordering::Relaxed)
     }
 
-    pub async fn set_swimming(&self, swimming: bool) {
+    pub fn set_swimming(&self, swimming: bool) {
         if self.swimming.load(Ordering::Relaxed) != swimming {
             let mut event =
                 crate::plugin::api::events::entity::entity_toggle_swim::EntityToggleSwimEvent::new(
@@ -2759,7 +2754,7 @@ impl Entity {
                     swimming,
                 );
             if let Some(server) = self.world.load().server.upgrade() {
-                server.plugin_manager.fire(&server, &mut event).await;
+                server.plugin_manager.fire_blocking(&server, &mut event);
             }
             if event.cancelled {
                 return;
@@ -2770,9 +2765,7 @@ impl Entity {
     }
 
     /// Sets whether the entity is invisible and sends updated metadata.
-    #[expect(clippy::unused_async)]
-    #[allow(clippy::unused_async_trait_impl)]
-    pub async fn set_invisible(&self, invisible: bool) {
+    pub fn set_invisible(&self, invisible: bool) {
         if self.invisible.load(Ordering::Relaxed) != invisible {
             self.invisible.store(invisible, Relaxed);
             self.set_flag(Flag::Invisible, invisible);
@@ -2780,9 +2773,7 @@ impl Entity {
     }
 
     /// Sets whether the entity is glowing and sends updated metadata.
-    #[expect(clippy::unused_async)]
-    #[allow(clippy::unused_async_trait_impl)]
-    pub async fn set_glowing(&self, glowing: bool) {
+    pub fn set_glowing(&self, glowing: bool) {
         if self.glowing.load(Ordering::Relaxed) != glowing {
             self.glowing.store(glowing, Ordering::Relaxed);
             self.set_flag(Flag::Glowing, glowing);
@@ -2790,9 +2781,7 @@ impl Entity {
     }
 
     /// Sets whether the entity is on fire for visual and damage purposes. This is separate from `fire_ticks` which tracks the damage aspect of being on fire.
-    #[expect(clippy::unused_async)]
-    #[allow(clippy::unused_async_trait_impl)]
-    pub async fn set_on_fire(&self, on_fire: bool) {
+    pub fn set_on_fire(&self, on_fire: bool) {
         if self.has_visual_fire.load(Ordering::Relaxed) != on_fire {
             self.has_visual_fire.store(on_fire, Ordering::Relaxed);
             self.set_flag(Flag::OnFire, on_fire);
@@ -3068,11 +3057,9 @@ impl Entity {
                 (pose as u8).to_string(),
             );
         if let Some(server) = self.world.load().server.upgrade() {
-            tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async {
-                    server.plugin_manager.fire(&server, &mut pose_event).await;
-                });
-            });
+            server
+                .plugin_manager
+                .fire_blocking(&server, &mut pose_event);
             if pose_event.cancelled {
                 return;
             }
@@ -3105,7 +3092,7 @@ impl Entity {
     }
 
     /// Checks if the entity is invulnerable to the given damage type, considering both general invulnerability and specific immunities.
-    pub async fn is_invulnerable_to(&self, damage_type: &DamageType) -> bool {
+    pub fn is_invulnerable_to(&self, damage_type: &DamageType) -> bool {
         // Nothing is immune to void or kill
         if matches!(
             *damage_type,
@@ -3120,12 +3107,18 @@ impl Entity {
         }
 
         // Specific type immunities
-        self.damage_immunities.lock().await.contains(damage_type)
+        self.damage_immunities
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .contains(damage_type)
     }
 
     /// Sets if the entity is invulnerable to a specific damage type
-    pub async fn set_damage_immunity(&self, damage_type: DamageType, immune: bool) {
-        let mut immunities = self.damage_immunities.lock().await;
+    pub fn set_damage_immunity(&self, damage_type: DamageType, immune: bool) {
+        let mut immunities = self
+            .damage_immunities
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if immune {
             if !immunities.contains(&damage_type) {
                 immunities.push(damage_type);
@@ -3141,7 +3134,7 @@ impl Entity {
         self.invulnerable.store(invulnerable, Relaxed);
     }
 
-    pub async fn check_block_collision(entity: &dyn EntityBase, server: &Server) {
+    pub fn check_block_collision(entity: &dyn EntityBase, server: &Server) {
         let aabb = entity.get_entity().bounding_box.load();
         let blockpos = BlockPos::new(
             (aabb.min.x + 0.001).floor() as i32,
@@ -3165,13 +3158,11 @@ impl Entity {
                     if state.outline_shapes.is_empty() {
                         world
                             .block_registry
-                            .on_entity_collision(block, &world, entity, &pos, state, server)
-                            .await;
+                            .on_entity_collision(block, &world, entity, &pos, state, server);
                         let fluid = world.get_fluid(&pos);
                         world
                             .block_registry
-                            .on_entity_collision_fluid(fluid, entity)
-                            .await;
+                            .on_entity_collision_fluid(fluid, entity);
                         continue;
                     }
                     for outline in block_outlines {
@@ -3179,13 +3170,11 @@ impl Entity {
                         if outline_aabb.intersects(&aabb) {
                             world
                                 .block_registry
-                                .on_entity_collision(block, &world, entity, &pos, state, server)
-                                .await;
+                                .on_entity_collision(block, &world, entity, &pos, state, server);
                             let fluid = world.get_fluid(&pos);
                             world
                                 .block_registry
-                                .on_entity_collision_fluid(fluid, entity)
-                                .await;
+                                .on_entity_collision_fluid(fluid, entity);
                             break;
                         }
                     }
@@ -3256,23 +3245,65 @@ impl Entity {
         !self.is_removed()
     }
 
+    #[must_use]
+    pub fn is_affected_by_blocks(&self) -> bool {
+        !self.is_removed() && !self.no_physics.load(Ordering::Relaxed)
+    }
+
+    #[must_use]
+    pub fn is_in_wall(&self) -> bool {
+        if self.no_physics.load(Ordering::Relaxed) {
+            return false;
+        }
+
+        let eye_pos = self.get_eye_pos();
+        let half_width = (f64::from(self.entity_dimension.load().width) * 0.8) / 2.0;
+        let eye_bb = BoundingBox::new(
+            Vector3::new(eye_pos.x - half_width, eye_pos.y, eye_pos.z - half_width),
+            Vector3::new(
+                eye_pos.x + half_width,
+                eye_pos.y + 1.0e-6,
+                eye_pos.z + half_width,
+            ),
+        );
+        let min = eye_bb.min_block_pos();
+        let max = eye_bb.max_block_pos();
+        let world = self.world.load();
+
+        for pos in BlockPos::iterate(min, max) {
+            let (block, state) = world.get_block_and_state(&pos);
+            if state.is_air() {
+                continue;
+            }
+
+            if blocks_movement(state, block.id) && state.is_full_cube() {
+                return true;
+            }
+        }
+
+        false
+    }
+
     pub const LEASH_SNAP_DISTANCE: f64 = 12.0;
     pub const LEASH_ELASTIC_DISTANCE: f64 = 6.0;
 
-    pub async fn leash_to(&self, holder: Arc<dyn EntityBase>) {
-        let holder_entity = holder.get_entity();
-        *self.leashed_to.lock().await = Some(holder.clone());
+    pub fn leash_to(&self, holder: Arc<dyn EntityBase>) {
+        let holder_entity_id = holder.get_entity().entity_id;
+        *self
+            .leashed_to
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(holder);
 
         let je_packet = pumpkin_protocol::java::client::play::CSetEntityLink::new(
             self.entity_id,
-            holder_entity.entity_id,
+            holder_entity_id,
             true,
         );
         let be_packet = pumpkin_protocol::bedrock::client::CSetActorLink {
             link: pumpkin_protocol::bedrock::client::common::ActorLink {
                 ridden_unique_id: pumpkin_protocol::codec::var_long::VarLong(self.entity_id as i64),
                 rider_unique_id: pumpkin_protocol::codec::var_long::VarLong(
-                    holder_entity.entity_id as i64,
+                    holder_entity_id as i64,
                 ),
                 link_type: 1, // Leash link
                 immediate: true,
@@ -3281,15 +3312,19 @@ impl Entity {
             },
         };
 
-        self.world.load().broadcast_to_chunk_editioned_sync(
+        self.world.load().broadcast_to_chunk_editioned(
             self.chunk_pos.load(),
             &je_packet,
             &be_packet,
         );
     }
 
-    pub async fn unleash(&self) {
-        let old_holder = self.leashed_to.lock().await.take();
+    pub fn unleash(&self) {
+        let old_holder = self
+            .leashed_to
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
         if old_holder.is_none() {
             return;
         }
@@ -3307,16 +3342,18 @@ impl Entity {
             },
         };
 
-        self.world.load().broadcast_to_chunk_editioned_sync(
+        self.world.load().broadcast_to_chunk_editioned(
             self.chunk_pos.load(),
             &je_packet,
             &be_packet,
         );
     }
 
-    pub async fn tick_leash(&self) {
+    pub fn tick_leash(&self) {
         let holder = {
-            let guard = self.leashed_to.lock().await;
+            let Ok(guard) = self.leashed_to.try_lock() else {
+                return;
+            };
             guard.clone()
         };
 
@@ -3325,7 +3362,7 @@ impl Entity {
 
             // Drop leash if entity or holder is removed or dead
             if !self.is_alive() || !holder_entity.is_alive() {
-                self.unleash().await;
+                self.unleash();
                 return;
             }
 
@@ -3336,13 +3373,12 @@ impl Entity {
 
             if distance > Self::LEASH_SNAP_DISTANCE {
                 // Too far: snap/break leash and drop lead item
-                self.unleash().await;
+                self.unleash();
                 let lead_item =
                     pumpkin_data::item_stack::ItemStack::new(1, &pumpkin_data::item::Item::LEAD);
                 self.world
                     .load()
-                    .drop_stack(&self.block_pos.load(), lead_item)
-                    .await;
+                    .drop_stack(&self.block_pos.load(), lead_item);
             } else if distance > Self::LEASH_ELASTIC_DISTANCE {
                 // Elastic pull force towards leash holder
                 let dir = (holder_pos - self_pos).normalize();
@@ -3354,18 +3390,30 @@ impl Entity {
         }
     }
 
-    pub async fn has_passengers(&self) -> bool {
-        !self.passengers.lock().await.is_empty()
+    pub fn has_passengers(&self) -> bool {
+        self.passengers.try_lock().is_ok_and(|p| !p.is_empty())
     }
 
-    pub async fn has_vehicle(&self) -> bool {
-        let vehicle = self.vehicle.lock().await;
-        vehicle.is_some()
+    pub fn has_passenger(&self, id: i32) -> bool {
+        self.passengers.try_lock().is_ok_and(|p| {
+            p.iter()
+                .any(|passenger| passenger.get_entity().entity_id == id)
+        })
     }
 
-    pub async fn is_leashed(&self) -> bool {
-        let leashed_to = self.leashed_to.lock().await;
-        leashed_to.is_some()
+    pub fn has_vehicle(&self) -> bool {
+        self.vehicle.try_lock().is_ok_and(|v| v.is_some())
+    }
+
+    pub fn get_vehicle(&self) -> Option<Arc<dyn EntityBase>> {
+        self.vehicle.try_lock().ok().and_then(|v| v.clone())
+    }
+
+    pub fn is_leashed(&self) -> bool {
+        self.leashed_to
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_some()
     }
 
     pub async fn add_passenger(
@@ -3755,24 +3803,24 @@ impl Entity {
         }
     }
 
-    pub async fn check_out_of_world(&self, dyn_self: &dyn EntityBase) {
+    pub fn check_out_of_world(&self, dyn_self: &dyn EntityBase) {
         if self.pos.load().y < f64::from(self.world.load().dimension.min_y) - 64.0 {
-            dyn_self.tick_in_void(dyn_self).await;
+            dyn_self.tick_in_void(dyn_self);
         }
     }
 
-    pub async fn reset_state(&self) {
+    pub fn reset_state(&self) {
         self.pose.store(EntityPose::Standing);
         self.fall_flying.store(false, Relaxed);
         self.extinguish();
-        self.set_on_fire(false).await;
+        self.set_on_fire(false);
     }
 
-    pub async fn slow_movement(&self, state: &BlockState, multiplier: Vector3<f64>) {
+    pub fn slow_movement(&self, state: &BlockState, multiplier: Vector3<f64>) {
         match self.entity_type.id {
             v if v == EntityType::PLAYER.id => {
                 if let Some(player_entity) = self.get_player()
-                    && player_entity.is_flying().await
+                    && player_entity.is_flying()
                 {
                     return;
                 }
@@ -3985,60 +4033,45 @@ impl Entity {
 }
 
 impl EntityBase for Entity {
-    fn tick<'a>(
-        &'a self,
-        caller: &'a Arc<dyn EntityBase>,
-        _server: &'a Server,
-    ) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            // Recomputed during movement/block-collision handling in the same tick.
-            let was_in_powder_snow = self.is_in_powder_snow.load(Ordering::Relaxed);
-            self.was_in_powder_snow
-                .store(was_in_powder_snow, Ordering::Relaxed);
-            self.is_in_powder_snow.store(false, Ordering::Relaxed);
+    fn tick(&self, caller: &Arc<dyn EntityBase>, _server: &Server) {
+        // Recomputed during movement/block-collision handling in the same tick.
+        let was_in_powder_snow = self.is_in_powder_snow.load(Ordering::Relaxed);
+        self.was_in_powder_snow
+            .store(was_in_powder_snow, Ordering::Relaxed);
+        self.is_in_powder_snow.store(false, Ordering::Relaxed);
 
-            let block_pos = self.block_pos.load();
-            if self.last_biome_update_pos.load() != block_pos {
-                let world = self.world.load();
-                let biome = world.level.get_rough_biome(&block_pos);
-                self.current_biome.store(Arc::new(biome));
-                self.last_biome_update_pos.store(block_pos);
-            }
+        self.update_last_pos();
+        self.tick_portal(caller);
+        self.update_fluid_state(caller);
+        self.check_out_of_world(&**caller);
+        let fire_ticks = self.fire_ticks.load(Ordering::Relaxed);
 
-            self.update_last_pos();
-            self.tick_portal(caller).await;
-            self.update_fluid_state(caller).await;
-            self.check_out_of_world(&**caller).await;
-            let fire_ticks = self.fire_ticks.load(Ordering::Relaxed);
-
-            // Check for fire immunity (or if the specific entity is)
-            let is_immune =
-                self.entity_type.fire_immune || self.fire_immune.load(Ordering::Relaxed);
-            if fire_ticks > 0 {
-                if is_immune {
-                    self.fire_ticks.store(fire_ticks - 4, Ordering::Relaxed);
-                    if self.fire_ticks.load(Ordering::Relaxed) < 0 {
-                        self.extinguish();
-                    }
-                } else {
-                    if fire_ticks % 20 == 0 {
-                        (**caller).damage(&**caller, 1.0, DamageType::ON_FIRE).await;
-                    }
-
-                    self.fire_ticks.store(fire_ticks - 1, Ordering::Relaxed);
+        // Check for fire immunity (or if the specific entity is)
+        let is_immune = self.entity_type.fire_immune || self.fire_immune.load(Ordering::Relaxed);
+        if fire_ticks > 0 {
+            if is_immune {
+                self.fire_ticks.store(fire_ticks - 4, Ordering::Relaxed);
+                if self.fire_ticks.load(Ordering::Relaxed) < 0 {
+                    self.extinguish();
                 }
-            }
+            } else {
+                if fire_ticks % 20 == 0 {
+                    caller.damage(&**caller, 1.0, DamageType::ON_FIRE);
+                }
 
-            // Check if visual fire should be sent
-            let should_render_fire = self.fire_ticks.load(Ordering::Relaxed) > 0 && !is_immune;
-            self.set_on_fire(should_render_fire).await;
-
-            let riding_cooldown = self.riding_cooldown.load(Ordering::Relaxed);
-            if riding_cooldown > 0 {
-                self.riding_cooldown
-                    .store(riding_cooldown - 1, Ordering::Relaxed);
+                self.fire_ticks.store(fire_ticks - 1, Ordering::Relaxed);
             }
-        })
+        }
+
+        // Check if visual fire should be sent
+        let should_render_fire = self.fire_ticks.load(Ordering::Relaxed) > 0 && !is_immune;
+        self.set_on_fire(should_render_fire);
+
+        let riding_cooldown = self.riding_cooldown.load(Ordering::Relaxed);
+        if riding_cooldown > 0 {
+            self.riding_cooldown
+                .store(riding_cooldown - 1, Ordering::Relaxed);
+        }
     }
 
     fn teleport(

@@ -20,7 +20,7 @@ impl JavaClient {
         };
         self.update_sequence(player, use_item.sequence.0);
 
-        let mut item_in_hand = inventory.get_stack_in_hand(hand).await;
+        let mut item_in_hand = inventory.get_stack_in_hand(hand);
 
         let mut consume_event =
             crate::plugin::api::events::player::player_item_consume::PlayerItemConsumeEvent::new(
@@ -33,24 +33,19 @@ impl JavaClient {
         }
 
         let (item_id, _item) = (item_in_hand.item.id, item_in_hand.item);
-        player
-            .increment_stat(StatisticCategory::Used, item_id as i32, 1)
-            .await;
+        player.increment_stat(StatisticCategory::Used, item_id as i32, 1);
 
-        let hit_result = player
-            .world()
-            .raycast(
-                player.eye_position(),
-                player.eye_position().add(
-                    &(Vector3::rotation_vector(f64::from(use_item.pitch), f64::from(use_item.yaw))
-                        * 4.5),
-                ),
-                async |pos, world| {
-                    let block = world.get_block(pos);
-                    block != &Block::AIR && block != &Block::WATER && block != &Block::LAVA
-                },
-            )
-            .await;
+        let hit_result = player.world().raycast(
+            player.eye_position(),
+            player.eye_position().add(
+                &(Vector3::rotation_vector(f64::from(use_item.pitch), f64::from(use_item.yaw))
+                    * 4.5),
+            ),
+            |pos, world| {
+                let block = world.get_block(pos);
+                block != &Block::AIR && block != &Block::WATER && block != &Block::LAVA
+            },
+        );
 
         let event = if let Some((hit_pos, _hit_dir)) = hit_result {
             PlayerInteractEvent::new(
@@ -109,16 +104,16 @@ impl JavaClient {
                     || food.can_always_eat
                     || player.hunger_manager.level.load() < 20
                 {
-                    player
-                        .living_entity
-                        .set_active_hand(hand, held.clone(), held.get_max_use_time())
-                        .await;
+                    player.living_entity.set_active_hand(
+                        hand,
+                        held.clone(),
+                        held.get_max_use_time(),
+                    );
                 }
             } else {
                 player
                     .living_entity
-                    .set_active_hand(hand, held.clone(), held.get_max_use_time())
-                    .await;
+                    .set_active_hand(hand, held.clone(), held.get_max_use_time());
             }
         }
         let equipment_slot = held
@@ -127,7 +122,11 @@ impl JavaClient {
         if let Some(slot) = equipment_slot {
             // The equipment lock has to be released before touching the hand again:
             // the off hand lives in the same map, so holding it here would deadlock.
-            let current_equipped = inventory.entity_equipment.lock().await.get(&slot);
+            let current_equipped = inventory
+                .entity_equipment
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .get(&slot);
             if current_equipped.are_items_and_components_equal(held) {
                 return;
             }
@@ -141,8 +140,12 @@ impl JavaClient {
             } else {
                 std::mem::replace(held, current_equipped)
             };
-            inventory.entity_equipment.lock().await.put(&slot, equipped);
-            inventory.set_stack_in_hand(hand, held.clone()).await;
+            inventory
+                .entity_equipment
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .put(&slot, equipped);
+            inventory.set_stack_in_hand(hand, held.clone());
         }
     }
 

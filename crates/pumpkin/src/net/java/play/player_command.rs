@@ -40,7 +40,7 @@ impl JavaClient {
                     }}
                 }
             }
-            Action::LeaveBed => player.wake_up().await,
+            Action::LeaveBed => player.wake_up(),
 
             Action::StartHorseJump | Action::StopHorseJump | Action::OpenVehicleInventory => {
                 debug!("todo");

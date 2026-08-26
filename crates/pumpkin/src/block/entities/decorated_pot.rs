@@ -86,16 +86,16 @@ impl DecoratedPotBlockEntity {
         }
     }
 
-    pub async fn get_item(&self) -> Option<ItemStack> {
-        self.item.lock().await.clone()
+    pub fn get_item(&self) -> Option<ItemStack> {
+        self.item.blocking_lock().clone()
     }
 
-    pub async fn take_item(&self) -> Option<ItemStack> {
-        self.item.lock().await.take()
+    pub fn take_item(&self) -> Option<ItemStack> {
+        self.item.blocking_lock().take()
     }
 
-    pub async fn try_insert_item(&self, stack: &mut ItemStack, count: u8) -> bool {
-        let mut item_guard = self.item.lock().await;
+    pub fn try_insert_item(&self, stack: &mut ItemStack, count: u8) -> bool {
+        let mut item_guard = self.item.blocking_lock();
         if let Some(existing) = item_guard.as_mut() {
             if existing.item.id == stack.item.id {
                 let add = count.min(64 - existing.item_count);
@@ -116,8 +116,8 @@ impl DecoratedPotBlockEntity {
         }
     }
 
-    pub async fn get_comparator_output(&self) -> u8 {
-        self.item.lock().await.as_ref().map_or(0, |item| {
+    pub fn get_comparator_output(&self) -> u8 {
+        self.item.blocking_lock().as_ref().map_or(0, |item| {
             if item.item_count == 0 {
                 0
             } else {

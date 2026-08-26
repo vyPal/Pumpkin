@@ -56,17 +56,17 @@ impl ItemBehaviour for FishingRodItem {
                     .store(bobber.entity.entity_id, Ordering::Relaxed);
 
                 let bobber_arc: Arc<FishingBobberEntity> = Arc::new(bobber);
-                world.spawn_entity(bobber_arc).await;
+                world.spawn_entity(bobber_arc);
             } else {
                 // Reel in
                 if let Some(bobber_base) = world.get_entity_by_id(bobber_id) {
                     if let Some(bobber) =
                         bobber_base.cast_any().downcast_ref::<FishingBobberEntity>()
                     {
-                        let _result = bobber.reel_in(player).await;
+                        let _result = bobber.reel_in(player);
                         // TODO: give items
                     }
-                    bobber_base.get_entity().remove().await;
+                    bobber_base.get_entity().remove();
                 }
                 player.fishing_bobber.store(-1, Ordering::Relaxed);
 

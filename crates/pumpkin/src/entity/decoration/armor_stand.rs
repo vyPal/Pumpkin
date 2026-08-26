@@ -185,7 +185,7 @@ impl ArmorStandEntity {
         self.rotation.store(packed.to_owned());
     }
 
-    async fn break_and_drop_items(&self) {
+    fn break_and_drop_items(&self) {
         let entity = self.get_entity();
         //let name = entity.custom_name.unwrap_or(entity.get_name());
 
@@ -194,8 +194,7 @@ impl ArmorStandEntity {
         entity
             .world
             .load()
-            .drop_stack(&entity.block_pos.load(), armor_stand_item)
-            .await;
+            .drop_stack(&entity.block_pos.load(), armor_stand_item);
 
         Self::on_break(entity);
     }
@@ -257,7 +256,7 @@ impl EntityBase for ArmorStandEntity {
             if let Some(invisible) = nbt.get_bool("Invisible")
                 && invisible
             {
-                self.get_entity().set_invisible(invisible).await;
+                self.get_entity().set_invisible(invisible);
             }
 
             if let Some(small) = nbt.get_bool("Small")
@@ -309,118 +308,120 @@ impl EntityBase for ArmorStandEntity {
 
     fn kill<'a>(&'a self, _caller: &'a dyn EntityBase) -> EntityBaseFuture<'a, ()> {
         Box::pin(async move {
-            self.get_entity().remove().await;
+            self.get_entity().remove();
             // TODO: emit GameEvent::ENTITY_DIE
         })
     }
 
-    fn damage_with_context<'a>(
-        &'a self,
-        caller: &'a dyn EntityBase,
+    fn damage_with_context(
+        &self,
+        _caller: &dyn EntityBase,
         _amount: f32,
         damage_type: DamageType,
         _position: Option<Vector3<f64>>,
-        source: Option<&'a dyn EntityBase>,
-        cause: Option<&'a dyn EntityBase>,
-    ) -> EntityBaseFuture<'a, bool> {
-        Box::pin(async move {
-            let entity = self.get_entity();
-            if entity.is_removed() {
-                return false;
-            }
+        source: Option<&dyn EntityBase>,
+        cause: Option<&dyn EntityBase>,
+    ) -> bool {
+        let entity = self.get_entity();
+        if entity.is_removed() {
+            return false;
+        }
 
-            let world = entity.world.load();
+        let world = entity.world.load();
 
-            let mob_griefing_gamerule = {
-                let game_rules = &world.level_info.load().game_rules;
-                game_rules.mob_griefing
-            };
+        let mob_griefing_gamerule = {
+            let game_rules = &world.level_info.load().game_rules;
+            game_rules.mob_griefing
+        };
 
-            if !mob_griefing_gamerule && source.is_some_and(|source| source.get_player().is_none())
+        if !mob_griefing_gamerule && source.is_some_and(|source| source.get_player().is_none()) {
+            return false;
+        }
+
+        let bypasses_invulnerability =
+            damage_type == DamageType::OUT_OF_WORLD || damage_type == DamageType::GENERIC_KILL;
+
+        if bypasses_invulnerability {
+            entity.remove();
+            return false;
+        }
+
+        if entity.is_invulnerable_to(&damage_type) || self.is_invisible() || self.is_marker() {
+            return false;
+        }
+
+        let is_explosion = damage_type == DamageType::FIREWORKS
+            || damage_type == DamageType::EXPLOSION
+            || damage_type == DamageType::PLAYER_EXPLOSION
+            || damage_type == DamageType::BAD_RESPAWN_POINT;
+
+        if is_explosion {
+            Self::on_break(entity);
+            entity.remove();
+            return false;
+        }
+
+        // TODO: IGNITES_ARMOR_STANDS (in_fire, campfire) - set on fire
+        // TODO: BURNS_ARMOR_STANDS (on_fire) - reduce health
+
+        let can_break = damage_type == DamageType::PLAYER_EXPLOSION
+            || damage_type == DamageType::PLAYER_ATTACK
+            || damage_type == DamageType::SPEAR
+            || damage_type == DamageType::MACE_SMASH;
+
+        let always_kills = damage_type == DamageType::ARROW
+            || damage_type == DamageType::TRIDENT
+            || damage_type == DamageType::FIREBALL
+            || damage_type == DamageType::WITHER_SKULL
+            || damage_type == DamageType::WIND_CHARGE;
+
+        if !can_break && !always_kills {
+            return false;
+        }
+
+        let attacker = cause.or(source);
+        if let Some(attacker) = attacker
+            && let Some(player) = attacker.get_player()
+        {
+            if !player
+                .abilities
+                .try_lock()
+                .is_ok_and(|a| a.allow_modify_world)
             {
                 return false;
-            }
-
-            let bypasses_invulnerability =
-                damage_type == DamageType::OUT_OF_WORLD || damage_type == DamageType::GENERIC_KILL;
-
-            if bypasses_invulnerability {
-                entity.kill(caller).await;
-                return false;
-            }
-
-            if entity.is_invulnerable_to(&damage_type).await
-                || self.is_invisible()
-                || self.is_marker()
-            {
-                return false;
-            }
-
-            let is_explosion = damage_type == DamageType::FIREWORKS
-                || damage_type == DamageType::EXPLOSION
-                || damage_type == DamageType::PLAYER_EXPLOSION
-                || damage_type == DamageType::BAD_RESPAWN_POINT;
-
-            if is_explosion {
-                Self::on_break(entity);
-                entity.kill(caller).await;
-                return false;
-            }
-
-            // TODO: IGNITES_ARMOR_STANDS (in_fire, campfire) - set on fire
-            // TODO: BURNS_ARMOR_STANDS (on_fire) - reduce health
-
-            let can_break = damage_type == DamageType::PLAYER_EXPLOSION
-                || damage_type == DamageType::PLAYER_ATTACK
-                || damage_type == DamageType::SPEAR
-                || damage_type == DamageType::MACE_SMASH;
-
-            let always_kills = damage_type == DamageType::ARROW
-                || damage_type == DamageType::TRIDENT
-                || damage_type == DamageType::FIREBALL
-                || damage_type == DamageType::WITHER_SKULL
-                || damage_type == DamageType::WIND_CHARGE;
-
-            if !can_break && !always_kills {
-                return false;
-            }
-
-            let attacker = cause.or(source);
-            if let Some(attacker) = attacker
-                && let Some(player) = attacker.get_player()
-            {
-                if !player.abilities.lock().await.allow_modify_world {
-                    return false;
-                } else if player.is_creative() {
-                    Self::spawn_break_particles(entity);
-                    entity.kill(caller).await;
-                    return true;
-                }
-            }
-
-            let time = world.level_time.lock().await.query_gametime();
-
-            if time - self.last_hit_time.load(Ordering::Relaxed) > 5 && !always_kills {
-                world.send_entity_status(entity, EntityStatus::ArmorstandWobble, None);
-                world.play_sound(
-                    Sound::EntityArmorStandHit,
-                    SoundCategory::Neutral,
-                    &entity.block_pos.load().to_f64(),
-                );
-                self.last_hit_time.store(time, Ordering::Relaxed);
-            } else {
+            } else if player.is_creative() {
                 Self::spawn_break_particles(entity);
-                world.play_sound(
-                    Sound::EntityArmorStandBreak,
-                    SoundCategory::Neutral,
-                    &entity.block_pos.load().to_f64(),
-                );
-                self.break_and_drop_items().await;
-                entity.kill(caller).await;
+                entity.remove();
+                return true;
             }
+        }
 
-            true
-        })
+        let time = world
+            .level_time
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .query_gametime();
+
+        if time - self.last_hit_time.load(Ordering::Relaxed) > 5 && !always_kills {
+            world.send_entity_status(entity, EntityStatus::ArmorstandWobble, None);
+            world.play_sound(
+                Sound::EntityArmorStandHit,
+                SoundCategory::Neutral,
+                &entity.block_pos.load().to_f64(),
+            );
+            self.last_hit_time.store(time, Ordering::Relaxed);
+        } else {
+            Self::spawn_break_particles(entity);
+            world.play_sound(
+                Sound::EntityArmorStandBreak,
+                SoundCategory::Neutral,
+                &entity.block_pos.load().to_f64(),
+            );
+            self.break_and_drop_items();
+            entity.remove();
+        }
+
+        true
     }
 
     fn get_gravity(&self) -> f64 {

@@ -87,7 +87,7 @@ impl ItemBehaviour for MinecartItem {
                 entity_type,
             );
             let minecart_entity = Arc::new(MinecartEntity::new(entity));
-            world.spawn_entity(minecart_entity).await;
+            world.spawn_entity(minecart_entity);
             item.decrement_unless_creative(player.gamemode.load(), 1);
         })
     }

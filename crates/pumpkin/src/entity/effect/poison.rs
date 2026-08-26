@@ -34,9 +34,7 @@ impl MobEffect for PoisonMobEffect {
             {
                 let damage_amount = (current_health - 1.0).min(1.0);
                 if damage_amount > 0.0 {
-                    dyn_self
-                        .damage(&*dyn_self, damage_amount, DamageType::MAGIC)
-                        .await;
+                    dyn_self.damage(&*dyn_self, damage_amount, DamageType::MAGIC);
                 }
             }
         })

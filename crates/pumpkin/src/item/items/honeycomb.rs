@@ -76,9 +76,7 @@ pub(crate) async fn try_wax_block(world: &Arc<World>, location: BlockPos, block:
         new_block.default_state.id
     };
 
-    world
-        .set_block_state(&location, new_state_id, BlockFlags::NOTIFY_ALL)
-        .await;
+    world.set_block_state(&location, new_state_id, BlockFlags::NOTIFY_ALL);
     world.sync_world_event(WorldEvent::ParticlesAndSoundWaxOn, location, 0);
     true
 }

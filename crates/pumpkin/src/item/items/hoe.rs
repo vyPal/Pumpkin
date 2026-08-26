@@ -72,13 +72,11 @@ impl ItemBehaviour for HoeItem {
                 // Vanilla returns PASS without touching the block when nothing is tilled,
                 // otherwise the rewrite would reset properties such as `snowy` on grass blocks.
                 if changed {
-                    world
-                        .set_block_state(
-                            &location,
-                            future_block.default_state.id,
-                            BlockFlags::NOTIFY_ALL,
-                        )
-                        .await;
+                    world.set_block_state(
+                        &location,
+                        future_block.default_state.id,
+                        BlockFlags::NOTIFY_ALL,
+                    );
                 }
 
                 //Also rooted_dirt drop a hanging_root
@@ -97,7 +95,7 @@ impl ItemBehaviour for HoeItem {
                         entity,
                         ItemStack::new(1, &Item::HANGING_ROOTS),
                     ));
-                    world.spawn_entity(item_entity).await;
+                    world.spawn_entity(item_entity);
                 }
 
                 if changed && player.gamemode.load() != GameMode::Creative {

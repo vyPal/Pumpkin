@@ -157,7 +157,7 @@ impl BeaconBlockEntity {
     }
 
     /// Replicates Java's `applyEffects` bounding box mapping and duration mapping
-    async fn apply_effects(&self, world: &Arc<World>, levels: i32) {
+    fn apply_effects(&self, world: &Arc<World>, levels: i32) {
         if levels <= 0 {
             return;
         }
@@ -194,34 +194,30 @@ impl BeaconBlockEntity {
 
         for player in players {
             if let Some(effect) = primary_effect {
-                player
-                    .add_effect(pumpkin_data::potion::Effect {
-                        effect_type: effect,
-                        duration: duration_ticks,
-                        amplifier: base_amp as u8,
-                        ambient: true,
-                        show_particles: true,
-                        show_icon: true,
-                        blend: false,
-                    })
-                    .await;
+                player.add_effect(pumpkin_data::potion::Effect {
+                    effect_type: effect,
+                    duration: duration_ticks,
+                    amplifier: base_amp as u8,
+                    ambient: true,
+                    show_particles: true,
+                    show_icon: true,
+                    blend: false,
+                });
             }
 
             if levels >= 4
                 && primary_id != secondary_id
                 && let Some(effect) = secondary_effect
             {
-                player
-                    .add_effect(pumpkin_data::potion::Effect {
-                        effect_type: effect,
-                        duration: duration_ticks,
-                        amplifier: 0,
-                        ambient: true,
-                        show_particles: true,
-                        show_icon: true,
-                        blend: false,
-                    })
-                    .await;
+                player.add_effect(pumpkin_data::potion::Effect {
+                    effect_type: effect,
+                    duration: duration_ticks,
+                    amplifier: 0,
+                    ambient: true,
+                    show_particles: true,
+                    show_icon: true,
+                    blend: false,
+                });
             }
         }
     }
@@ -286,21 +282,19 @@ impl BlockEntity for BeaconBlockEntity {
         })
     }
 
-    fn tick<'a>(&'a self, world: &'a Arc<World>) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            // Check properties every 80 ticks matching Java
-            if world.get_time_of_day().await % 80 == 0 {
-                let levels = self.update_base(world);
-                self.levels.store(levels, Ordering::Relaxed);
+    fn tick(&self, world: &Arc<World>) {
+        // Check properties every 80 ticks matching Java
+        if world.get_time_of_day() % 80 == 0 {
+            let levels = self.update_base(world);
+            self.levels.store(levels, Ordering::Relaxed);
 
-                // TODO: Beam Section validation (scanning upward to heightmap to check for sky visibility)
-                // is typically checked here before applying effects in Vanilla.
+            // TODO: Beam Section validation (scanning upward to heightmap to check for sky visibility)
+            // is typically checked here before applying effects in Vanilla.
 
-                if levels > 0 {
-                    self.apply_effects(world, levels).await;
-                }
+            if levels > 0 {
+                self.apply_effects(world, levels);
             }
-        })
+        }
     }
 
     fn chunk_data_nbt(&self) -> Option<NbtCompound> {

@@ -1,5 +1,5 @@
 use crate::block::registry::BlockActionResult;
-use crate::block::{BlockBehaviour, BlockFuture, NormalUseArgs};
+use crate::block::{BlockBehaviour, NormalUseArgs};
 
 use pumpkin_data::translation;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
@@ -17,21 +17,21 @@ use pumpkin_inventory::stonecutter_screen_handler::StonecutterScreenHandler;
 pub struct StonecutterBlock;
 
 impl BlockBehaviour for StonecutterBlock {
-    fn normal_use<'a>(&'a self, args: NormalUseArgs<'a>) -> BlockFuture<'a, BlockActionResult> {
-        Box::pin(async move {
-            args.player
-                .increment_stat(
-                    pumpkin_data::statistic::StatisticCategory::Custom,
-                    pumpkin_data::statistic::CustomStatistic::InteractWithStonecutter as i32,
-                    1,
-                )
+    fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
+        args.player.increment_stat(
+            pumpkin_data::statistic::StatisticCategory::Custom,
+            pumpkin_data::statistic::CustomStatistic::InteractWithStonecutter as i32,
+            1,
+        );
+        let player = Arc::clone(args.player);
+        let pos = *args.position;
+        tokio::spawn(async move {
+            player
+                .open_handled_screen(&StonecutterScreenFactory, Some(pos))
                 .await;
-            args.player
-                .open_handled_screen(&StonecutterScreenFactory, Some(*args.position))
-                .await;
+        });
 
-            BlockActionResult::Success
-        })
+        BlockActionResult::Success
     }
 }
 

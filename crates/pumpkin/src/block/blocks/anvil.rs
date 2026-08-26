@@ -1,8 +1,8 @@
 use crate::block::blocks::falling::FallingBlock;
 use crate::block::registry::BlockActionResult;
 use crate::block::{
-    BlockBehaviour, BlockFuture, GetStateForNeighborUpdateArgs, NormalUseArgs, OnPlaceArgs,
-    OnScheduledTickArgs, PlacedArgs,
+    BlockBehaviour, GetStateForNeighborUpdateArgs, NormalUseArgs, OnPlaceArgs, OnScheduledTickArgs,
+    PlacedArgs,
 };
 
 use pumpkin_data::BlockStateId;
@@ -23,58 +23,50 @@ use tokio::sync::Mutex;
 pub struct AnvilBlock;
 
 impl BlockBehaviour for AnvilBlock {
-    fn normal_use<'a>(&'a self, args: NormalUseArgs<'a>) -> BlockFuture<'a, BlockActionResult> {
-        Box::pin(async move {
-            args.player
-                .increment_stat(
-                    pumpkin_data::statistic::StatisticCategory::Custom,
-                    pumpkin_data::statistic::CustomStatistic::InteractWithAnvil as i32,
-                    1,
-                )
+    fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
+        args.player.increment_stat(
+            pumpkin_data::statistic::StatisticCategory::Custom,
+            pumpkin_data::statistic::CustomStatistic::InteractWithAnvil as i32,
+            1,
+        );
+        let player = Arc::clone(args.player);
+        let pos = *args.position;
+        tokio::spawn(async move {
+            player
+                .open_handled_screen(&AnvilScreenFactory, Some(pos))
                 .await;
-            args.player
-                .open_handled_screen(&AnvilScreenFactory, Some(*args.position))
-                .await;
+        });
 
-            BlockActionResult::Success
-        })
+        BlockActionResult::Success
     }
 
-    fn placed<'a>(&'a self, args: PlacedArgs<'a>) -> BlockFuture<'a, ()> {
-        Box::pin(async move {
-            FallingBlock::placed(&FallingBlock, args).await;
-        })
+    fn placed(&self, args: PlacedArgs<'_>) {
+        FallingBlock::placed(&FallingBlock, args);
     }
 
-    fn on_place<'a>(&'a self, args: OnPlaceArgs<'a>) -> BlockFuture<'a, BlockStateId> {
-        Box::pin(async move {
-            let dir = args
-                .player
-                .living_entity
-                .entity
-                .get_horizontal_facing()
-                .rotate_clockwise();
+    fn on_place(&self, args: OnPlaceArgs<'_>) -> BlockStateId {
+        let dir = args
+            .player
+            .living_entity
+            .entity
+            .get_horizontal_facing()
+            .rotate_clockwise();
 
-            let mut props = WallTorchLikeProperties::default(args.block);
+        let mut props = WallTorchLikeProperties::default(args.block);
 
-            props.facing = dir;
-            props.to_state_id(args.block)
-        })
+        props.facing = dir;
+        props.to_state_id(args.block)
     }
 
-    fn on_scheduled_tick<'a>(&'a self, args: OnScheduledTickArgs<'a>) -> BlockFuture<'a, ()> {
-        Box::pin(async move {
-            FallingBlock::on_scheduled_tick(&FallingBlock, args).await;
-        })
+    fn on_scheduled_tick(&self, args: OnScheduledTickArgs<'_>) {
+        FallingBlock::on_scheduled_tick(&FallingBlock, args);
     }
 
-    fn get_state_for_neighbor_update<'a>(
-        &'a self,
-        args: GetStateForNeighborUpdateArgs<'a>,
-    ) -> BlockFuture<'a, BlockStateId> {
-        Box::pin(
-            async move { FallingBlock::get_state_for_neighbor_update(&FallingBlock, args).await },
-        )
+    fn get_state_for_neighbor_update(
+        &self,
+        args: GetStateForNeighborUpdateArgs<'_>,
+    ) -> BlockStateId {
+        FallingBlock::get_state_for_neighbor_update(&FallingBlock, args)
     }
 }
 

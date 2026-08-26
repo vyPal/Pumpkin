@@ -330,20 +330,15 @@ impl CommandExecutor for RemoveExecutor {
                 ))
                 .await;
 
-            let error = {
-                match server
-                    .bossbars
-                    .lock()
-                    .await
-                    .remove_bossbar(server, namespace)
-                    .await
-                {
-                    Ok(()) => return Ok(server.bossbars.lock().await.get_bossbars_len() as i32),
-                    Err(error) => error,
-                }
-            };
-
-            Err(handle_bossbar_error(error))
+            let res = server
+                .bossbars
+                .lock()
+                .await
+                .remove_bossbar(server, namespace);
+            match res {
+                Ok(()) => Ok(server.bossbars.lock().await.get_bossbars_len() as i32),
+                Err(error) => Err(handle_bossbar_error(error)),
+            }
         })
     }
 }
@@ -373,18 +368,12 @@ impl CommandExecutor for SetExecutor {
                 CommandValueSet::Color => {
                     let color = BossbarColorArgumentConsumer.find_arg_default_name(args)?;
 
-                    match server
+                    server
                         .bossbars
                         .lock()
                         .await
-                        .update_color(server, namespace.clone(), *color)
-                        .await
-                    {
-                        Ok(()) => {}
-                        Err(err) => {
-                            return Err(handle_bossbar_error(err));
-                        }
-                    }
+                        .update_color(server, &namespace, *color)
+                        .map_err(handle_bossbar_error)?;
 
                     sender
                         .send_message(TextComponent::translate_cross(
@@ -408,18 +397,12 @@ impl CommandExecutor for SetExecutor {
                         )));
                     };
 
-                    match server
+                    server
                         .bossbars
                         .lock()
                         .await
                         .update_max(server, namespace.clone(), max_value)
-                        .await
-                    {
-                        Ok(()) => {}
-                        Err(err) => {
-                            return Err(handle_bossbar_error(err));
-                        }
-                    }
+                        .map_err(handle_bossbar_error)?;
 
                     sender
                         .send_message(TextComponent::translate_cross(
@@ -432,28 +415,22 @@ impl CommandExecutor for SetExecutor {
                         ))
                         .await;
 
-                    Ok(max_value)
+                    Ok(0)
                 }
                 CommandValueSet::Name => {
-                    let text_component = TextComponentArgConsumer::find_arg(args, ARG_NAME)?;
-                    match server
+                    let name = TextComponentArgConsumer::find_arg(args, ARG_NAME)?;
+                    server
                         .bossbars
                         .lock()
                         .await
-                        .update_name(server, &namespace, text_component.clone())
-                        .await
-                    {
-                        Ok(()) => {}
-                        Err(err) => {
-                            return Err(handle_bossbar_error(err));
-                        }
-                    }
+                        .update_name(server, &namespace, &name)
+                        .map_err(handle_bossbar_error)?;
 
                     sender
                         .send_message(TextComponent::translate_cross(
                             translation::java::COMMANDS_BOSSBAR_SET_NAME_SUCCESS,
                             translation::java::COMMANDS_BOSSBAR_SET_NAME_SUCCESS,
-                            [bossbar_prefix(text_component, namespace)],
+                            [bossbar_prefix(name.clone(), namespace)],
                         ))
                         .await;
 
@@ -461,18 +438,13 @@ impl CommandExecutor for SetExecutor {
                 }
                 CommandValueSet::Players(has_players) => {
                     if !has_players {
-                        match server
+                        server
                             .bossbars
                             .lock()
                             .await
-                            .update_players(server, namespace.clone(), vec![])
-                            .await
-                        {
-                            Ok(()) => {}
-                            Err(err) => {
-                                return Err(handle_bossbar_error(err));
-                            }
-                        }
+                            .set_players(server, namespace.clone(), vec![])
+                            .map_err(handle_bossbar_error)?;
+
                         sender
                             .send_message(TextComponent::translate_cross(
                                 translation::java::COMMANDS_BOSSBAR_SET_PLAYERS_SUCCESS_NONE,
@@ -492,18 +464,12 @@ impl CommandExecutor for SetExecutor {
                         targets.iter().map(|player| player.gameprofile.id).collect();
                     let count = players.len();
 
-                    match server
+                    server
                         .bossbars
                         .lock()
                         .await
-                        .update_players(server, namespace.clone(), players)
-                        .await
-                    {
-                        Ok(()) => {}
-                        Err(err) => {
-                            return Err(handle_bossbar_error(err));
-                        }
-                    }
+                        .set_players(server, namespace.clone(), players)
+                        .map_err(handle_bossbar_error)?;
 
                     let player_names = targets
                         .iter()
@@ -527,18 +493,13 @@ impl CommandExecutor for SetExecutor {
                 }
                 CommandValueSet::Style => {
                     let style = BossbarStyleArgumentConsumer.find_arg_default_name(args)?;
-                    match server
+                    server
                         .bossbars
                         .lock()
                         .await
-                        .update_division(server, namespace.clone(), *style)
-                        .await
-                    {
-                        Ok(()) => {}
-                        Err(err) => {
-                            return Err(handle_bossbar_error(err));
-                        }
-                    }
+                        .update_style(server, &namespace, *style)
+                        .map_err(handle_bossbar_error)?;
+
                     sender
                         .send_message(TextComponent::translate_cross(
                             translation::java::COMMANDS_BOSSBAR_SET_STYLE_SUCCESS,
@@ -560,18 +521,12 @@ impl CommandExecutor for SetExecutor {
                         )));
                     };
 
-                    match server
+                    server
                         .bossbars
                         .lock()
                         .await
                         .update_value(server, namespace.clone(), value)
-                        .await
-                    {
-                        Ok(()) => {}
-                        Err(err) => {
-                            return Err(handle_bossbar_error(err));
-                        }
-                    }
+                        .map_err(handle_bossbar_error)?;
 
                     sender
                         .send_message(TextComponent::translate_cross(
@@ -589,18 +544,12 @@ impl CommandExecutor for SetExecutor {
                 CommandValueSet::Visible => {
                     let visibility = BoolArgConsumer::find_arg(args, ARG_VISIBLE)?;
 
-                    match server
+                    server
                         .bossbars
                         .lock()
                         .await
                         .update_visibility(server, namespace.clone(), visibility)
-                        .await
-                    {
-                        Ok(()) => {}
-                        Err(err) => {
-                            return Err(handle_bossbar_error(err));
-                        }
-                    }
+                        .map_err(handle_bossbar_error)?;
 
                     let state = if visibility {
                         translation::java::COMMANDS_BOSSBAR_SET_VISIBLE_SUCCESS_VISIBLE

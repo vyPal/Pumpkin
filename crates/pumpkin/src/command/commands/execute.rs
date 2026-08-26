@@ -385,7 +385,7 @@ fn execute_summon_modifier<'a>(
             context.source.world(),
             Uuid::new_v4(),
         );
-        context.source.world().spawn_entity(entity.clone()).await;
+        context.source.world().spawn_entity(entity.clone());
         let mut source = context.source.as_ref().clone();
         source.entity = Some(entity);
         Ok(vec![Arc::new(source)])

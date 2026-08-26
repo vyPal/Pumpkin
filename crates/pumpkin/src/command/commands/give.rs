@@ -52,9 +52,9 @@ impl CommandExecutor for Executor {
                     let take = remaining.min(max_stack);
                     let mut stack = parsed_stack.clone();
                     stack.item_count = take as u8;
-                    target.inventory().insert_stack_anywhere(&mut stack).await;
+                    target.inventory().insert_stack_anywhere(&mut stack);
                     if !stack.is_empty() {
-                        target.drop_item(stack).await;
+                        target.drop_item(stack);
                     }
                     remaining -= take;
                 }

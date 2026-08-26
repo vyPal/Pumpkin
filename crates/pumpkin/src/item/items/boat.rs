@@ -99,7 +99,7 @@ impl ItemBehaviour for BoatItem {
             let (start_pos, end_pos) = self.get_start_and_end_pos(player);
 
             // Vanilla: raycast with FluidHandling.ANY - stops on water/lava surface or solid blocks
-            let checker = async |pos: &BlockPos, world_inner: &Arc<World>| {
+            let checker = |pos: &BlockPos, world_inner: &Arc<World>| {
                 let state_id = world_inner.get_block_state_id(pos);
 
                 // Air doesn't stop the raycast
@@ -116,8 +116,7 @@ impl ItemBehaviour for BoatItem {
                 true
             };
 
-            let Some((hit_pos, _direction)) = world.raycast(start_pos, end_pos, checker).await
-            else {
+            let Some((hit_pos, _direction)) = world.raycast(start_pos, end_pos, checker) else {
                 return;
             };
 
@@ -179,12 +178,12 @@ impl ItemBehaviour for BoatItem {
             entity.set_rotation(player_yaw, 0.0);
 
             let boat_entity = Arc::new(BoatEntity::new(entity));
-            world.spawn_entity(boat_entity).await;
+            world.spawn_entity(boat_entity);
 
             // Decrement item unless in creative mode
-            let mut stack = player.inventory.held_item().await;
+            let mut stack = player.inventory.held_item();
             stack.decrement_unless_creative(player.gamemode.load(), 1);
-            player.inventory.set_held_item(stack).await;
+            player.inventory.set_held_item(stack);
 
             // TODO: world.emitGameEvent(user, GameEvent.ENTITY_PLACE, hitResult.getPos())
             // TODO: user.incrementStat(Stats.USED.getOrCreateStat(this))

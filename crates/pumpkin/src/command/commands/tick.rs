@@ -141,7 +141,7 @@ impl TickExecutor {
         let sample_size = (tick_count as usize).min(100);
 
         if sample_size > 0 {
-            let mut tick_times = server.get_tick_times_nanos_copy().await;
+            let mut tick_times = server.get_tick_times_nanos_copy();
             let relevant_ticks = &mut tick_times[..sample_size];
             relevant_ticks.sort_unstable();
 

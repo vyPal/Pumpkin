@@ -262,79 +262,77 @@ impl Mob for NautilusEntity {
         &self.mob_entity
     }
 
-    fn mob_init_data_tracker(&self) -> EntityBaseFuture<'_, ()> {
-        Box::pin(async move {
-            self.mob_entity.living_entity.entity.send_meta_data(
-                &[Metadata::new(
-                    pumpkin_data::tracked_data::nautilus::DASH,
-                    self.is_dashing(),
-                )],
-                None,
-            );
-        })
+    fn mob_init_data_tracker(&self) {
+        self.mob_entity.living_entity.entity.send_meta_data(
+            &[Metadata::new(
+                pumpkin_data::tracked_data::nautilus::DASH,
+                self.is_dashing(),
+            )],
+            None,
+        );
     }
 
-    fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            let entity = &self.mob_entity.living_entity.entity;
+    fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) {
+        let entity = &self.mob_entity.living_entity.entity;
 
-            let passengers = entity.passengers.lock().await;
-            if let Some(passenger) = passengers.first()
-                && let Some(player) = passenger.cast_any().downcast_ref::<Player>()
-            {
+        let Ok(passengers) = entity.passengers.try_lock() else {
+            return;
+        };
+        if let Some(passenger) = passengers.first()
+            && let Some(player) = passenger.cast_any().downcast_ref::<Player>()
+        {
+            let world = entity.world.load();
+            let game_time = world.get_world_age();
+            if game_time % 40 == 0 {
+                let player_arc = world.get_player_by_uuid(player.gameprofile.id);
+                if let Some(p) = player_arc {
+                    p.add_effect(Effect {
+                        effect_type: &StatusEffect::BREATH_OF_THE_NAUTILUS,
+                        duration: 60,
+                        amplifier: 0,
+                        ambient: true,
+                        show_particles: true,
+                        show_icon: true,
+                        blend: true,
+                    });
+                }
+            }
+        }
+
+        if self.is_dashing() && self.dash_cooldown.load(Ordering::Relaxed) < 35 {
+            self.set_dashing(false);
+        }
+
+        let cooldown = self.dash_cooldown.load(Ordering::Relaxed);
+        if cooldown > 0 {
+            let next = cooldown - 1;
+            self.dash_cooldown.store(next, Ordering::Relaxed);
+            if next == 0 {
                 let world = entity.world.load();
-                let game_time = world.level_time.lock().await.world_age;
-                if game_time % 40 == 0 {
-                    player
-                        .living_entity
-                        .add_effect(Effect {
-                            effect_type: &StatusEffect::BREATH_OF_THE_NAUTILUS,
-                            duration: 60,
-                            amplifier: 0,
-                            ambient: true,
-                            show_particles: true,
-                            show_icon: true,
-                            blend: true,
-                        })
-                        .await;
-                }
+                world.play_sound(
+                    self.get_dash_ready_sound(),
+                    SoundCategory::Neutral,
+                    &entity.pos.load(),
+                );
             }
+        }
 
-            if self.is_dashing() && self.dash_cooldown.load(Ordering::Relaxed) < 35 {
-                self.set_dashing(false);
+        if entity.touching_water.load(Ordering::Relaxed) {
+            let velo = entity.velocity.load();
+            let speed = velo.length();
+            let prob = (speed * 2.0).clamp(0.15, 1.0);
+            if rand::random::<f64>() < prob {
+                let world = entity.world.load();
+                let pos = entity.pos.load();
+                world.spawn_particle(
+                    pos + Vector3::new(0.0, 0.25, 0.0),
+                    Vector3::new(0.4, 0.4, 0.4),
+                    0.5,
+                    2,
+                    Particle::Bubble,
+                );
             }
-
-            let cooldown = self.dash_cooldown.load(Ordering::Relaxed);
-            if cooldown > 0 {
-                let next = cooldown - 1;
-                self.dash_cooldown.store(next, Ordering::Relaxed);
-                if next == 0 {
-                    let world = entity.world.load();
-                    world.play_sound(
-                        self.get_dash_ready_sound(),
-                        SoundCategory::Neutral,
-                        &entity.pos.load(),
-                    );
-                }
-            }
-
-            if entity.touching_water.load(Ordering::Relaxed) {
-                let velo = entity.velocity.load();
-                let speed = velo.length();
-                let prob = (speed * 2.0).clamp(0.15, 1.0);
-                if rand::random::<f64>() < prob {
-                    let world = entity.world.load();
-                    let pos = entity.pos.load();
-                    world.spawn_particle(
-                        pos + Vector3::new(0.0, 0.25, 0.0),
-                        Vector3::new(0.4, 0.4, 0.4),
-                        0.5,
-                        2,
-                        Particle::Bubble,
-                    );
-                }
-            }
-        })
+        }
     }
 
     fn mob_interact<'a>(

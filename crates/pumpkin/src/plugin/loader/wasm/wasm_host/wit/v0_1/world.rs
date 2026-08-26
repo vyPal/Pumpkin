@@ -758,25 +758,23 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
         world_ref
             .provider
             .clone()
-            .set_block_state(&internal_pos, state, internal_flags)
-            .await;
+            .set_block_state(&internal_pos, state, internal_flags);
         Ok(())
     }
 
     async fn get_time_of_day(&mut self, world: Resource<World>) -> wasmtime::Result<u64> {
-        Ok(self.get_world_res(&world)?.provider.get_time_of_day().await as u64)
+        Ok(self.get_world_res(&world)?.provider.get_time_of_day() as u64)
     }
 
     async fn set_time_of_day(&mut self, world: Resource<World>, time: u64) -> wasmtime::Result<()> {
         self.get_world_res(&world)?
             .provider
-            .set_time_of_day(time as i64)
-            .await;
+            .set_time_of_day(time as i64);
         Ok(())
     }
 
     async fn get_world_age(&mut self, world: Resource<World>) -> wasmtime::Result<u64> {
-        Ok(self.get_world_res(&world)?.provider.get_world_age().await as u64)
+        Ok(self.get_world_res(&world)?.provider.get_world_age() as u64)
     }
 
     async fn get_dimension(&mut self, world: Resource<World>) -> wasmtime::Result<String> {
@@ -814,7 +812,7 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
     }
 
     async fn is_raining(&mut self, world: Resource<World>) -> wasmtime::Result<bool> {
-        Ok(self.get_world_res(&world)?.provider.is_raining().await)
+        Ok(self.get_world_res(&world)?.provider.is_raining())
     }
 
     async fn set_raining(&mut self, world: Resource<World>, raining: bool) -> wasmtime::Result<()> {
@@ -826,7 +824,7 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
     }
 
     async fn is_thundering(&mut self, world: Resource<World>) -> wasmtime::Result<bool> {
-        Ok(self.get_world_res(&world)?.provider.is_thundering().await)
+        Ok(self.get_world_res(&world)?.provider.is_thundering())
     }
 
     async fn set_thundering(
@@ -850,8 +848,7 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
         let msg = self.get_text_provider(&message)?;
         self.get_world_res(&world)?
             .provider
-            .broadcast_system_message(&msg, overlay)
-            .await;
+            .broadcast_system_message(&msg, overlay);
         Ok(())
     }
 
@@ -1081,7 +1078,7 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
             uuid::Uuid::new_v4(),
         );
 
-        world_provider.spawn_entity(entity.clone()).await;
+        world_provider.spawn_entity(entity.clone());
 
         self.add_entity(entity)
     }
@@ -1129,11 +1126,9 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
         let world_provider = self.get_world_res(&world)?.provider.clone();
         let start_pos = super::events::from_wasm_position(start);
         let end_pos = super::events::from_wasm_position(end);
-        let res = world_provider
-            .raycast(start_pos, end_pos, async |pos, w| {
-                !w.get_block_state(pos).is_air()
-            })
-            .await;
+        let res = world_provider.raycast(start_pos, end_pos, |pos, w| {
+            !w.get_block_state(pos).is_air()
+        });
         Ok(res.map(|(p, _)| {
             super::events::to_wasm_position(pumpkin_util::math::vector3::Vector3::new(
                 f64::from(p.0.x),
@@ -1516,7 +1511,7 @@ impl pumpkin::plugin::world::HostChunk for PluginHostState {
             chunk_data.mark_dirty(true);
             let absolute_pos =
                 BlockPos::new(chunk_data.x * 16 + pos.x, pos.y, chunk_data.z * 16 + pos.z);
-            world.register_block_change(absolute_pos, state).await;
+            world.register_block_change(absolute_pos, state);
         }
 
         Ok(())

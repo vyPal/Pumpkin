@@ -71,19 +71,26 @@ impl BlockEntity for HopperBlockEntity {
         hopper
     }
 
-    fn tick<'a>(&'a self, world: &'a Arc<World>) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            self.ticked_game_time
-                .store(world.get_world_age().await, Ordering::Relaxed);
-            if self.cooldown_time.fetch_sub(1, Ordering::Relaxed) <= 0 {
-                self.cooldown_time.store(0, Ordering::Relaxed);
-                let state = HopperLikeProperties::from_state_id(
-                    world.get_block_state(&self.position).id,
-                    &Block::HOPPER,
-                );
-                self.try_move_items(&state, world).await;
+    fn tick(&self, world: &Arc<World>) {
+        self.ticked_game_time
+            .store(world.get_world_age(), Ordering::Relaxed);
+        if self.cooldown_time.fetch_sub(1, Ordering::Relaxed) <= 0 {
+            self.cooldown_time.store(0, Ordering::Relaxed);
+            let state = HopperLikeProperties::from_state_id(
+                world.get_block_state(&self.position).id,
+                &Block::HOPPER,
+            );
+            if state.enabled
+                && let Some(entity) = world.get_block_entity(&self.position)
+            {
+                let world = world.clone();
+                tokio::spawn(async move {
+                    if let Some(hopper) = entity.as_any().downcast_ref::<Self>() {
+                        hopper.try_move_items(&state, &world).await;
+                    }
+                });
             }
-        })
+        }
     }
 
     fn resource_location(&self) -> &'static str {
@@ -117,8 +124,9 @@ impl BlockEntity for HopperBlockEntity {
             "TransferCooldown",
             NbtTag::Int(self.cooldown_time.load(Ordering::Relaxed)),
         );
-        let items = futures::executor::block_on(self.items.read());
-        sync_write_items_to_nbt(items.as_slice(), &mut nbt);
+        if let Ok(items) = self.items.try_read() {
+            sync_write_items_to_nbt(items.as_slice(), &mut nbt);
+        }
         Some(nbt)
     }
 
@@ -204,7 +212,7 @@ impl HopperBlockEntity {
                             let xp = experience_container.extract_experience();
                             if xp > 0 {
                                 let pos = self.position.to_f64();
-                                ExperienceOrbEntity::spawn(world, pos, xp as u32).await;
+                                ExperienceOrbEntity::spawn(world, pos, xp as u32);
                             }
                         }
                         return true;
@@ -223,27 +231,49 @@ impl HopperBlockEntity {
             let entities = world.get_entities_at_box(&search_box);
             for entity_base in entities {
                 if let Some(item_entity) = entity_base.clone().get_item_entity() {
-                    let mut stack = item_entity.get_item_stack().lock().await;
-                    if !stack.is_empty() {
-                        let mut pickup_event = crate::plugin::api::events::inventory::inventory_pickup_item::InventoryPickupItemEvent::new(
-                            self.position,
-                            item_entity.get_entity().entity_id,
-                            stack.item.registry_key.to_string(),
-                        );
+                    let (is_empty, registry_key) = {
+                        let stack = item_entity
+                            .get_item_stack()
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
+                        (stack.is_empty(), stack.item.registry_key.to_string())
+                    };
+                    if !is_empty {
+                        let mut pickup_event =
+                            crate::plugin::api::events::inventory::inventory_pickup_item::InventoryPickupItemEvent::new(
+                                self.position,
+                                item_entity.get_entity().entity_id,
+                                registry_key,
+                            );
                         if let Some(server) = world.server.upgrade() {
                             server.plugin_manager.fire(&server, &mut pickup_event).await;
                         }
                         if pickup_event.cancelled {
                             continue;
                         }
-                        let backup = stack.clone();
-                        let one_item = stack.split(1);
-                        if Self::add_one_item(self, self, one_item).await {
+                        let (backup, one_item, is_empty) = {
+                            let mut stack = item_entity
+                                .get_item_stack()
+                                .lock()
+                                .unwrap_or_else(std::sync::PoisonError::into_inner);
                             if stack.is_empty() {
-                                item_entity.get_entity().remove().await;
+                                continue;
+                            }
+                            let backup = stack.clone();
+                            let one_item = stack.split(1);
+                            let is_empty = stack.is_empty();
+                            (backup, one_item, is_empty)
+                        };
+                        if Self::add_one_item(self, self, one_item).await {
+                            if is_empty {
+                                item_entity.get_entity().remove();
                             }
                             return true;
                         }
+                        let mut stack = item_entity
+                            .get_item_stack()
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
                         *stack = backup;
                     }
                 }

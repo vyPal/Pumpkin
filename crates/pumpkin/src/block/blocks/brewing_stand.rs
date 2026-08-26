@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::block::{BlockFuture, GetComparatorOutputArgs, PlacedArgs};
+use crate::block::{GetComparatorOutputArgs, PlacedArgs};
 use crate::block::{
     registry::BlockActionResult,
     {BlockBehaviour, NormalUseArgs},
@@ -49,55 +49,48 @@ impl ScreenHandlerFactory for BrewingScreenFactory {
 pub struct BrewingStandBlock;
 
 impl BlockBehaviour for BrewingStandBlock {
-    fn normal_use<'a>(&'a self, args: NormalUseArgs<'a>) -> BlockFuture<'a, BlockActionResult> {
-        Box::pin(async move {
-            if let Some(block_entity) = args.world.get_block_entity(args.position)
-                && let Some(inventory) = block_entity.clone().get_inventory()
-                && let Some(pd) = block_entity.clone().to_property_delegate()
-            {
-                args.player
-                    .increment_stat(
-                        pumpkin_data::statistic::StatisticCategory::Custom,
-                        pumpkin_data::statistic::CustomStatistic::InteractWithBrewingstand as i32,
-                        1,
-                    )
+    fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
+        if let Some(block_entity) = args.world.get_block_entity(args.position)
+            && let Some(inventory) = block_entity.clone().get_inventory()
+            && let Some(pd) = block_entity.clone().to_property_delegate()
+        {
+            args.player.increment_stat(
+                pumpkin_data::statistic::StatisticCategory::Custom,
+                pumpkin_data::statistic::CustomStatistic::InteractWithBrewingstand as i32,
+                1,
+            );
+            let player = Arc::clone(args.player);
+            let pos = *args.position;
+            tokio::spawn(async move {
+                player
+                    .open_handled_screen(&BrewingScreenFactory(inventory, pd), Some(pos))
                     .await;
-                args.player
-                    .open_handled_screen(&BrewingScreenFactory(inventory, pd), Some(*args.position))
-                    .await;
-            }
+            });
+        }
 
-            BlockActionResult::Success
-        })
+        BlockActionResult::Success
     }
 
-    fn placed<'a>(&'a self, args: PlacedArgs<'a>) -> BlockFuture<'a, ()> {
-        Box::pin(async move {
-            let be = BrewingStandBlockEntity::new(*args.position);
-            args.world.add_block_entity(Arc::new(be));
-        })
+    fn placed(&self, args: PlacedArgs<'_>) {
+        let be = BrewingStandBlockEntity::new(*args.position);
+        args.world.add_block_entity(Arc::new(be));
     }
 
-    fn get_comparator_output<'a>(
-        &'a self,
-        args: GetComparatorOutputArgs<'a>,
-    ) -> BlockFuture<'a, Option<u8>> {
-        Box::pin(async move {
-            if let Some(block_entity) = args.world.get_block_entity(args.position)
-                && let Some(inventory) = block_entity.get_inventory()
-            {
-                let mut bottles = 0u8;
-                // Bottle slots are 0, 1, 2 in brewing stands
-                for slot in 0..3 {
-                    let stack = inventory.get_stack(slot).await;
-                    if !stack.is_empty() {
-                        bottles += 1;
-                    }
+    fn get_comparator_output(&self, args: GetComparatorOutputArgs<'_>) -> Option<u8> {
+        if let Some(block_entity) = args.world.get_block_entity(args.position)
+            && let Some(inventory) = block_entity.get_inventory()
+        {
+            let mut bottles = 0u8;
+            // Bottle slots are 0, 1, 2 in brewing stands
+            for slot in 0..3 {
+                let stack = futures::executor::block_on(inventory.get_stack(slot));
+                if !stack.is_empty() {
+                    bottles += 1;
                 }
-                Some(bottles)
-            } else {
-                None
             }
-        })
+            Some(bottles)
+        } else {
+            None
+        }
     }
 }

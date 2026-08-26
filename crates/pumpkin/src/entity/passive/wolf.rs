@@ -12,7 +12,7 @@ use pumpkin_protocol::codec::var_int::VarInt;
 use pumpkin_protocol::java::client::play::Metadata;
 
 use crate::entity::{
-    Entity, EntityBase, EntityBaseFuture, NbtFuture,
+    Entity, EntityBase, NbtFuture,
     ageable::AgeableMob,
     ai::goal::{
         active_target::ActiveTargetGoal, avoid_entity::AvoidEntityGoal, beg::BegGoal,
@@ -290,47 +290,45 @@ impl Mob for WolfEntity {
         self.variant.store(variant, Ordering::Relaxed);
     }
 
-    fn mob_init_data_tracker(&self) -> EntityBaseFuture<'_, ()> {
-        Box::pin(async move {
-            let entity = self.get_entity();
-            let is_baby = entity.age.load(Ordering::Relaxed) < 0;
-            if is_baby {
-                entity.send_meta_data(
-                    &[Metadata::new(
-                        pumpkin_data::tracked_data::wolf::BABY_ID,
-                        true,
-                    )],
-                    None,
-                );
-            }
+    fn mob_init_data_tracker(&self) {
+        let entity = self.get_entity();
+        let is_baby = entity.age.load(Ordering::Relaxed) < 0;
+        if is_baby {
             entity.send_meta_data(
                 &[Metadata::new(
-                    pumpkin_data::tracked_data::wolf::TAMEABLE_FLAGS,
-                    self.get_tame_flags(),
+                    pumpkin_data::tracked_data::wolf::BABY_ID,
+                    true,
                 )],
                 None,
             );
-            entity.send_meta_data(
-                &[Metadata::new(
-                    pumpkin_data::tracked_data::wolf::COLLAR_COLOR,
-                    VarInt(self.collar_color.load(Ordering::Relaxed) as i32),
-                )],
-                None,
-            );
-            entity.send_meta_data(
-                &[Metadata::new(
-                    pumpkin_data::tracked_data::wolf::WOLF_VARIANT_ID,
-                    VarInt(self.variant.load(Ordering::Relaxed) as i32),
-                )],
-                None,
-            );
-            entity.send_meta_data(
-                &[Metadata::new(
-                    pumpkin_data::tracked_data::wolf::OWNER_UUID,
-                    self.get_owner(),
-                )],
-                None,
-            );
-        })
+        }
+        entity.send_meta_data(
+            &[Metadata::new(
+                pumpkin_data::tracked_data::wolf::TAMEABLE_FLAGS,
+                self.get_tame_flags(),
+            )],
+            None,
+        );
+        entity.send_meta_data(
+            &[Metadata::new(
+                pumpkin_data::tracked_data::wolf::COLLAR_COLOR,
+                VarInt(self.collar_color.load(Ordering::Relaxed) as i32),
+            )],
+            None,
+        );
+        entity.send_meta_data(
+            &[Metadata::new(
+                pumpkin_data::tracked_data::wolf::WOLF_VARIANT_ID,
+                VarInt(self.variant.load(Ordering::Relaxed) as i32),
+            )],
+            None,
+        );
+        entity.send_meta_data(
+            &[Metadata::new(
+                pumpkin_data::tracked_data::wolf::OWNER_UUID,
+                self.get_owner(),
+            )],
+            None,
+        );
     }
 }

@@ -58,7 +58,7 @@ impl ParrotEntity {
 
     /// Feeds the parrot a cookie: it is poisoned and then killed, as in vanilla
     /// `Parrot.mobInteract`.
-    async fn eat_cookie(&self, player: &Arc<Player>, item_stack: &mut ItemStack) {
+    fn eat_cookie(&self, player: &Arc<Player>, item_stack: &mut ItemStack) {
         item_stack.decrement_unless_creative(player.gamemode.load(), 1);
 
         self.mob_entity
@@ -71,8 +71,7 @@ impl ParrotEntity {
                 show_particles: true,
                 show_icon: true,
                 blend: true,
-            })
-            .await;
+            });
 
         // Vanilla guards this call with `player.isCreative() || !this.isInvulnerable()`,
         // but `hurt` re-checks invulnerability itself and `player_attack` doesn't bypass
@@ -84,8 +83,7 @@ impl ParrotEntity {
             None,
             Some(player.as_ref()),
             Some(player.as_ref()),
-        )
-        .await;
+        );
     }
 }
 
@@ -107,10 +105,10 @@ impl Mob for ParrotEntity {
                 .get_item()
                 .has_tag(&tag::Item::MINECRAFT_PARROT_POISONOUS_FOOD)
             {
-                return self.mob_entity.mob_interact(player, item_stack).await;
+                return self.mob_entity.mob_interact(player, item_stack);
             }
 
-            self.eat_cookie(player, item_stack).await;
+            self.eat_cookie(player, item_stack);
             true
         })
     }

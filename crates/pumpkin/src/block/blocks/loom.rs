@@ -1,10 +1,10 @@
 use crate::block::registry::BlockActionResult;
-use crate::block::{BlockBehaviour, BlockFuture, NormalUseArgs, OnPlaceArgs};
+use crate::block::{BlockBehaviour, NormalUseArgs, OnPlaceArgs};
 use crate::entity::EntityBase;
 
-use pumpkin_data::FacingExt;
 use pumpkin_data::block_properties::{BlockProperties, WallTorchLikeProperties};
 use pumpkin_data::translation;
+use pumpkin_data::{BlockStateId, FacingExt};
 use pumpkin_inventory::loom_screen_handler::LoomScreenHandler;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
 use pumpkin_inventory::screen_handler::{
@@ -19,40 +19,35 @@ use tokio::sync::Mutex;
 pub struct LoomBlock;
 
 impl BlockBehaviour for LoomBlock {
-    fn on_place<'a>(
-        &'a self,
-        args: OnPlaceArgs<'a>,
-    ) -> BlockFuture<'a, pumpkin_data::BlockStateId> {
-        Box::pin(async move {
-            let mut props = WallTorchLikeProperties::default(args.block);
-            if let Some(facing) = args
-                .player
-                .get_entity()
-                .get_facing()
-                .opposite()
-                .to_horizontal_facing()
-            {
-                props.facing = facing;
-            }
-            props.to_state_id(args.block)
-        })
+    fn on_place(&self, args: OnPlaceArgs<'_>) -> BlockStateId {
+        let mut props = WallTorchLikeProperties::default(args.block);
+        if let Some(facing) = args
+            .player
+            .get_entity()
+            .get_facing()
+            .opposite()
+            .to_horizontal_facing()
+        {
+            props.facing = facing;
+        }
+        props.to_state_id(args.block)
     }
 
-    fn normal_use<'a>(&'a self, args: NormalUseArgs<'a>) -> BlockFuture<'a, BlockActionResult> {
-        Box::pin(async move {
-            args.player
-                .increment_stat(
-                    pumpkin_data::statistic::StatisticCategory::Custom,
-                    pumpkin_data::statistic::CustomStatistic::InteractWithLoom as i32,
-                    1,
-                )
+    fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
+        args.player.increment_stat(
+            pumpkin_data::statistic::StatisticCategory::Custom,
+            pumpkin_data::statistic::CustomStatistic::InteractWithLoom as i32,
+            1,
+        );
+        let player = Arc::clone(args.player);
+        let pos = *args.position;
+        tokio::spawn(async move {
+            player
+                .open_handled_screen(&LoomScreenFactory, Some(pos))
                 .await;
-            args.player
-                .open_handled_screen(&LoomScreenFactory, Some(*args.position))
-                .await;
+        });
 
-            BlockActionResult::Success
-        })
+        BlockActionResult::Success
     }
 }
 

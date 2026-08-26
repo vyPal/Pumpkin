@@ -161,8 +161,7 @@ impl CommandExecutor for BaseSetExecutor {
             crate::entity::attributes::send_attribute_updates_for_living(
                 living,
                 vec![attribute.clone()],
-            )
-            .await;
+            );
 
             context
                 .source
@@ -214,8 +213,7 @@ impl CommandExecutor for BaseResetExecutor {
             crate::entity::attributes::send_attribute_updates_for_living(
                 living,
                 vec![attribute.clone()],
-            )
-            .await;
+            );
 
             context
                 .source
@@ -290,8 +288,7 @@ impl CommandExecutor for ModifierAddExecutor {
             crate::entity::attributes::send_attribute_updates_for_living(
                 living,
                 vec![attribute.clone()],
-            )
-            .await;
+            );
 
             context
                 .source
@@ -362,8 +359,7 @@ impl CommandExecutor for ModifierRemoveExecutor {
             crate::entity::attributes::send_attribute_updates_for_living(
                 living,
                 vec![attribute.clone()],
-            )
-            .await;
+            );
 
             context
                 .source

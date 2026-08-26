@@ -41,49 +41,50 @@ impl CommandExecutor for Executor {
                     .cloned()
                     .ok_or(CommandError::InvalidRequirement)?
             };
-            let mut weather = world.weather.lock().await;
+            let message = {
+                let mut weather = world
+                    .weather
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
 
-            match self.mode {
-                WeatherMode::Clear => {
-                    let processed_duration =
-                        duration.unwrap_or_else(|| rand::random_range(12_000..=180_000));
+                match self.mode {
+                    WeatherMode::Clear => {
+                        let processed_duration =
+                            duration.unwrap_or_else(|| rand::random_range(12_000..=180_000));
 
-                    weather.set_weather_parameters(&world, processed_duration, 0, false, false);
-                    sender
-                        .send_message(TextComponent::translate_cross(
+                        weather.set_weather_parameters(&world, processed_duration, 0, false, false);
+                        TextComponent::translate_cross(
                             translation::java::COMMANDS_WEATHER_SET_CLEAR,
                             translation::bedrock::COMMANDS_WEATHER_CLEAR,
                             [],
-                        ))
-                        .await;
-                }
-                WeatherMode::Rain => {
-                    let processed_duration =
-                        duration.unwrap_or_else(|| rand::random_range(12_000..=24_000));
+                        )
+                    }
+                    WeatherMode::Rain => {
+                        let processed_duration =
+                            duration.unwrap_or_else(|| rand::random_range(12_000..=24_000));
 
-                    weather.set_weather_parameters(&world, 0, processed_duration, true, false);
-                    sender
-                        .send_message(TextComponent::translate_cross(
+                        weather.set_weather_parameters(&world, 0, processed_duration, true, false);
+                        TextComponent::translate_cross(
                             translation::java::COMMANDS_WEATHER_SET_RAIN,
                             translation::bedrock::COMMANDS_WEATHER_RAIN,
                             [],
-                        ))
-                        .await;
-                }
-                WeatherMode::Thunder => {
-                    let processed_duration =
-                        duration.unwrap_or_else(|| rand::random_range(3_600..=15_600));
+                        )
+                    }
+                    WeatherMode::Thunder => {
+                        let processed_duration =
+                            duration.unwrap_or_else(|| rand::random_range(3_600..=15_600));
 
-                    weather.set_weather_parameters(&world, 0, processed_duration, true, true);
-                    sender
-                        .send_message(TextComponent::translate_cross(
+                        weather.set_weather_parameters(&world, 0, processed_duration, true, true);
+                        TextComponent::translate_cross(
                             translation::java::COMMANDS_WEATHER_SET_THUNDER,
                             translation::bedrock::COMMANDS_WEATHER_THUNDER,
                             [],
-                        ))
-                        .await;
+                        )
+                    }
                 }
-            }
+            };
+
+            sender.send_message(message).await;
 
             // Vanilla returns -1 when duration is not specified
             Ok(duration.unwrap_or(-1))

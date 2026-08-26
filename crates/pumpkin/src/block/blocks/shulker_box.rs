@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use crate::block::{
-    BlockFuture, GetComparatorOutputArgs, OnPlaceArgs, OnSyncedBlockEventArgs, PlacedArgs,
-};
+use crate::block::{GetComparatorOutputArgs, OnPlaceArgs, OnSyncedBlockEventArgs, PlacedArgs};
 use crate::block::{
     registry::BlockActionResult,
     {BlockBehaviour, NormalUseArgs},
@@ -53,66 +51,56 @@ pub struct ShulkerBoxBlock;
 type EndRodLikeProperties = pumpkin_data::block_properties::EndRodLikeProperties;
 
 impl BlockBehaviour for ShulkerBoxBlock {
-    fn on_place<'a>(&'a self, args: OnPlaceArgs<'a>) -> BlockFuture<'a, BlockStateId> {
-        Box::pin(async move {
-            let mut props = EndRodLikeProperties::default(args.block);
-            props.facing = args.direction.to_facing().opposite();
-            props.to_state_id(args.block)
-        })
+    fn on_place(&self, args: OnPlaceArgs<'_>) -> BlockStateId {
+        let mut props = EndRodLikeProperties::default(args.block);
+        props.facing = args.direction.to_facing().opposite();
+        props.to_state_id(args.block)
     }
 
-    fn on_synced_block_event<'a>(
-        &'a self,
-        args: OnSyncedBlockEventArgs<'a>,
-    ) -> BlockFuture<'a, bool> {
-        Box::pin(async move {
-            // On the server, we don't need the Animation steps for now, because the client is responsible for that.
-            // TODO: Do not open the shulker box when it is currently closing
-            args.r#type == Self::OPEN_ANIMATION_EVENT_TYPE
-        })
+    fn on_synced_block_event(&self, args: OnSyncedBlockEventArgs<'_>) -> bool {
+        // On the server, we don't need the Animation steps for now, because the client is responsible for that.
+        // TODO: Do not open the shulker box when it is currently closing
+        args.r#type == Self::OPEN_ANIMATION_EVENT_TYPE
     }
 
-    fn placed<'a>(&'a self, args: PlacedArgs<'a>) -> BlockFuture<'a, ()> {
-        Box::pin(async move {
+    fn placed(&self, args: PlacedArgs<'_>) {
+        {
             let barrel_block_entity = ShulkerBoxBlockEntity::new(*args.position);
             args.world.add_block_entity(Arc::new(barrel_block_entity));
-        })
+        }
     }
 
-    fn normal_use<'a>(&'a self, args: NormalUseArgs<'a>) -> BlockFuture<'a, BlockActionResult> {
-        Box::pin(async move {
-            if let Some(block_entity) = args.world.get_block_entity(args.position)
-                && let Some(inventory) = block_entity.get_inventory()
-            {
-                args.player
-                    .increment_stat(
-                        pumpkin_data::statistic::StatisticCategory::Custom,
-                        pumpkin_data::statistic::CustomStatistic::OpenShulkerBox as i32,
-                        1,
-                    )
+    fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
+        if let Some(block_entity) = args.world.get_block_entity(args.position)
+            && let Some(inventory) = block_entity.get_inventory()
+        {
+            args.player.increment_stat(
+                pumpkin_data::statistic::StatisticCategory::Custom,
+                pumpkin_data::statistic::CustomStatistic::OpenShulkerBox as i32,
+                1,
+            );
+            let player = Arc::clone(args.player);
+            let pos = *args.position;
+            tokio::spawn(async move {
+                player
+                    .open_handled_screen(&ShulkerBoxScreenFactory(inventory), Some(pos))
                     .await;
-                args.player
-                    .open_handled_screen(&ShulkerBoxScreenFactory(inventory), Some(*args.position))
-                    .await;
-            }
+            });
+        }
 
-            BlockActionResult::Success
-        })
+        BlockActionResult::Success
     }
 
-    fn get_comparator_output<'a>(
-        &'a self,
-        args: GetComparatorOutputArgs<'a>,
-    ) -> BlockFuture<'a, Option<u8>> {
-        Box::pin(async move {
-            if let Some(block_entity) = args.world.get_block_entity(args.position)
-                && let Some(inventory) = block_entity.get_inventory()
-            {
-                Some(crate::block::calculate_comparator_output(inventory.as_ref()).await)
-            } else {
-                None
-            }
-        })
+    fn get_comparator_output(&self, args: GetComparatorOutputArgs<'_>) -> Option<u8> {
+        if let Some(block_entity) = args.world.get_block_entity(args.position)
+            && let Some(inventory) = block_entity.get_inventory()
+        {
+            Some(crate::block::calculate_comparator_output(
+                inventory.as_ref(),
+            ))
+        } else {
+            None
+        }
     }
 }
 

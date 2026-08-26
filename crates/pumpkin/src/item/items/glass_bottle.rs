@@ -80,9 +80,7 @@ impl ItemBehaviour for GlassBottleItem {
                     .flatten();
 
                 if let Some(new_state_id) = cauldron_action {
-                    world
-                        .set_block_state(&check_pos, new_state_id, BlockFlags::NOTIFY_ALL)
-                        .await;
+                    world.set_block_state(&check_pos, new_state_id, BlockFlags::NOTIFY_ALL);
                 }
 
                 world.play_sound(

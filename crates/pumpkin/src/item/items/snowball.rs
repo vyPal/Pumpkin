@@ -40,26 +40,25 @@ impl ItemBehaviour for SnowBallItem {
             snowball
                 .thrown
                 .set_velocity_from(player.get_entity(), pitch, yaw, 0.0, POWER, 1.0);
-            world.spawn_entity(Arc::new(snowball)).await;
+            world.spawn_entity(Arc::new(snowball));
 
             // Consume item
-            let mut main_hand = player.inventory.held_item().await;
+            let mut main_hand = player.inventory.held_item();
             let consumed = if !main_hand.is_empty() && main_hand.item.id == Item::SNOWBALL.id {
                 main_hand.decrement_unless_creative(player.gamemode.load(), 1);
-                player.inventory.set_held_item(main_hand).await;
+                player.inventory.set_held_item(main_hand);
                 true
             } else {
                 false
             };
 
             if !consumed {
-                let mut off_hand = player.inventory.off_hand_item().await;
+                let mut off_hand = player.inventory.off_hand_item();
                 if !off_hand.is_empty() && off_hand.item.id == Item::SNOWBALL.id {
                     off_hand.decrement_unless_creative(player.gamemode.load(), 1);
                     player
                         .inventory
-                        .set_stack_in_hand(pumpkin_util::Hand::Left, off_hand)
-                        .await;
+                        .set_stack_in_hand(pumpkin_util::Hand::Left, off_hand);
                 }
             }
         })

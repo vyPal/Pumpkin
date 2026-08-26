@@ -46,11 +46,13 @@ impl super::Phase for CirclingPhase {
                     drop(clockwise);
 
                     let world = dragon.mob_entity.living_entity.entity.world.load();
-                    let crystals_alive = if let Some(ref fight) = world.dragon_fight {
-                        fight.lock().await.alive_crystals() > 0
-                    } else {
-                        false
-                    };
+                    let crystals_alive = world.dragon_fight.as_ref().is_some_and(|fight| {
+                        fight
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner)
+                            .alive_crystals()
+                            > 0
+                    });
 
                     let j = if crystals_alive {
                         j.rem_euclid(12) as usize

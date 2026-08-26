@@ -170,9 +170,9 @@ impl CommandExecutor for LootExecutor {
                     for player in &targets {
                         for stack in &stacks {
                             let mut remaining = stack.clone();
-                            player.inventory.insert_stack_anywhere(&mut remaining).await;
+                            player.inventory.insert_stack_anywhere(&mut remaining);
                             if !remaining.is_empty() {
-                                player.drop_item(remaining).await;
+                                player.drop_item(remaining);
                             }
                         }
                     }
@@ -181,7 +181,7 @@ impl CommandExecutor for LootExecutor {
                     let pos = BlockPosArgumentType::get_block_pos(context, "pos")?;
                     let world = context.world();
                     for stack in stacks {
-                        world.drop_stack(&pos, stack).await;
+                        world.drop_stack(&pos, stack);
                     }
                 }
                 Target::Insert => {
@@ -193,7 +193,7 @@ impl CommandExecutor for LootExecutor {
                                 let remaining =
                                     insert_into_inventory(inventory.as_ref(), stack).await;
                                 if !remaining.is_empty() {
-                                    world.drop_stack(&pos, remaining).await;
+                                    world.drop_stack(&pos, remaining);
                                 }
                             }
                         } else {

@@ -5,8 +5,8 @@ use tokio::sync::Mutex;
 use crate::block::blocks::redstone::block_receives_redstone_power;
 use crate::block::registry::BlockActionResult;
 use crate::block::{
-    BlockBehaviour, BlockFuture, GetComparatorOutputArgs, NormalUseArgs, OnNeighborUpdateArgs,
-    OnPlaceArgs, OnScheduledTickArgs, PlacedArgs,
+    BlockBehaviour, GetComparatorOutputArgs, NormalUseArgs, OnNeighborUpdateArgs, OnPlaceArgs,
+    OnScheduledTickArgs, PlacedArgs,
 };
 use crate::entity::item::ItemEntity;
 use crate::entity::{Entity, EntityBase};
@@ -87,87 +87,77 @@ const fn to_data3d(facing: Facing) -> i32 {
 }
 
 impl BlockBehaviour for DropperBlock {
-    fn normal_use<'a>(&'a self, args: NormalUseArgs<'a>) -> BlockFuture<'a, BlockActionResult> {
-        Box::pin(async move {
-            if let Some(block_entity) = args.world.get_block_entity(args.position)
-                && let Some(inventory) = block_entity.get_inventory()
-            {
-                args.player
-                    .open_handled_screen(&DropperScreenFactory(inventory), Some(*args.position))
+    fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
+        if let Some(block_entity) = args.world.get_block_entity(args.position)
+            && let Some(inventory) = block_entity.get_inventory()
+        {
+            let player = Arc::clone(args.player);
+            let pos = *args.position;
+            tokio::spawn(async move {
+                player
+                    .open_handled_screen(&DropperScreenFactory(inventory), Some(pos))
                     .await;
-            }
-            BlockActionResult::Success
-        })
+            });
+        }
+        BlockActionResult::Success
     }
 
-    fn on_place<'a>(&'a self, args: OnPlaceArgs<'a>) -> BlockFuture<'a, BlockStateId> {
-        Box::pin(async move {
-            let mut props = DispenserLikeProperties::default(args.block);
-            props.facing = args.player.get_entity().get_facing().opposite();
-            props.to_state_id(args.block)
-        })
+    fn on_place(&self, args: OnPlaceArgs<'_>) -> BlockStateId {
+        let mut props = DispenserLikeProperties::default(args.block);
+        props.facing = args.player.get_entity().get_facing().opposite();
+        props.to_state_id(args.block)
     }
 
-    fn placed<'a>(&'a self, args: PlacedArgs<'a>) -> BlockFuture<'a, ()> {
-        Box::pin(async move {
-            let dropper_block_entity = DropperBlockEntity::new(*args.position);
-            args.world.add_block_entity(Arc::new(dropper_block_entity));
-        })
+    fn placed(&self, args: PlacedArgs<'_>) {
+        let dropper_block_entity = DropperBlockEntity::new(*args.position);
+        args.world.add_block_entity(Arc::new(dropper_block_entity));
     }
 
-    fn on_neighbor_update<'a>(&'a self, args: OnNeighborUpdateArgs<'a>) -> BlockFuture<'a, ()> {
-        Box::pin(async move {
-            let powered = block_receives_redstone_power(args.world, args.position).await
-                || block_receives_redstone_power(args.world, &args.position.up()).await;
+    fn on_neighbor_update(&self, args: OnNeighborUpdateArgs<'_>) {
+        let powered = block_receives_redstone_power(args.world, args.position)
+            || block_receives_redstone_power(args.world, &args.position.up());
 
-            let mut props = DispenserLikeProperties::from_state_id(
-                args.world.get_block_state(args.position).id,
-                args.block,
+        let mut props = DispenserLikeProperties::from_state_id(
+            args.world.get_block_state(args.position).id,
+            args.block,
+        );
+
+        if powered && !props.triggered {
+            args.world
+                .schedule_block_tick(args.block, *args.position, 4, TickPriority::Normal);
+            props.triggered = true;
+            args.world.set_block_state(
+                args.position,
+                props.to_state_id(args.block),
+                BlockFlags::NOTIFY_LISTENERS,
             );
-
-            if powered && !props.triggered {
-                args.world
-                    .schedule_block_tick(args.block, *args.position, 4, TickPriority::Normal);
-                props.triggered = true;
-                args.world
-                    .set_block_state(
-                        args.position,
-                        props.to_state_id(args.block),
-                        BlockFlags::NOTIFY_LISTENERS,
-                    )
-                    .await;
-            } else if !powered && props.triggered {
-                props.triggered = false;
-                args.world
-                    .set_block_state(
-                        args.position,
-                        props.to_state_id(args.block),
-                        BlockFlags::NOTIFY_LISTENERS,
-                    )
-                    .await;
-            }
-        })
+        } else if !powered && props.triggered {
+            props.triggered = false;
+            args.world.set_block_state(
+                args.position,
+                props.to_state_id(args.block),
+                BlockFlags::NOTIFY_LISTENERS,
+            );
+        }
     }
 
-    fn on_scheduled_tick<'a>(&'a self, args: OnScheduledTickArgs<'a>) -> BlockFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(block_entity) = args.world.get_block_entity(args.position) {
+    fn on_scheduled_tick(&self, args: OnScheduledTickArgs<'_>) {
+        let world = args.world.clone();
+        let position = *args.position;
+        tokio::spawn(async move {
+            let (block, state) = world.get_block_and_state(&position);
+            if let Some(block_entity) = world.get_block_entity(&position) {
                 let Some(dropper) = block_entity.as_any().downcast_ref::<DropperBlockEntity>()
                 else {
                     return;
                 };
 
                 if let Some((slot_index, mut item)) = dropper.get_random_slot().await {
-                    let props = DispenserLikeProperties::from_state_id(
-                        args.world.get_block_state(args.position).id,
-                        args.block,
-                    );
+                    let props = DispenserLikeProperties::from_state_id(state.id, block);
 
-                    let target_pos = args
-                        .position
-                        .offset(props.facing.to_block_direction().to_offset());
+                    let target_pos = position.offset(props.facing.to_block_direction().to_offset());
 
-                    if let Some(entity) = args.world.get_block_entity(&target_pos)
+                    if let Some(entity) = world.get_block_entity(&target_pos)
                         && let Some(container) = entity.get_inventory()
                     {
                         let backup = item.clone();
@@ -188,14 +178,14 @@ impl BlockBehaviour for DropperBlock {
                     let drop_item = item.split(1);
                     dropper.set_stack(slot_index, item).await;
                     let facing = to_normal(props.facing);
-                    let mut position = args.position.to_centered_f64().add(&(facing * 0.7));
+                    let mut pos = position.to_centered_f64().add(&(facing * 0.7));
 
-                    position.y -= match props.facing {
+                    pos.y -= match props.facing {
                         Facing::Up | Facing::Down => 0.125,
                         _ => 0.15625,
                     };
 
-                    let entity = Entity::new(args.world.clone(), position, &EntityType::ITEM);
+                    let entity = Entity::new(world.clone(), pos, &EntityType::ITEM);
                     let rd = rng().random::<f64>().mul_add(0.1, 0.2);
 
                     let velocity = Vector3::new(
@@ -207,42 +197,31 @@ impl BlockBehaviour for DropperBlock {
                     let item_entity = Arc::new(ItemEntity::new_with_velocity(
                         entity, drop_item, velocity, 40,
                     ));
-                    args.world.spawn_entity(item_entity).await;
+                    world.spawn_entity(item_entity);
 
-                    args.world.sync_world_event(
-                        WorldEvent::SoundDispenserDispense,
-                        *args.position,
-                        0,
-                    );
+                    world.sync_world_event(WorldEvent::SoundDispenserDispense, position, 0);
 
-                    args.world.sync_world_event(
+                    world.sync_world_event(
                         WorldEvent::ParticlesShootSmoke,
-                        *args.position,
+                        position,
                         to_data3d(props.facing),
                     );
                 } else {
-                    args.world.sync_world_event(
-                        WorldEvent::SoundDispenserDispense,
-                        *args.position,
-                        0,
-                    );
+                    world.sync_world_event(WorldEvent::SoundDispenserDispense, position, 0);
                 }
             }
-        })
+        });
     }
 
-    fn get_comparator_output<'a>(
-        &'a self,
-        args: GetComparatorOutputArgs<'a>,
-    ) -> BlockFuture<'a, Option<u8>> {
-        Box::pin(async move {
-            if let Some(block_entity) = args.world.get_block_entity(args.position)
-                && let Some(inventory) = block_entity.get_inventory()
-            {
-                Some(crate::block::calculate_comparator_output(inventory.as_ref()).await)
-            } else {
-                None
-            }
-        })
+    fn get_comparator_output(&self, args: GetComparatorOutputArgs<'_>) -> Option<u8> {
+        if let Some(block_entity) = args.world.get_block_entity(args.position)
+            && let Some(inventory) = block_entity.get_inventory()
+        {
+            Some(crate::block::calculate_comparator_output(
+                inventory.as_ref(),
+            ))
+        } else {
+            None
+        }
     }
 }

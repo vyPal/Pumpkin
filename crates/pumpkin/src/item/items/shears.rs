@@ -100,7 +100,7 @@ impl ItemBehaviour for ShearsItem {
                     Entity::new(world.clone(), pos, &EntityType::ITEM),
                     ItemStack::new(wool_count, wool_item),
                 ));
-                world.spawn_entity(item_entity).await;
+                world.spawn_entity(item_entity);
                 player.damage_held_item(1).await;
             }
         })
@@ -145,9 +145,7 @@ async fn handle_growing_plant(
     });
 
     if let Some(new_state_id) = action {
-        world
-            .set_block_state(location, new_state_id, BlockFlags::NOTIFY_ALL)
-            .await;
+        world.set_block_state(location, new_state_id, BlockFlags::NOTIFY_ALL);
         world.play_sound(
             Sound::BlockGrowingPlantCrop,
             SoundCategory::Blocks,
@@ -192,9 +190,7 @@ async fn handle_beehive(
     });
 
     if let Some(new_state_id) = action {
-        world
-            .set_block_state(location, new_state_id, BlockFlags::NOTIFY_ALL)
-            .await;
+        world.set_block_state(location, new_state_id, BlockFlags::NOTIFY_ALL);
         world.play_sound(
             Sound::BlockBeehiveShear,
             SoundCategory::Blocks,
@@ -210,7 +206,7 @@ async fn handle_beehive(
             Entity::new(world.clone(), drop_pos, &EntityType::ITEM),
             ItemStack::new(3, &Item::HONEYCOMB),
         ));
-        world.spawn_entity(item_entity).await;
+        world.spawn_entity(item_entity);
         player.damage_held_item(1).await;
         return true;
     }
@@ -222,9 +218,7 @@ async fn handle_pumpkin(player: &Player, location: &BlockPos, block: &Block) {
     if block.id == Block::PUMPKIN.id {
         let world = player.world();
         let carved_state = Block::CARVED_PUMPKIN.default_state.id;
-        world
-            .set_block_state(location, carved_state, BlockFlags::NOTIFY_ALL)
-            .await;
+        world.set_block_state(location, carved_state, BlockFlags::NOTIFY_ALL);
         world.play_sound(
             Sound::BlockPumpkinCarve,
             SoundCategory::Blocks,
@@ -240,7 +234,7 @@ async fn handle_pumpkin(player: &Player, location: &BlockPos, block: &Block) {
             Entity::new(world.clone(), drop_pos, &EntityType::ITEM),
             ItemStack::new(4, &Item::PUMPKIN_SEEDS),
         ));
-        world.spawn_entity(item_entity).await;
+        world.spawn_entity(item_entity);
         player.damage_held_item(1).await;
     }
 }

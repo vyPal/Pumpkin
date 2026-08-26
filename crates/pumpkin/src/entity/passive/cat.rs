@@ -371,69 +371,67 @@ impl Mob for CatEntity {
         self.variant.store(variant, Ordering::Relaxed);
     }
 
-    fn mob_init_data_tracker(&self) -> EntityBaseFuture<'_, ()> {
-        Box::pin(async move {
-            let entity = self.get_entity();
-            let is_baby = entity.age.load(Ordering::Relaxed) < 0;
-            if is_baby {
-                entity.send_meta_data(
-                    &[Metadata::new(
-                        pumpkin_data::tracked_data::cat::BABY_ID,
-                        true,
-                    )],
-                    None,
-                );
-            }
+    fn mob_init_data_tracker(&self) {
+        let entity = self.get_entity();
+        let is_baby = entity.age.load(Ordering::Relaxed) < 0;
+        if is_baby {
             entity.send_meta_data(
                 &[Metadata::new(
-                    pumpkin_data::tracked_data::cat::TAMEABLE_FLAGS,
-                    self.get_tame_flags(),
+                    pumpkin_data::tracked_data::cat::BABY_ID,
+                    true,
                 )],
                 None,
             );
-            entity.send_meta_data(
-                &[Metadata::new(
-                    pumpkin_data::tracked_data::cat::OWNER_UUID,
-                    self.get_owner(),
-                )],
-                None,
-            );
-            entity.send_meta_data(
-                &[Metadata::new(
-                    pumpkin_data::tracked_data::cat::CAT_VARIANT,
-                    VarInt(self.variant.load(Ordering::Relaxed) as i32),
-                )],
-                None,
-            );
-            entity.send_meta_data(
-                &[Metadata::new(
-                    pumpkin_data::tracked_data::cat::IS_LYING,
-                    self.is_lying.load(Ordering::Relaxed),
-                )],
-                None,
-            );
-            entity.send_meta_data(
-                &[Metadata::new(
-                    pumpkin_data::tracked_data::cat::RELAX_STATE_ONE,
-                    self.relax_state_one.load(Ordering::Relaxed),
-                )],
-                None,
-            );
-            entity.send_meta_data(
-                &[Metadata::new(
-                    pumpkin_data::tracked_data::cat::CAT_COLLAR_COLOR,
-                    VarInt(self.collar_color.load(Ordering::Relaxed) as i32),
-                )],
-                None,
-            );
-            entity.send_meta_data(
-                &[Metadata::new(
-                    pumpkin_data::tracked_data::cat::SOUND_VARIANT,
-                    VarInt(self.sound_variant.load(Ordering::Relaxed) as i32),
-                )],
-                None,
-            );
-        })
+        }
+        entity.send_meta_data(
+            &[Metadata::new(
+                pumpkin_data::tracked_data::cat::TAMEABLE_FLAGS,
+                self.get_tame_flags(),
+            )],
+            None,
+        );
+        entity.send_meta_data(
+            &[Metadata::new(
+                pumpkin_data::tracked_data::cat::OWNER_UUID,
+                self.get_owner(),
+            )],
+            None,
+        );
+        entity.send_meta_data(
+            &[Metadata::new(
+                pumpkin_data::tracked_data::cat::CAT_VARIANT,
+                VarInt(self.variant.load(Ordering::Relaxed) as i32),
+            )],
+            None,
+        );
+        entity.send_meta_data(
+            &[Metadata::new(
+                pumpkin_data::tracked_data::cat::IS_LYING,
+                self.is_lying.load(Ordering::Relaxed),
+            )],
+            None,
+        );
+        entity.send_meta_data(
+            &[Metadata::new(
+                pumpkin_data::tracked_data::cat::RELAX_STATE_ONE,
+                self.relax_state_one.load(Ordering::Relaxed),
+            )],
+            None,
+        );
+        entity.send_meta_data(
+            &[Metadata::new(
+                pumpkin_data::tracked_data::cat::CAT_COLLAR_COLOR,
+                VarInt(self.collar_color.load(Ordering::Relaxed) as i32),
+            )],
+            None,
+        );
+        entity.send_meta_data(
+            &[Metadata::new(
+                pumpkin_data::tracked_data::cat::SOUND_VARIANT,
+                VarInt(self.sound_variant.load(Ordering::Relaxed) as i32),
+            )],
+            None,
+        );
     }
 
     fn mob_interact<'a>(
@@ -467,7 +465,7 @@ impl Mob for CatEntity {
                         return true;
                     }
 
-                    let parent_interaction = self.mob_entity.mob_interact(player, item_stack).await;
+                    let parent_interaction = self.mob_entity.mob_interact(player, item_stack);
                     if !parent_interaction {
                         self.set_sitting(!self.is_sitting());
                         return true;
@@ -498,7 +496,7 @@ impl Mob for CatEntity {
                 return true;
             }
 
-            self.mob_entity.mob_interact(player, item_stack).await
+            self.mob_entity.mob_interact(player, item_stack)
         })
     }
 }

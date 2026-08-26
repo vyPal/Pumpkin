@@ -39,37 +39,36 @@ impl BedrockClient {
                 }
 
                 if player.gamemode.load() == GameMode::Creative {
-                    let new_state = world
-                        .break_block(
-                            &location,
-                            Some(player.clone()),
-                            BlockFlags::NOTIFY_NEIGHBORS | BlockFlags::SKIP_DROPS,
-                        )
-                        .await;
+                    let new_state = world.break_block(
+                        &location,
+                        Some(player.clone()),
+                        BlockFlags::NOTIFY_NEIGHBORS | BlockFlags::SKIP_DROPS,
+                    );
                     if new_state.is_some() {
                         server
                             .block_registry
-                            .broken(&world, block, player, &location, server, state)
-                            .await;
+                            .broken(&world, block, player, &location, server, state);
                     }
                 } else if !state.is_air() {
-                    let speed = crate::block::calc_block_breaking(player, state, block).await;
+                    let speed = crate::block::calc_block_breaking(player, state, block);
                     if speed >= 1.0 {
                         player.stop_mining().await;
                         let broken_state = world.get_block_state(&location);
-                        let can_harvest = player.can_harvest(broken_state, block).await;
-                        let new_state = world
-                            .break_block(
-                                &location,
-                                Some(player.clone()),
-                                BlockFlags::NOTIFY_NEIGHBORS,
-                            )
-                            .await;
+                        let can_harvest = player.can_harvest(broken_state, block);
+                        let new_state = world.break_block(
+                            &location,
+                            Some(player.clone()),
+                            BlockFlags::NOTIFY_NEIGHBORS,
+                        );
                         if new_state.is_some() {
-                            server
-                                .block_registry
-                                .broken(&world, block, player, &location, server, broken_state)
-                                .await;
+                            server.block_registry.broken(
+                                &world,
+                                block,
+                                player,
+                                &location,
+                                server,
+                                broken_state,
+                            );
                             player.apply_tool_damage_for_block_break(broken_state).await;
                             if can_harvest {
                                 player.add_exhaustion(MINE_BLOCK_EXHAUSTION).await;
@@ -134,7 +133,7 @@ impl BedrockClient {
 
                 let (block, state) = world.get_block_and_state(&location);
                 if player.gamemode.load() != GameMode::Creative && !state.is_air() {
-                    let speed = crate::block::calc_block_breaking(player, state, block).await;
+                    let speed = crate::block::calc_block_breaking(player, state, block);
                     let elapsed = player.tick_counter.load(Ordering::Relaxed)
                         - player.start_mining_time.load(Ordering::Relaxed)
                         + 1;
@@ -145,7 +144,7 @@ impl BedrockClient {
                     {
                         player.stop_mining().await;
 
-                        let can_harvest = player.can_harvest(state, block).await;
+                        let can_harvest = player.can_harvest(state, block);
                         let flags = if can_harvest {
                             BlockFlags::NOTIFY_NEIGHBORS
                         } else {
@@ -153,13 +152,11 @@ impl BedrockClient {
                         };
                         if world
                             .break_block(&location, Some(player.clone()), flags)
-                            .await
                             .is_some()
                         {
                             server
                                 .block_registry
-                                .broken(&world, block, player, &location, server, state)
-                                .await;
+                                .broken(&world, block, player, &location, server, state);
                             player.apply_tool_damage_for_block_break(state).await;
                             if can_harvest {
                                 player.add_exhaustion(MINE_BLOCK_EXHAUSTION).await;

@@ -66,7 +66,7 @@ impl super::Phase for SitBreathingPhase {
                     0.5,  // radius on use
                     -100, // duration on use
                 );
-                world.spawn_entity(cloud).await;
+                world.spawn_entity(cloud);
             }
         })
     }

@@ -157,70 +157,66 @@ impl Mob for HappyGhastEntity {
         &self.mob_entity
     }
 
-    fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            self.ageable_ai_step();
+    fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) {
+        self.ageable_ai_step();
 
-            let leash_time = self.leash_holder_time.load(Ordering::Relaxed);
-            if leash_time > 0 {
-                self.leash_holder_time.fetch_sub(1, Ordering::Relaxed);
-            }
-            self.set_leash_holder(leash_time > 0);
+        let leash_time = self.leash_holder_time.load(Ordering::Relaxed);
+        if leash_time > 0 {
+            self.leash_holder_time.fetch_sub(1, Ordering::Relaxed);
+        }
+        self.set_leash_holder(leash_time > 0);
 
-            let still_timeout = self.server_still_timeout.load(Ordering::Relaxed);
-            if still_timeout > 0 {
-                let entity = self.get_entity();
-                if entity.age.load(Ordering::Relaxed) > 60 {
-                    self.server_still_timeout.fetch_sub(1, Ordering::Relaxed);
-                }
-                self.sync_stay_still_flag();
-            }
-
-            // Continuous healing
+        let still_timeout = self.server_still_timeout.load(Ordering::Relaxed);
+        if still_timeout > 0 {
             let entity = self.get_entity();
-            if entity.is_alive() {
-                let living = &self.mob_entity.living_entity;
-                let current_health = living.health.load();
-                let max_health = living.get_max_health();
-                if current_health < max_health {
-                    let world = entity.world.load();
-                    let ticks = world.level_time.lock().await.world_age;
-                    let heal_interval = 600;
-                    if ticks % heal_interval == 0 {
-                        living.set_health(current_health + 1.0);
-                    }
+            if entity.age.load(Ordering::Relaxed) > 60 {
+                self.server_still_timeout.fetch_sub(1, Ordering::Relaxed);
+            }
+            self.sync_stay_still_flag();
+        }
+
+        // Continuous healing
+        let entity = self.get_entity();
+        if entity.is_alive() {
+            let living = &self.mob_entity.living_entity;
+            let current_health = living.health.load();
+            let max_health = living.get_max_health();
+            if current_health < max_health {
+                let world = entity.world.load();
+                let ticks = world.get_world_age();
+                let heal_interval = 600;
+                if ticks % heal_interval == 0 {
+                    living.set_health(current_health + 1.0);
                 }
             }
-        })
+        }
     }
 
-    fn mob_init_data_tracker(&self) -> EntityBaseFuture<'_, ()> {
-        Box::pin(async move {
-            let entity = self.get_entity();
-            let is_baby = entity.age.load(Ordering::Relaxed) < 0;
-            if is_baby {
-                entity.send_meta_data(
-                    &[Metadata::new(
-                        pumpkin_data::tracked_data::happy_ghast::BABY_ID,
-                        true,
-                    )],
-                    None,
-                );
-            }
+    fn mob_init_data_tracker(&self) {
+        let entity = self.get_entity();
+        let is_baby = entity.age.load(Ordering::Relaxed) < 0;
+        if is_baby {
             entity.send_meta_data(
-                &[
-                    Metadata::new(
-                        pumpkin_data::tracked_data::happy_ghast::IS_LEASH_HOLDER,
-                        self.is_leash_holder.load(Ordering::Relaxed),
-                    ),
-                    Metadata::new(
-                        pumpkin_data::tracked_data::happy_ghast::STAYS_STILL,
-                        self.stays_still.load(Ordering::Relaxed),
-                    ),
-                ],
+                &[Metadata::new(
+                    pumpkin_data::tracked_data::happy_ghast::BABY_ID,
+                    true,
+                )],
                 None,
             );
-        })
+        }
+        entity.send_meta_data(
+            &[
+                Metadata::new(
+                    pumpkin_data::tracked_data::happy_ghast::IS_LEASH_HOLDER,
+                    self.is_leash_holder.load(Ordering::Relaxed),
+                ),
+                Metadata::new(
+                    pumpkin_data::tracked_data::happy_ghast::STAYS_STILL,
+                    self.stays_still.load(Ordering::Relaxed),
+                ),
+            ],
+            None,
+        );
     }
 
     fn mob_interact<'a>(

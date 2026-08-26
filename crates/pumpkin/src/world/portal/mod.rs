@@ -112,13 +112,11 @@ impl PortalType {
                                         platform_pos.0.y + dy,
                                         platform_pos.0.z + dz,
                                     );
-                                    dest_world
-                                        .set_block_state(
-                                            &target_pos,
-                                            block.default_state.id,
-                                            BlockFlags::NOTIFY_ALL,
-                                        )
-                                        .await;
+                                    dest_world.set_block_state(
+                                        &target_pos,
+                                        block.default_state.id,
+                                        BlockFlags::NOTIFY_ALL,
+                                    );
                                 }
                             }
                         }
@@ -215,8 +213,7 @@ impl PortalType {
                     )
                     .await
                 {
-                    NetherPortal::build_portal_frame(&dest_world, build_pos, axis, is_fallback)
-                        .await;
+                    NetherPortal::build_portal_frame(&dest_world, build_pos, axis, is_fallback);
                     let new_portal = PortalSearchResult {
                         lower_corner: build_pos,
                         axis,

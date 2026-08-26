@@ -1245,7 +1245,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     ) -> wasmtime::Result<Option<Resource<WitHostItemStack>>> {
         let player = player_from_resource(self, &player)?;
         let hand = from_wasm_hand(hand);
-        let stack = player.inventory().get_stack_in_hand(hand).await;
+        let stack = player.inventory().get_stack_in_hand(hand);
         if stack.is_empty() {
             Ok(None)
         } else {
@@ -1485,7 +1485,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
                 show_icon: effect.show_icon,
                 blend: false,
             };
-            player.add_effect(effect_obj).await;
+            player.add_effect(effect_obj);
         }
         Ok(())
     }
@@ -1518,13 +1518,10 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     ) -> wasmtime::Result<bool> {
         let player = player_from_resource(self, &player)?;
         let effect_type = super::status_effect::from_wasm_status_effect_type(effect);
-        if let Some(status_effect) =
+        Ok(
             pumpkin_data::effect::StatusEffect::from_name(effect_type.to_name())
-        {
-            Ok(player.has_effect(status_effect).await)
-        } else {
-            Ok(false)
-        }
+                .is_some_and(|status_effect| player.has_effect(status_effect)),
+        )
     }
 
     async fn get_effect(
@@ -1536,7 +1533,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         let effect_type = super::status_effect::from_wasm_status_effect_type(effect);
         if let Some(status_effect) =
             pumpkin_data::effect::StatusEffect::from_name(effect_type.to_name())
-            && let Some(eff) = player.get_effect(status_effect).await
+            && let Some(eff) = player.get_effect(status_effect)
         {
             return Ok(super::status_effect::to_wasm_status_effect_instance(&eff));
         }
@@ -1548,7 +1545,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         player: Resource<Player>,
     ) -> wasmtime::Result<Vec<pumpkin::plugin::status_effect::StatusEffectInstance>> {
         let player = player_from_resource(self, &player)?;
-        let effects = player.get_active_effects().await;
+        let effects = player.get_active_effects();
         let mut list = Vec::with_capacity(effects.len());
         for eff in &effects {
             if let Some(instance) = super::status_effect::to_wasm_status_effect_instance(eff) {
@@ -1560,7 +1557,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
 
     async fn heal(&mut self, player: Resource<Player>, amount: f32) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.heal(amount).await;
+        player.heal(amount);
         Ok(())
     }
 
@@ -1571,15 +1568,13 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         damage_type: WitDamageType,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player
-            .damage(&*player, amount, from_wit_damage_type(damage_type))
-            .await;
+        player.damage(&*player, amount, from_wit_damage_type(damage_type));
         Ok(())
     }
 
     async fn kill(&mut self, player: Resource<Player>) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.kill().await;
+        player.kill();
         Ok(())
     }
 
@@ -1603,9 +1598,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         value: i32,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player
-            .set_stat(from_wit_statistic_category(category), stat_id, value)
-            .await;
+        player.set_stat(from_wit_statistic_category(category), stat_id, value);
         Ok(())
     }
 
@@ -1617,9 +1610,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         amount: i32,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player
-            .increment_stat(from_wit_statistic_category(category), stat_id, amount)
-            .await;
+        player.increment_stat(from_wit_statistic_category(category), stat_id, amount);
         Ok(())
     }
 
@@ -1641,9 +1632,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         value: i32,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player
-            .set_custom_stat(from_wit_custom_statistic(stat), value)
-            .await;
+        player.set_custom_stat(from_wit_custom_statistic(stat), value);
         Ok(())
     }
 
@@ -1654,9 +1643,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         amount: i32,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player
-            .increment_custom_stat(from_wit_custom_statistic(stat), amount)
-            .await;
+        player.increment_custom_stat(from_wit_custom_statistic(stat), amount);
         Ok(())
     }
 
@@ -2025,12 +2012,10 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         >,
     > {
         let player = player_from_resource(self, &player)?;
-        let res = player
-            .get_target_block(
-                &player.living_entity.entity.world.load_full(),
-                f64::from(max_distance),
-            )
-            .await;
+        let res = player.get_target_block(
+            &player.living_entity.entity.world.load_full(),
+            f64::from(max_distance),
+        );
         Ok(res.map(|p| {
             let vec3 = pumpkin_util::math::vector3::Vector3::new(
                 f64::from(p.0.x),
@@ -2299,7 +2284,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
 
     async fn set_health(&mut self, player: Resource<Player>, health: f32) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.set_health(health).await;
+        player.set_health(health);
         Ok(())
     }
 
@@ -2314,7 +2299,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         max_health: f32,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.set_max_health(max_health).await;
+        player.set_max_health(max_health);
         Ok(())
     }
 
@@ -2344,7 +2329,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         saturation: f32,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.set_saturation(saturation).await;
+        player.set_saturation(saturation);
         Ok(())
     }
 
@@ -2359,7 +2344,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         exhaustion: f32,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.set_exhaustion(exhaustion).await;
+        player.set_exhaustion(exhaustion);
         Ok(())
     }
 
@@ -2374,7 +2359,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         absorption: f32,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.set_absorption(absorption).await;
+        player.set_absorption(absorption);
         Ok(())
     }
 
@@ -2457,7 +2442,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
 
     async fn is_flying(&mut self, player: Resource<Player>) -> wasmtime::Result<bool> {
         let player = player_from_resource(self, &player)?;
-        Ok(player.is_flying().await)
+        Ok(player.is_flying())
     }
 
     async fn set_flying(&mut self, player: Resource<Player>, flying: bool) -> wasmtime::Result<()> {

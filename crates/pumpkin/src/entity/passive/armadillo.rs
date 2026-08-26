@@ -198,10 +198,10 @@ impl ArmadilloEntity {
                 > ArmadilloState::Rolling.animation_duration()
     }
 
-    pub async fn can_stay_rolled_up(&self) -> bool {
+    pub fn can_stay_rolled_up(&self) -> bool {
         !self.is_panicking()
             && !self.mob_entity.living_entity.is_in_water()
-            && !self.get_entity().has_vehicle().await
+            && !self.get_entity().has_vehicle()
     }
 
     pub fn roll_up(&self) {
@@ -243,14 +243,14 @@ impl ArmadilloEntity {
                 Entity::new(world.clone(), pos, &EntityType::ITEM),
                 ItemStack::new(1, &Item::ARMADILLO_SCUTE),
             ));
-            world.spawn_entity(item_entity).await;
+            world.spawn_entity(item_entity);
             world.play_sound(Sound::EntityArmadilloBrush, SoundCategory::Neutral, &pos);
             player.damage_held_item(16).await;
             true
         })
     }
 
-    pub async fn is_scared_by(&self, living_entity: &dyn EntityBase) -> bool {
+    pub fn is_scared_by(&self, living_entity: &dyn EntityBase) -> bool {
         let entity = self.get_entity();
         let pos = entity.pos.load();
         let target_pos = living_entity.get_entity().pos.load();
@@ -272,7 +272,7 @@ impl ArmadilloEntity {
 
         if target_type == &EntityType::PLAYER {
             let target_ent = living_entity.get_entity();
-            if target_ent.is_sprinting() || target_ent.has_vehicle().await {
+            if target_ent.is_sprinting() || target_ent.has_vehicle() {
                 return true;
             }
         }
@@ -341,107 +341,98 @@ impl Mob for ArmadilloEntity {
         }
     }
 
-    fn on_damage<'a>(
-        &'a self,
-        _damage_type: DamageType,
-        source: Option<&'a dyn EntityBase>,
-    ) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            if self.get_entity().is_alive()
-                && let Some(src) = source
-                && src.get_entity().entity_type != &EntityType::ITEM
-            {
+    fn on_damage(&self, _damage_type: DamageType, source: Option<&dyn EntityBase>) {
+        if self.get_entity().is_alive()
+            && let Some(src) = source
+            && src.get_entity().entity_type != &EntityType::ITEM
+        {
+            self.danger_detected_recently_ticks
+                .store(SCARE_CHECK_INTERVAL, Ordering::Relaxed);
+            if self.can_stay_rolled_up() {
                 self.danger_detected_recently_ticks
-                    .store(SCARE_CHECK_INTERVAL, Ordering::Relaxed);
-                if self.can_stay_rolled_up().await {
-                    self.roll_up();
-                }
+                    .store(80, Ordering::Relaxed);
             }
-        })
+        }
     }
 
-    fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            self.ageable_ai_step();
+    fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) {
+        self.ageable_ai_step();
 
-            self.in_state_ticks.fetch_add(1, Ordering::Relaxed);
-            let danger_ticks = self.danger_detected_recently_ticks.load(Ordering::Relaxed);
-            if danger_ticks > 0 {
-                self.danger_detected_recently_ticks
-                    .store(danger_ticks - 1, Ordering::Relaxed);
-            }
+        self.in_state_ticks.fetch_add(1, Ordering::Relaxed);
+        let danger_ticks = self.danger_detected_recently_ticks.load(Ordering::Relaxed);
+        if danger_ticks > 0 {
+            self.danger_detected_recently_ticks
+                .store(danger_ticks - 1, Ordering::Relaxed);
+        }
 
-            let entity = self.get_entity();
-            let world = entity.world.load();
+        let entity = self.get_entity();
+        let world = entity.world.load();
 
-            if entity.is_alive() && !self.is_baby() {
-                let scute_time = self.scute_time.fetch_sub(1, Ordering::Relaxed) - 1;
-                if scute_time <= 0 {
-                    let pos = entity.pos.load();
-                    let item_entity = Arc::new(ItemEntity::new(
-                        Entity::new(world.clone(), pos, &EntityType::ITEM),
-                        ItemStack::new(1, &Item::ARMADILLO_SCUTE),
-                    ));
-                    world.spawn_entity(item_entity).await;
-                    world.play_sound(
-                        Sound::EntityArmadilloScuteDrop,
-                        SoundCategory::Neutral,
-                        &pos,
-                    );
-                    self.scute_time
-                        .store(pick_next_scute_drop_time(), Ordering::Relaxed);
-                }
-            }
-
-            let state = self.get_state();
-            let ticks_in_state = self.in_state_ticks.load(Ordering::Relaxed);
-
-            match state {
-                ArmadilloState::Rolling => {
-                    if ticks_in_state > ArmadilloState::Rolling.animation_duration() {
-                        self.switch_to_state(ArmadilloState::Scared);
-                    }
-                }
-                ArmadilloState::Scared => {
-                    if !self.can_stay_rolled_up().await {
-                        self.roll_out();
-                    } else if ticks_in_state > ArmadilloState::Scared.animation_duration()
-                        && self.danger_detected_recently_ticks.load(Ordering::Relaxed) == 0
-                    {
-                        self.switch_to_state(ArmadilloState::Unrolling);
-                    }
-                }
-                ArmadilloState::Unrolling => {
-                    if ticks_in_state > ArmadilloState::Unrolling.animation_duration() {
-                        self.roll_out();
-                    }
-                }
-                ArmadilloState::Idle => {}
-            }
-        })
-    }
-
-    fn mob_init_data_tracker(&self) -> EntityBaseFuture<'_, ()> {
-        Box::pin(async move {
-            let entity = self.get_entity();
-            let is_baby = entity.age.load(Ordering::Relaxed) < 0;
-            if is_baby {
-                entity.send_meta_data(
-                    &[Metadata::new(
-                        pumpkin_data::tracked_data::armadillo::BABY_ID,
-                        true,
-                    )],
-                    None,
+        if entity.is_alive() && !self.is_baby() {
+            let scute_time = self.scute_time.fetch_sub(1, Ordering::Relaxed) - 1;
+            if scute_time <= 0 {
+                let pos = entity.pos.load();
+                let item_entity = Arc::new(ItemEntity::new(
+                    Entity::new(world.clone(), pos, &EntityType::ITEM),
+                    ItemStack::new(1, &Item::ARMADILLO_SCUTE),
+                ));
+                world.spawn_entity_non_save(item_entity as Arc<dyn EntityBase>);
+                world.play_sound(
+                    Sound::EntityArmadilloScuteDrop,
+                    SoundCategory::Neutral,
+                    &pos,
                 );
+                self.scute_time
+                    .store(pick_next_scute_drop_time(), Ordering::Relaxed);
             }
+        }
+
+        let state = self.get_state();
+        let ticks_in_state = self.in_state_ticks.load(Ordering::Relaxed);
+
+        match state {
+            ArmadilloState::Rolling => {
+                if ticks_in_state > ArmadilloState::Rolling.animation_duration() {
+                    self.switch_to_state(ArmadilloState::Scared);
+                }
+            }
+            ArmadilloState::Scared => {
+                if !self.can_stay_rolled_up() {
+                    self.roll_out();
+                } else if ticks_in_state > ArmadilloState::Scared.animation_duration()
+                    && self.danger_detected_recently_ticks.load(Ordering::Relaxed) == 0
+                {
+                    self.switch_to_state(ArmadilloState::Unrolling);
+                }
+            }
+            ArmadilloState::Unrolling => {
+                if ticks_in_state > ArmadilloState::Unrolling.animation_duration() {
+                    self.roll_out();
+                }
+            }
+            ArmadilloState::Idle => {}
+        }
+    }
+
+    fn mob_init_data_tracker(&self) {
+        let entity = self.get_entity();
+        let is_baby = entity.age.load(Ordering::Relaxed) < 0;
+        if is_baby {
             entity.send_meta_data(
                 &[Metadata::new(
-                    pumpkin_data::tracked_data::armadillo::ARMADILLO_STATE,
-                    VarInt(self.get_state().id()),
+                    pumpkin_data::tracked_data::armadillo::BABY_ID,
+                    true,
                 )],
                 None,
             );
-        })
+        }
+        entity.send_meta_data(
+            &[Metadata::new(
+                pumpkin_data::tracked_data::armadillo::ARMADILLO_STATE,
+                VarInt(self.get_state().id()),
+            )],
+            None,
+        );
     }
 
     fn mob_interact<'a>(

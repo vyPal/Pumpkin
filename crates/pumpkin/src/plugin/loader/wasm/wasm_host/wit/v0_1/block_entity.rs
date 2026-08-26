@@ -433,11 +433,19 @@ impl HostCommandBlockEntity for PluginHostState {
 
     async fn last_output(&mut self, res: Resource<CommandBlockEntity>) -> wasmtime::Result<String> {
         let entity = block_entity_from_resource(self, &Resource::new_own(res.rep()))?;
-        if let Some(cmd) = entity.as_any().downcast_ref::<InternalCommandBlockEntity>() {
-            Ok(cmd.last_output.lock().await.clone())
-        } else {
-            Err(wasmtime::Error::msg("Not a command block entity"))
-        }
+        entity
+            .as_any()
+            .downcast_ref::<InternalCommandBlockEntity>()
+            .map_or_else(
+                || Err(wasmtime::Error::msg("Not a command block entity")),
+                |cmd| {
+                    Ok(cmd
+                        .last_output
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .clone())
+                },
+            )
     }
 
     async fn track_output(&mut self, res: Resource<CommandBlockEntity>) -> wasmtime::Result<bool> {
@@ -464,11 +472,19 @@ impl HostCommandBlockEntity for PluginHostState {
 
     async fn command(&mut self, res: Resource<CommandBlockEntity>) -> wasmtime::Result<String> {
         let entity = block_entity_from_resource(self, &Resource::new_own(res.rep()))?;
-        if let Some(cmd) = entity.as_any().downcast_ref::<InternalCommandBlockEntity>() {
-            Ok(cmd.command.lock().await.clone())
-        } else {
-            Err(wasmtime::Error::msg("Not a command block entity"))
-        }
+        entity
+            .as_any()
+            .downcast_ref::<InternalCommandBlockEntity>()
+            .map_or_else(
+                || Err(wasmtime::Error::msg("Not a command block entity")),
+                |cmd| {
+                    Ok(cmd
+                        .command
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .clone())
+                },
+            )
     }
 
     async fn auto(&mut self, res: Resource<CommandBlockEntity>) -> wasmtime::Result<bool> {

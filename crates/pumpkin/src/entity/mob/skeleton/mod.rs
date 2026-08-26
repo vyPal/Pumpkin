@@ -100,7 +100,10 @@ impl Mob for SkeletonEntityBase {
                 };
 
                 let living = &self.mob_entity.living_entity;
-                let mut equipment = living.entity_equipment.lock().await;
+                let mut equipment = living
+                    .entity_equipment
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 let mut first = true;
 
                 for slot in &MobEntity::EQUIPMENT_POPULATION_ORDER {
@@ -119,7 +122,10 @@ impl Mob for SkeletonEntityBase {
 
             // AbstractSkeleton sets BOW on MAIN_HAND
             let living = &self.mob_entity.living_entity;
-            let mut equipment = living.entity_equipment.lock().await;
+            let mut equipment = living
+                .entity_equipment
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             equipment.put(&EquipmentSlot::MAIN_HAND, ItemStack::new(1, &Item::BOW));
         })
     }

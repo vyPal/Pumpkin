@@ -32,11 +32,11 @@ impl ItemBehaviour for ExperienceBottleItem {
             );
 
             let amount = (rand::random::<u32>() % 9 + 3) as u32; // 3..=11 exp
-            ExperienceOrbEntity::spawn(&world, pos, amount).await;
+            ExperienceOrbEntity::spawn(&world, pos, amount);
 
-            let mut held = player.inventory().held_item().await;
+            let mut held = player.inventory().held_item();
             held.decrement_unless_creative(player.gamemode.load(), 1);
-            player.inventory().set_held_item(held).await;
+            player.inventory().set_held_item(held);
         })
     }
 

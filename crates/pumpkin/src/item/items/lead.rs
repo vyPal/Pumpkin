@@ -76,10 +76,10 @@ impl ItemBehaviour for LeadItem {
 
                 if is_leashed_to_player {
                     if knot.is_none() {
-                        knot = Some(LeashKnotEntity::get_or_create(&world, location).await);
+                        knot = Some(LeashKnotEntity::get_or_create(&world, location));
                     }
                     if let Some(k) = &knot {
-                        ent.leash_to(k.clone() as Arc<dyn EntityBase>).await;
+                        ent.leash_to(k.clone() as Arc<dyn EntityBase>);
                         any_leashed = true;
                     }
                 }

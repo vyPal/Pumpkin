@@ -140,32 +140,28 @@ impl Mob for IronGolemEntity {
         &self.mob_entity
     }
 
-    fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            let attack_tick = self.attack_animation_tick.load(Ordering::Relaxed);
-            if attack_tick > 0 {
-                self.attack_animation_tick.fetch_sub(1, Ordering::Relaxed);
-            }
+    fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) {
+        let attack_tick = self.attack_animation_tick.load(Ordering::Relaxed);
+        if attack_tick > 0 {
+            self.attack_animation_tick.fetch_sub(1, Ordering::Relaxed);
+        }
 
-            let flower_tick = self.offer_flower_tick.load(Ordering::Relaxed);
-            if flower_tick > 0 {
-                self.offer_flower_tick.fetch_sub(1, Ordering::Relaxed);
-            }
-        })
+        let flower_tick = self.offer_flower_tick.load(Ordering::Relaxed);
+        if flower_tick > 0 {
+            self.offer_flower_tick.fetch_sub(1, Ordering::Relaxed);
+        }
     }
 
-    fn mob_init_data_tracker(&self) -> EntityBaseFuture<'_, ()> {
-        Box::pin(async move {
-            let entity = self.get_entity();
-            let flag: u8 = u8::from(self.is_player_created());
-            entity.send_meta_data(
-                &[Metadata::new(
-                    pumpkin_data::tracked_data::iron_golem::FLAGS_ID,
-                    flag,
-                )],
-                None,
-            );
-        })
+    fn mob_init_data_tracker(&self) {
+        let entity = self.get_entity();
+        let flag: u8 = u8::from(self.is_player_created());
+        entity.send_meta_data(
+            &[Metadata::new(
+                pumpkin_data::tracked_data::iron_golem::FLAGS_ID,
+                flag,
+            )],
+            None,
+        );
     }
 
     fn mob_interact<'a>(

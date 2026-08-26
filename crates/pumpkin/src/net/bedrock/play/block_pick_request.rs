@@ -25,7 +25,7 @@ impl BedrockClient {
             return;
         }
 
-        let slot_with_stack = player.inventory().get_slot_with_stack(&stack).await;
+        let slot_with_stack = player.inventory().get_slot_with_stack(&stack);
 
         if slot_with_stack != -1 {
             if pumpkin_inventory::player::player_inventory::PlayerInventory::is_valid_hotbar_index(
@@ -85,21 +85,22 @@ impl BedrockClient {
             .await;
 
         // Sync main hand equipment to other players
-        let stack_in_hand = player.inventory().held_item().await;
+        let stack_in_hand = player.inventory().held_item();
         let equipment = &[(EquipmentSlot::MAIN_HAND, stack_in_hand)];
         player.living_entity.send_equipment_changes(equipment);
 
         // Sync bedrock inventory updates
+        let slots = player
+            .inventory()
+            .main_inventory
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .map(NetworkItemStackDescriptor::from)
+            .collect();
         self.enqueue_client_packet(&CInventoryContent {
             container_id: VarUInt(0),
-            slots: player
-                .inventory()
-                .main_inventory
-                .read()
-                .await
-                .iter()
-                .map(NetworkItemStackDescriptor::from)
-                .collect(),
+            slots,
             full_container_name: FullContainerName {
                 container_name: ContainerName::Inventory,
                 dynamic_id: None,

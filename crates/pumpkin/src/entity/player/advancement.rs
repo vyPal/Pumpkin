@@ -469,10 +469,7 @@ impl PlayerAdvancement {
                             ],
                         );
 
-                        player
-                            .world()
-                            .broadcast_editioned(&je_packet, &be_packet)
-                            .await;
+                        player.world().broadcast_editioned(&je_packet, &be_packet);
                     });
                 }
             }

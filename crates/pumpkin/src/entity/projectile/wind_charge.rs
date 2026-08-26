@@ -9,7 +9,7 @@ use std::{
 
 use crate::{
     entity::{
-        Entity, EntityBase, EntityBaseFuture, living::LivingEntity, projectile::ThrownItemEntity,
+        Entity, EntityBase, living::LivingEntity, projectile::ThrownItemEntity,
         projectile_deflection::ProjectileDeflectionType,
     },
     server::Server,
@@ -130,21 +130,15 @@ impl WindChargeEntity {
 }
 
 impl EntityBase for WindChargeEntity {
-    fn tick<'a>(
-        &'a self,
-        caller: &'a Arc<dyn EntityBase>,
-        server: &'a Server,
-    ) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            self.thrown_item_entity.process_tick(caller, server).await;
+    fn tick<'a>(&'a self, caller: &'a Arc<dyn EntityBase>, server: &'a Server) {
+        self.thrown_item_entity.process_tick(caller, server);
 
-            if let Some(cooldown) = self.deflect_cooldown() {
-                let cooldown_ticks = cooldown.load(Ordering::Relaxed);
-                if cooldown_ticks > 0 {
-                    cooldown.store(cooldown_ticks - 1, Ordering::Relaxed);
-                }
+        if let Some(cooldown) = self.deflect_cooldown() {
+            let cooldown_ticks = cooldown.load(Ordering::Relaxed);
+            if cooldown_ticks > 0 {
+                cooldown.store(cooldown_ticks - 1, Ordering::Relaxed);
             }
-        })
+        }
     }
 
     fn get_entity(&self) -> &Entity {

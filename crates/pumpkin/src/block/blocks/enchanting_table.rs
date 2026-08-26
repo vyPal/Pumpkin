@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::block::entities::enchanting_table::EnchantingTableBlockEntity;
 use crate::block::registry::BlockActionResult;
-use crate::block::{BlockBehaviour, BlockFuture, NormalUseArgs, PlacedArgs};
+use crate::block::{BlockBehaviour, NormalUseArgs, PlacedArgs};
 use pumpkin_data::{Block, BlockStateId, translation};
 use pumpkin_inventory::enchanting::enchanting_screen_handler::EnchantingTableScreenHandler;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
@@ -19,70 +19,71 @@ use tokio::sync::Mutex;
 pub struct EnchantingTableBlock;
 
 impl BlockBehaviour for EnchantingTableBlock {
-    fn placed<'a>(&'a self, args: PlacedArgs<'a>) -> BlockFuture<'a, ()> {
-        Box::pin(async move {
-            let entity = EnchantingTableBlockEntity::new(*args.position);
-            args.world.add_block_entity(Arc::new(entity));
-        })
+    fn placed(&self, args: PlacedArgs<'_>) {
+        let entity = EnchantingTableBlockEntity::new(*args.position);
+        args.world.add_block_entity(Arc::new(entity));
     }
 
-    fn normal_use<'a>(&'a self, args: NormalUseArgs<'a>) -> BlockFuture<'a, BlockActionResult> {
-        Box::pin(async move {
-            let mut bookshelf_count = 0;
+    fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
+        let mut bookshelf_count = 0;
 
-            for off_z in -1..=1 {
-                for off_x in -1..=1 {
-                    if (off_z != 0 || off_x != 0)
-                        && args
-                            .world
-                            .get_block_state(&args.position.add(off_x, 0, off_z))
-                            .id
-                            == BlockStateId::AIR
-                        && args
-                            .world
-                            .get_block_state(&args.position.add(off_x, 1, off_z))
-                            .id
-                            == BlockStateId::AIR
-                    // Air
-                    {
-                        for off_y in 0..=1 {
+        for off_z in -1..=1 {
+            for off_x in -1..=1 {
+                if (off_z != 0 || off_x != 0)
+                    && args
+                        .world
+                        .get_block_state(&args.position.add(off_x, 0, off_z))
+                        .id
+                        == BlockStateId::AIR
+                    && args
+                        .world
+                        .get_block_state(&args.position.add(off_x, 1, off_z))
+                        .id
+                        == BlockStateId::AIR
+                // Air
+                {
+                    for off_y in 0..=1 {
+                        if Self::is_bookshelf(
+                            args.world,
+                            &args.position.add(off_x * 2, off_y, off_z * 2),
+                        ) {
+                            bookshelf_count += 1;
+                        }
+                        if off_x != 0 && off_z != 0 {
                             if Self::is_bookshelf(
                                 args.world,
-                                &args.position.add(off_x * 2, off_y, off_z * 2),
+                                &args.position.add(off_x * 2, off_y, off_z),
                             ) {
                                 bookshelf_count += 1;
                             }
-                            if off_x != 0 && off_z != 0 {
-                                if Self::is_bookshelf(
-                                    args.world,
-                                    &args.position.add(off_x * 2, off_y, off_z),
-                                ) {
-                                    bookshelf_count += 1;
-                                }
-                                if Self::is_bookshelf(
-                                    args.world,
-                                    &args.position.add(off_x, off_y, off_z * 2),
-                                ) {
-                                    bookshelf_count += 1;
-                                }
+                            if Self::is_bookshelf(
+                                args.world,
+                                &args.position.add(off_x, off_y, off_z * 2),
+                            ) {
+                                bookshelf_count += 1;
                             }
                         }
                     }
                 }
             }
-            let bookshelf_count = bookshelf_count.min(15);
+        }
+        let bookshelf_count = bookshelf_count.min(15);
 
-            args.player
+        let player = Arc::clone(args.player);
+        let pos = *args.position;
+        let seed = args.player.enchantment_seed();
+        tokio::spawn(async move {
+            player
                 .open_handled_screen(
                     &EnchantingTableScreenFactory {
                         bookshelf_count,
-                        seed: args.player.enchantment_seed(),
+                        seed,
                     },
-                    Some(*args.position),
+                    Some(pos),
                 )
                 .await;
-            BlockActionResult::Success
-        })
+        });
+        BlockActionResult::Success
     }
 }
 

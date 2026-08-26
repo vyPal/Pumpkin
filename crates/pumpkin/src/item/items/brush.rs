@@ -87,11 +87,12 @@ impl ItemBehaviour for BrushItem {
                 SoundCategory::Players,
                 &player.position(),
             );
-            let stack = player.inventory().held_item().await;
-            player
-                .living_entity
-                .set_active_hand(pumpkin_util::Hand::Right, stack, Self::USE_DURATION)
-                .await;
+            let stack = player.inventory().held_item();
+            player.living_entity.set_active_hand(
+                pumpkin_util::Hand::Right,
+                stack,
+                Self::USE_DURATION,
+            );
         })
     }
 
@@ -122,9 +123,7 @@ impl ItemBehaviour for BrushItem {
                 if current_stage < 3 {
                     let next_stage_id =
                         set_dusted_stage(block, current_state_id, current_stage + 1);
-                    world
-                        .set_block_state(&location, next_stage_id, BlockFlags::NOTIFY_ALL)
-                        .await;
+                    world.set_block_state(&location, next_stage_id, BlockFlags::NOTIFY_ALL);
 
                     world.play_sound(
                         if is_sand {
@@ -142,9 +141,7 @@ impl ItemBehaviour for BrushItem {
                         Block::GRAVEL.default_state.id
                     };
 
-                    world
-                        .set_block_state(&location, replacement_state_id, BlockFlags::NOTIFY_ALL)
-                        .await;
+                    world.set_block_state(&location, replacement_state_id, BlockFlags::NOTIFY_ALL);
 
                     world.play_sound(
                         if is_sand {
@@ -166,7 +163,7 @@ impl ItemBehaviour for BrushItem {
                         Entity::new(world.clone(), spawn_pos, &EntityType::ITEM),
                         ItemStack::new(1, loot_item),
                     ));
-                    world.spawn_entity(item_entity).await;
+                    world.spawn_entity(item_entity);
                 }
 
                 player.damage_held_item(1).await;
@@ -178,11 +175,12 @@ impl ItemBehaviour for BrushItem {
                 );
             }
 
-            let stack = player.inventory().held_item().await;
-            player
-                .living_entity
-                .set_active_hand(pumpkin_util::Hand::Right, stack, Self::USE_DURATION)
-                .await;
+            let stack = player.inventory().held_item();
+            player.living_entity.set_active_hand(
+                pumpkin_util::Hand::Right,
+                stack,
+                Self::USE_DURATION,
+            );
         })
     }
 
@@ -206,7 +204,7 @@ impl ItemBehaviour for BrushItem {
                     Entity::new(world.clone(), ent.pos.load(), &EntityType::ITEM),
                     ItemStack::new(1, &Item::ARMADILLO_SCUTE),
                 ));
-                world.spawn_entity(item_entity).await;
+                world.spawn_entity(item_entity);
 
                 player.damage_held_item(16).await;
             } else {
@@ -218,11 +216,12 @@ impl ItemBehaviour for BrushItem {
                 );
             }
 
-            let stack = player.inventory().held_item().await;
-            player
-                .living_entity
-                .set_active_hand(pumpkin_util::Hand::Right, stack, Self::USE_DURATION)
-                .await;
+            let stack = player.inventory().held_item();
+            player.living_entity.set_active_hand(
+                pumpkin_util::Hand::Right,
+                stack,
+                Self::USE_DURATION,
+            );
         })
     }
 

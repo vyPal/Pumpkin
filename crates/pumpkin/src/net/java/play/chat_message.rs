@@ -75,7 +75,7 @@ impl JavaClient {
                         message, player.gameprofile.name.clone()
                     );
 
-                    world.broadcast_editioned(&je_packet, &be_packet).await;
+                    world.broadcast_editioned(&je_packet, &be_packet);
                 }
             }
         }}

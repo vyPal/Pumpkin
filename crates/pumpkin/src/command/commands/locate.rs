@@ -345,7 +345,10 @@ impl CommandExecutor for LocatePoiExecutor {
             let world = context.source.world().clone();
 
             let found = {
-                let mut poi_storage = world.portal_poi.lock().await;
+                let mut poi_storage = world
+                    .portal_poi
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 poi_storage.find_closest_matching(origin, POI_SEARCH_RADIUS, |poi_type| {
                     targets.contains(poi_type)
                 })

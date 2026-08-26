@@ -119,16 +119,11 @@ impl JigsawBlockEntity {
         };
 
         if let Some(structure) = structure {
-            self.place_structure(world, structure, keep_jigsaws).await;
+            Self::place_structure(world, &structure, keep_jigsaws);
         }
     }
 
-    async fn place_structure(
-        &self,
-        world: &Arc<World>,
-        structure: StructurePosition,
-        keep_jigsaws: bool,
-    ) {
+    fn place_structure(world: &Arc<World>, structure: &StructurePosition, keep_jigsaws: bool) {
         let mut pieces = std::mem::take(
             &mut structure
                 .collector
@@ -148,8 +143,8 @@ impl JigsawBlockEntity {
             }
         }
         placer.finalize();
-        world.queue_block_updates(&placer.changed_positions).await;
-        world.flush_block_updates().await;
+        world.queue_block_updates(&placer.changed_positions);
+        world.flush_block_updates();
     }
 }
 

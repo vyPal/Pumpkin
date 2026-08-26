@@ -556,7 +556,7 @@ mod tests {
         },
     };
     use pumpkin_world::inventory::SimpleInventory;
-    use tokio::sync::Mutex;
+    use std::sync::Mutex;
 
     use crate::{
         entity_equipment::EntityEquipment,
@@ -911,7 +911,7 @@ mod tests {
         player_inventory
             .main_inventory
             .write()
-            .await
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .fill_with(|| ItemStack::new(64, &Item::COBBLESTONE));
         merchant_inventory
             .set_stack(0, ItemStack::new(9, &Item::EMERALD))

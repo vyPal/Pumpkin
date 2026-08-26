@@ -242,23 +242,21 @@ impl Mob for CopperGolemEntity {
         })
     }
 
-    fn mob_init_data_tracker(&self) -> EntityBaseFuture<'_, ()> {
-        Box::pin(async move {
-            let entity = self.get_entity();
-            entity.send_meta_data(
-                &[
-                    Metadata::new(
-                        pumpkin_data::tracked_data::copper_golem::WEATHER_STATE,
-                        VarInt(self.get_weather_state().id()),
-                    ),
-                    Metadata::new(
-                        pumpkin_data::tracked_data::copper_golem::COPPER_GOLEM_STATE,
-                        VarInt(self.get_state().id()),
-                    ),
-                ],
-                None,
-            );
-        })
+    fn mob_init_data_tracker(&self) {
+        let entity = self.get_entity();
+        entity.send_meta_data(
+            &[
+                Metadata::new(
+                    pumpkin_data::tracked_data::copper_golem::WEATHER_STATE,
+                    VarInt(self.get_weather_state().id()),
+                ),
+                Metadata::new(
+                    pumpkin_data::tracked_data::copper_golem::COPPER_GOLEM_STATE,
+                    VarInt(self.get_state().id()),
+                ),
+            ],
+            None,
+        );
     }
 
     fn mob_interact<'a>(

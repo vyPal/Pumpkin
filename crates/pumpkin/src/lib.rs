@@ -306,9 +306,15 @@ impl PumpkinServer {
         // Ticker
         {
             let ticker_server = server.clone();
-            server.spawn_task(async move {
-                Ticker::run(&ticker_server).await;
-            });
+            if let Err(err) = std::thread::Builder::new()
+                .name("Server-Ticker".into())
+                .spawn(move || {
+                    Ticker::run(&ticker_server);
+                })
+            {
+                error!("Failed to spawn Server-Ticker thread: {err}");
+                std::process::exit(1);
+            }
         };
 
         let (bedrock_status, ice_socket) = Self::bind_bedrock_status(&server).await;

@@ -53,26 +53,25 @@ impl ItemBehaviour for EnderPearlItem {
                 POWER,
                 DIVERGENCE,
             );
-            world.spawn_entity(Arc::new(pearl)).await;
+            world.spawn_entity(Arc::new(pearl));
 
             // Consume item
-            let mut main_hand = player.inventory.held_item().await;
+            let mut main_hand = player.inventory.held_item();
             let consumed = if !main_hand.is_empty() && main_hand.item.id == Item::ENDER_PEARL.id {
                 main_hand.decrement_unless_creative(player.gamemode.load(), 1);
-                player.inventory.set_held_item(main_hand).await;
+                player.inventory.set_held_item(main_hand);
                 true
             } else {
                 false
             };
 
             if !consumed {
-                let mut off_hand = player.inventory.off_hand_item().await;
+                let mut off_hand = player.inventory.off_hand_item();
                 if !off_hand.is_empty() && off_hand.item.id == Item::ENDER_PEARL.id {
                     off_hand.decrement_unless_creative(player.gamemode.load(), 1);
                     player
                         .inventory
-                        .set_stack_in_hand(pumpkin_util::Hand::Left, off_hand)
-                        .await;
+                        .set_stack_in_hand(pumpkin_util::Hand::Left, off_hand);
                 }
             }
         })

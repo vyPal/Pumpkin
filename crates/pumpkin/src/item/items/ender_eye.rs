@@ -68,15 +68,13 @@ impl ItemBehaviour for EnderEyeItem {
                 block.from_properties(&props).to_state_id(block)
             };
 
-            world
-                .set_block_state(&location, new_state_id, BlockFlags::NOTIFY_LISTENERS)
-                .await;
+            world.set_block_state(&location, new_state_id, BlockFlags::NOTIFY_LISTENERS);
             // Consume one item.
             item.decrement_unless_creative(player.gamemode.load(), 1);
             world.sync_world_event(WorldEvent::EndPortalFrameFill, location, 0);
 
             // Try to complete the portal.
-            EndPortal::get_new_portal(&world, location).await;
+            EndPortal::get_new_portal(&world, location);
         })
     }
 
@@ -89,10 +87,10 @@ impl ItemBehaviour for EnderEyeItem {
             let world = player.world();
 
             let (start_pos, end_pos) = self.get_start_and_end_pos(player);
-            let checker = async |pos: &BlockPos, w: &Arc<World>| {
+            let checker = |pos: &BlockPos, w: &Arc<World>| {
                 w.get_block_state_id(pos) != Block::AIR.default_state.id
             };
-            if let Some((hit_pos, _)) = world.raycast(start_pos, end_pos, checker).await
+            if let Some((hit_pos, _)) = world.raycast(start_pos, end_pos, checker)
                 && world.get_block(&hit_pos) == &Block::END_PORTAL_FRAME
             {
                 return;
@@ -120,9 +118,9 @@ impl ItemBehaviour for EnderEyeItem {
                 f64::from(target.0.y),
                 f64::from(target.0.z),
             );
-            eye.signal_to(target_vec).await;
+            eye.signal_to(target_vec);
 
-            world.spawn_entity(eye).await;
+            world.spawn_entity(eye);
 
             let pitch = 0.33f32 + rand::random::<f32>() * (0.5 - 0.33);
             world.play_sound_fine(
@@ -133,10 +131,12 @@ impl ItemBehaviour for EnderEyeItem {
                 pitch,
             );
 
-            player.trigger_advancement(crate::entity::player::advancement::trigger::AdvancementTrigger::LaunchedEyeOfEnder).await;
-            let mut stack = player.inventory.held_item().await;
+            player.trigger_advancement(
+                crate::entity::player::advancement::trigger::AdvancementTrigger::LaunchedEyeOfEnder,
+            );
+            let mut stack = player.inventory.held_item();
             stack.decrement_unless_creative(player.gamemode.load(), 1);
-            player.inventory.set_held_item(stack).await;
+            player.inventory.set_held_item(stack);
         })
     }
 

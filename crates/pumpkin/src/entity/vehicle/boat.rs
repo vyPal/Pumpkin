@@ -60,27 +60,19 @@ impl EntityBase for BoatEntity {
         None
     }
 
-    fn tick<'a>(
-        &'a self,
-        _caller: &'a Arc<dyn EntityBase>,
-        _server: &'a Server,
-    ) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            self.vehicle.tick();
+    fn tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>, _server: &'a Server) {
+        self.vehicle.tick();
 
-            let underwater = self.ticks_underwater.load();
-            if self.vehicle.entity.touching_water.load(Ordering::Relaxed) {
-                self.ticks_underwater.store((underwater + 1.0).min(60.0));
-            } else if underwater > 0.0 {
-                self.ticks_underwater.store((underwater - 1.0).max(0.0));
-            }
-        })
+        let underwater = self.ticks_underwater.load();
+        if self.vehicle.entity.touching_water.load(Ordering::Relaxed) {
+            self.ticks_underwater.store((underwater + 1.0).min(60.0));
+        } else if underwater > 0.0 {
+            self.ticks_underwater.store((underwater - 1.0).max(0.0));
+        }
     }
 
-    fn init_data_tracker(&self) -> EntityBaseFuture<'_, ()> {
-        Box::pin(async move {
-            self.send_wobble_metadata();
-        })
+    fn init_data_tracker(&self) {
+        self.send_wobble_metadata();
     }
 
     fn can_hit(&self) -> bool {
@@ -91,16 +83,16 @@ impl EntityBase for BoatEntity {
         true
     }
 
-    fn damage_with_context<'a>(
-        &'a self,
-        _caller: &'a dyn EntityBase,
+    fn damage_with_context(
+        &self,
+        _caller: &dyn EntityBase,
         amount: f32,
         _damage_type: DamageType,
         _position: Option<Vector3<f64>>,
-        source: Option<&'a dyn EntityBase>,
-        _cause: Option<&'a dyn EntityBase>,
-    ) -> EntityBaseFuture<'a, bool> {
-        Box::pin(async move { self.vehicle.damage_with_context(amount, source).await })
+        source: Option<&dyn EntityBase>,
+        _cause: Option<&dyn EntityBase>,
+    ) -> bool {
+        self.vehicle.damage_with_context(amount, source)
     }
 
     fn interact<'a>(
@@ -121,7 +113,7 @@ impl EntityBase for BoatEntity {
                 return false;
             }
 
-            if player.get_entity().has_vehicle().await {
+            if player.get_entity().has_vehicle() {
                 return false;
             }
 
@@ -143,10 +135,8 @@ impl EntityBase for BoatEntity {
         })
     }
 
-    fn set_paddle_state(&self, left: bool, right: bool) -> EntityBaseFuture<'_, ()> {
-        Box::pin(async move {
-            self.set_paddles(left, right);
-        })
+    fn set_paddle_state(&self, left: bool, right: bool) {
+        self.set_paddles(left, right);
     }
     fn cast_any(&self) -> &dyn std::any::Any {
         self

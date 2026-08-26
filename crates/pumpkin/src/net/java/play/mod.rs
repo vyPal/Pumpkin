@@ -80,7 +80,6 @@ use pumpkin_util::math::{polynomial_rolling_hash, position::BlockPos, wrap_degre
 use pumpkin_util::{GameMode, text::TextComponent};
 use pumpkin_world::generation::structure::structures::jigsaw::JigsawJointType;
 use pumpkin_world::world::BlockFlags;
-use tokio::sync::Mutex;
 
 /// In secure chat mode, Player will be kicked if they send a chat message with a timestamp that is older than this (in ms)
 /// Vanilla: 2 minutes

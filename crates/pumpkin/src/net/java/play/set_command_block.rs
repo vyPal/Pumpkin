@@ -46,14 +46,11 @@ impl JavaClient {
             props.conditional = command.is_conditional();
 
             let new_state_id = props.to_state_id(&block_type);
-            player
-                .world()
-                .set_block_state(
-                    &command.pos,
-                    new_state_id,
-                    BlockFlags::SKIP_BLOCK_ADDED_CALLBACK,
-                )
-                .await;
+            player.world().set_block_state(
+                &command.pos,
+                new_state_id,
+                BlockFlags::SKIP_BLOCK_ADDED_CALLBACK,
+            );
 
             let mut cmd = command.command;
             if cmd.starts_with('/') {
@@ -69,8 +66,14 @@ impl JavaClient {
                     .into(),
                 auto: command.is_automatic().into(),
                 dirty: old_command_block.dirty.load(Ordering::SeqCst).into(),
-                command: Mutex::new(cmd.to_string()),
-                last_output: old_command_block.last_output.lock().await.clone().into(),
+                command: std::sync::Mutex::new(cmd.to_string()),
+                last_output: std::sync::Mutex::new(
+                    old_command_block
+                        .last_output
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .clone(),
+                ),
                 track_output: command.track_output().into(),
                 success_count: AtomicU32::new(0),
             };

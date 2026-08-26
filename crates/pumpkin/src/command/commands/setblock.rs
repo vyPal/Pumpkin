@@ -50,52 +50,41 @@ impl CommandExecutor for Executor {
 
             let success = match mode {
                 Mode::Destroy => {
-                    world
-                        .clone()
-                        .break_block(&pos, None, BlockFlags::SKIP_DROPS | BlockFlags::FORCE_STATE)
-                        .await;
-                    world
-                        .set_block_state(
-                            &pos,
-                            block_state_id,
-                            BlockFlags::FORCE_STATE | BlockFlags::NOTIFY_NEIGHBORS,
-                        )
-                        .await;
+                    world.break_block(&pos, None, BlockFlags::SKIP_DROPS | BlockFlags::FORCE_STATE);
+                    world.set_block_state(
+                        &pos,
+                        block_state_id,
+                        BlockFlags::FORCE_STATE | BlockFlags::NOTIFY_NEIGHBORS,
+                    );
                     true
                 }
                 Mode::Replace => {
-                    world
-                        .set_block_state(
-                            &pos,
-                            block_state_id,
-                            BlockFlags::FORCE_STATE | BlockFlags::NOTIFY_NEIGHBORS,
-                        )
-                        .await;
+                    world.set_block_state(
+                        &pos,
+                        block_state_id,
+                        BlockFlags::FORCE_STATE | BlockFlags::NOTIFY_NEIGHBORS,
+                    );
                     true
                 }
                 Mode::Keep => {
                     let old_state = world.get_block_state(&pos);
                     if old_state.is_air() {
-                        world
-                            .set_block_state(
-                                &pos,
-                                block_state_id,
-                                BlockFlags::FORCE_STATE | BlockFlags::NOTIFY_NEIGHBORS,
-                            )
-                            .await;
+                        world.set_block_state(
+                            &pos,
+                            block_state_id,
+                            BlockFlags::FORCE_STATE | BlockFlags::NOTIFY_NEIGHBORS,
+                        );
                         true
                     } else {
                         false
                     }
                 }
                 Mode::Strict => {
-                    world
-                        .set_block_state(
-                            &pos,
-                            block_state_id,
-                            BlockFlags::SKIP_BLOCK_ADDED_CALLBACK,
-                        )
-                        .await;
+                    world.set_block_state(
+                        &pos,
+                        block_state_id,
+                        BlockFlags::SKIP_BLOCK_ADDED_CALLBACK,
+                    );
                     true
                 }
             };

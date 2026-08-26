@@ -81,11 +81,11 @@ impl VaultBlockEntity {
         }
     }
 
-    pub async fn has_rewarded(&self, player_id: &Uuid) -> bool {
-        self.rewarded_players.lock().await.contains(player_id)
+    pub fn has_rewarded(&self, player_id: &Uuid) -> bool {
+        self.rewarded_players.blocking_lock().contains(player_id)
     }
 
-    pub async fn mark_rewarded(&self, player_id: Uuid) {
-        self.rewarded_players.lock().await.insert(player_id);
+    pub fn mark_rewarded(&self, player_id: Uuid) {
+        self.rewarded_players.blocking_lock().insert(player_id);
     }
 }

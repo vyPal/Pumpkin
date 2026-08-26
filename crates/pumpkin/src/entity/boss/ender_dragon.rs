@@ -9,7 +9,7 @@ use std::sync::atomic::Ordering;
 use tokio::sync::Mutex;
 
 use crate::entity::{
-    Entity, EntityBase, EntityBaseFuture,
+    Entity, EntityBase,
     living::LivingEntity,
     mob::{Mob, MobEntity},
     player::Player,
@@ -161,24 +161,17 @@ impl EntityBase for EnderDragonPart {
         &self.entity
     }
 
-    fn damage<'a>(
-        &'a self,
-        source: &'a dyn EntityBase,
-        amount: f32,
-        damage_type: DamageType,
-    ) -> EntityBaseFuture<'a, bool> {
-        Box::pin(async move {
-            let world = self.entity.world.load();
-            if let Some(dragon_base) = world
-                .entities
-                .load()
-                .iter()
-                .find(|e| e.get_entity().entity_uuid == self.dragon_uuid)
-            {
-                return dragon_base.damage(source, amount, damage_type).await;
-            }
-            false
-        })
+    fn damage(&self, source: &dyn EntityBase, amount: f32, damage_type: DamageType) -> bool {
+        let world = self.entity.world.load();
+        if let Some(dragon_base) = world
+            .entities
+            .load()
+            .iter()
+            .find(|e| e.get_entity().entity_uuid == self.dragon_uuid)
+        {
+            return dragon_base.damage(source, amount, damage_type);
+        }
+        false
     }
 
     fn cast_any(&self) -> &dyn std::any::Any {
@@ -230,7 +223,7 @@ pub struct EnderDragonEntity {
 
 impl EnderDragonEntity {
     pub fn new(entity: Entity) -> Arc<Self> {
-        entity.no_clip.store(true, Ordering::Relaxed);
+        entity.no_physics.store(true, Ordering::Relaxed);
         let base_id = entity.entity_id;
         let dragon_uuid = entity.entity_uuid;
         let world = entity.world.load();
@@ -280,10 +273,12 @@ impl EnderDragonEntity {
         })
     }
 
-    pub async fn set_fight_origin(&self, pos: BlockPos) {
-        let mut initialized = self.nodes_initialized.lock().await;
-        let mut origin = self.fight_origin.lock().await;
-        if *origin != pos {
+    pub fn set_fight_origin(&self, pos: BlockPos) {
+        if let (Ok(mut initialized), Ok(mut origin)) = (
+            self.nodes_initialized.try_lock(),
+            self.fight_origin.try_lock(),
+        ) && *origin != pos
+        {
             *origin = pos;
             *initialized = false;
         }
@@ -569,7 +564,7 @@ impl EnderDragonEntity {
                 player.get_entity().send_velocity();
 
                 if !self.phase.lock().await.is_sitting() {
-                    player.damage(self, 5.0, DamageType::MOB_ATTACK).await;
+                    player.damage(self, 5.0, DamageType::MOB_ATTACK);
                 }
             }
         }
@@ -622,9 +617,7 @@ impl EnderDragonEntity {
                 && block != &Block::END_PORTAL
                 && block != &Block::END_PORTAL_FRAME
             {
-                world
-                    .set_block_state(&pos, BlockStateId::AIR, BlockFlags::NOTIFY_ALL)
-                    .await;
+                world.set_block_state(&pos, BlockStateId::AIR, BlockFlags::NOTIFY_ALL);
             }
         }
     }
@@ -726,11 +719,9 @@ impl EnderDragonEntity {
             let world = self.mob_entity.living_entity.entity.world.load();
             if let Some(ref fight_mutex) = world.dragon_fight {
                 let living = &self.mob_entity.living_entity;
-                fight_mutex
-                    .lock()
-                    .await
-                    .update_dragon(&world, living.health.load(), living.get_max_health())
-                    .await;
+                if let Ok(mut fight) = fight_mutex.lock() {
+                    fight.update_dragon(&world, living.health.load(), living.get_max_health());
+                }
             }
         }
 
@@ -780,23 +771,33 @@ impl Mob for EnderDragonEntity {
         &self.mob_entity
     }
 
-    fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            self.ai_step().await;
-        })
+    fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) {
+        let entity_id = self.mob_entity.living_entity.entity.entity_id;
+        let world = self.mob_entity.living_entity.entity.world.load_full();
+        tokio::spawn(async move {
+            let Some(entity) = world.get_entity_by_id(entity_id) else {
+                return;
+            };
+            let Some(dragon) = entity.cast_any().downcast_ref::<Self>() else {
+                return;
+            };
+            dragon.ai_step().await;
+        });
     }
 
-    fn on_damage<'a>(
-        &'a self,
-        _damage_type: DamageType,
-        _source: Option<&'a dyn EntityBase>,
-    ) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            let living = &self.mob_entity.living_entity;
-            if living.health.load() <= 0.0 {
-                self.set_phase(EnderDragonPhase::Dying).await;
-            }
-        })
+    fn on_damage(&self, _damage_type: DamageType, _source: Option<&dyn EntityBase>) {
+        let living = &self.mob_entity.living_entity;
+        if living.health.load() <= 0.0 {
+            let world = self.mob_entity.living_entity.entity.world.load_full();
+            let entity_id = self.mob_entity.living_entity.entity.entity_id;
+            tokio::spawn(async move {
+                if let Some(entity) = world.get_entity_by_id(entity_id)
+                    && let Some(dragon) = entity.cast_any().downcast_ref::<Self>()
+                {
+                    dragon.set_phase(EnderDragonPhase::Dying).await;
+                }
+            });
+        }
     }
 
     fn get_mob_gravity(&self) -> f64 {

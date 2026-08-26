@@ -202,9 +202,7 @@ impl CommandExecutor for CloneExecutor {
 
             let mut count = 0;
             for block in &blocks_to_clone {
-                world
-                    .set_block_state(&block.dest_pos, block.state_id, BlockFlags::NOTIFY_ALL)
-                    .await;
+                world.set_block_state(&block.dest_pos, block.state_id, BlockFlags::NOTIFY_ALL);
 
                 if let Some(nbt) = &block.block_entity_nbt {
                     let mut new_nbt = nbt.clone();
@@ -236,13 +234,11 @@ impl CommandExecutor for CloneExecutor {
             if self.clone_mode == CloneMode::Move {
                 for block in &blocks_to_clone {
                     if !is_dest_pos(&block.src_pos) {
-                        world
-                            .set_block_state(
-                                &block.src_pos,
-                                BlockStateId::AIR,
-                                BlockFlags::NOTIFY_ALL,
-                            )
-                            .await;
+                        world.set_block_state(
+                            &block.src_pos,
+                            BlockStateId::AIR,
+                            BlockFlags::NOTIFY_ALL,
+                        );
                     }
                 }
             }

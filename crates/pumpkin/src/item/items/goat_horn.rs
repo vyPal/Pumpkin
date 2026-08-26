@@ -27,11 +27,12 @@ impl ItemBehaviour for GoatHornItem {
                 SoundCategory::Players,
                 &player.position(),
             );
-            let stack = player.inventory().held_item().await;
-            player
-                .living_entity
-                .set_active_hand(pumpkin_util::Hand::Right, stack, Self::USE_DURATION)
-                .await;
+            let stack = player.inventory().held_item();
+            player.living_entity.set_active_hand(
+                pumpkin_util::Hand::Right,
+                stack,
+                Self::USE_DURATION,
+            );
         })
     }
 

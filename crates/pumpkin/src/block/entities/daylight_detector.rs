@@ -42,12 +42,10 @@ impl BlockEntity for DaylightDetectorBlockEntity {
         self
     }
 
-    fn tick<'a>(&'a self, world: &'a Arc<World>) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async {
-            if world.get_world_age().await % 20 == 0 && world.dimension.has_skylight {
-                Self::update_power(world, &self.position).await;
-            }
-        })
+    fn tick(&self, world: &Arc<World>) {
+        if world.get_world_age() % 20 == 0 && world.dimension.has_skylight {
+            Self::update_power(world, &self.position);
+        }
     }
 }
 
@@ -59,7 +57,7 @@ impl DaylightDetectorBlockEntity {
         Self { position }
     }
 
-    pub async fn update_power(world: &Arc<World>, block_pos: &BlockPos) {
+    pub fn update_power(world: &Arc<World>, block_pos: &BlockPos) {
         use std::f32::consts::PI;
 
         let (block, state) = world.get_block_and_state(block_pos);
@@ -82,7 +80,7 @@ impl DaylightDetectorBlockEntity {
          * is not as accurate as vanilla and doesnt consider weather
          */
 
-        let time_of_day = world.get_time_of_day().await;
+        let time_of_day = world.get_time_of_day();
 
         // Sun Angle
         let sun_angle_fraction = (time_of_day as f32 / 24000.0) - 0.25;
@@ -118,10 +116,7 @@ impl DaylightDetectorBlockEntity {
         if power != props.power {
             props.power = power;
             let state = props.to_state_id(block);
-            world
-                .clone()
-                .set_block_state(block_pos, state, BlockFlags::NOTIFY_ALL)
-                .await;
+            world.set_block_state(block_pos, state, BlockFlags::NOTIFY_ALL);
         }
     }
 }

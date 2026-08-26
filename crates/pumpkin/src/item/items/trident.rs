@@ -32,12 +32,11 @@ impl ItemBehaviour for TridentItem {
     ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
         Box::pin(async move {
             let inventory = player.inventory();
-            let stack = inventory.held_item().await;
+            let stack = inventory.held_item();
 
             player
                 .living_entity
-                .set_active_hand(pumpkin_util::Hand::Right, stack, 72000)
-                .await;
+                .set_active_hand(pumpkin_util::Hand::Right, stack, 72000);
         })
     }
 
@@ -58,7 +57,7 @@ impl ItemBehaviour for TridentItem {
             }
 
             let world = player.world();
-            let stack_guard = player.inventory().held_item().await;
+            let stack_guard = player.inventory().held_item();
 
             // Check Riptide level
             let mut riptide_level = 0u32;
@@ -76,7 +75,7 @@ impl ItemBehaviour for TridentItem {
                 let in_water = world.get_block_state(&player.position().to_block_pos()).id
                     == pumpkin_data::Block::WATER.default_state.id;
                 if !in_water {
-                    player.living_entity.clear_active_hand().await;
+                    player.living_entity.clear_active_hand();
                     return;
                 }
 
@@ -100,7 +99,7 @@ impl ItemBehaviour for TridentItem {
                 }
 
                 player.damage_held_item(1).await;
-                player.living_entity.clear_active_hand().await;
+                player.living_entity.clear_active_hand();
                 return;
             }
 
@@ -114,7 +113,7 @@ impl ItemBehaviour for TridentItem {
                 ArrowPickup::Allowed,
             );
             trident.set_velocity_from_rotation(pitch, yaw, 0.0, 2.5, 1.0);
-            world.spawn_entity(Arc::new(trident)).await;
+            world.spawn_entity(Arc::new(trident));
 
             world.play_sound(
                 Sound::ItemTridentThrow,
@@ -149,7 +148,7 @@ impl ItemBehaviour for TridentItem {
                 }
             }
 
-            player.living_entity.clear_active_hand().await;
+            player.living_entity.clear_active_hand();
         })
     }
 

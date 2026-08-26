@@ -41,7 +41,7 @@ use crate::entity::ai::goal::look_at_entity::LookAtEntityGoal;
 use crate::entity::ai::goal::swim::SwimGoal;
 use crate::entity::ai::goal::trade_with_player::TradeWithPlayerGoal;
 use crate::entity::ai::goal::wander_around::WanderAroundGoal;
-use crate::entity::ai::goal::{Controls, Goal, GoalFuture};
+use crate::entity::ai::goal::{Controls, Goal};
 use crate::entity::ai::pathfinder::NavigatorGoal;
 use crate::entity::experience_orb::ExperienceOrbEntity;
 use crate::entity::mob::{Mob, MobEntity, NIGHT_END, NIGHT_START};
@@ -111,7 +111,7 @@ fn add_offers_from_trade_set(
 pub struct WanderingTraderEntity {
     pub mob_entity: MobEntity,
     pub despawn_delay: AtomicI32,
-    pub wander_target: Mutex<Option<BlockPos>>,
+    pub wander_target: std::sync::Mutex<Option<BlockPos>>,
     pub offers: Mutex<Vec<pumpkin_protocol::java::client::play::MerchantOffer>>,
     pub merchant_inventory: Arc<SimpleInventory>,
     pub trading_player: std::sync::Mutex<Option<(Uuid, u8)>>,
@@ -130,7 +130,7 @@ impl WanderingTraderEntity {
         let trader = Self {
             mob_entity,
             despawn_delay: AtomicI32::new(DEFAULT_DESPAWN_DELAY),
-            wander_target: Mutex::new(None),
+            wander_target: std::sync::Mutex::new(None),
             offers: Mutex::new(Vec::new()),
             merchant_inventory: Arc::new(SimpleInventory::new(3)),
             trading_player: std::sync::Mutex::new(None),
@@ -272,12 +272,18 @@ impl WanderingTraderEntity {
         self.despawn_delay.store(delay, Ordering::Relaxed);
     }
 
-    pub async fn get_wander_target(&self) -> Option<BlockPos> {
-        *self.wander_target.lock().await
+    pub fn get_wander_target(&self) -> Option<BlockPos> {
+        *self
+            .wander_target
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    pub async fn set_wander_target(&self, target: Option<BlockPos>) {
-        *self.wander_target.lock().await = target;
+    pub fn set_wander_target(&self, target: Option<BlockPos>) {
+        *self
+            .wander_target
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = target;
     }
 
     pub async fn generate_trades(&self) {
@@ -463,11 +469,11 @@ impl WanderingTraderEntity {
 
         if reward_exp {
             let position = self.get_entity().pos.load().add_raw(0.0, 0.5, 0.0);
-            ExperienceOrbEntity::spawn(world, position, reward_amount).await;
+            ExperienceOrbEntity::spawn(world, position, reward_amount);
         }
 
         if let Some(player) = world.get_player_by_uuid(player_uuid) {
-            trigger_trade_advancement(&player).await;
+            trigger_trade_advancement(&player);
         }
     }
 }
@@ -604,7 +610,10 @@ impl Mob for WanderingTraderEntity {
     fn mob_write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
         Box::pin(async move {
             nbt.put_int("DespawnDelay", self.despawn_delay.load(Ordering::Relaxed));
-            let wander_target = *self.wander_target.lock().await;
+            let wander_target = *self
+                .wander_target
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             if let Some(target) = wander_target {
                 nbt.put(
                     "wander_target",
@@ -656,14 +665,21 @@ impl Mob for WanderingTraderEntity {
             if let Some(target_arr) = nbt.get_int_array("wander_target")
                 && target_arr.len() >= 3
             {
-                *self.wander_target.lock().await =
+                *self
+                    .wander_target
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) =
                     Some(BlockPos::new(target_arr[0], target_arr[1], target_arr[2]));
             } else if let (Some(x), Some(y), Some(z)) = (
                 nbt.get_int("wander_target_x"),
                 nbt.get_int("wander_target_y"),
                 nbt.get_int("wander_target_z"),
             ) {
-                *self.wander_target.lock().await = Some(BlockPos::new(x, y, z));
+                *self
+                    .wander_target
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) =
+                    Some(BlockPos::new(x, y, z));
             }
 
             if let Some(offers_compound) = nbt.get_compound("Offers")
@@ -736,13 +752,11 @@ impl Mob for WanderingTraderEntity {
                 return false;
             }
 
-            player
-                .increment_stat(
-                    StatisticCategory::Custom,
-                    CustomStatistic::TalkedToVillager as i32,
-                    1,
-                )
-                .await;
+            player.increment_stat(
+                StatisticCategory::Custom,
+                CustomStatistic::TalkedToVillager as i32,
+                1,
+            );
 
             let mut offers = self.offers.lock().await;
             if offers.is_empty() {
@@ -761,50 +775,48 @@ impl Mob for WanderingTraderEntity {
         })
     }
 
-    fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            // Despawn delay handling (vanilla aiStep / maybeDespawn)
-            if !self.is_trading.load(Ordering::Relaxed) {
-                let delay = self.despawn_delay.load(Ordering::Relaxed);
-                if delay > 0 {
-                    let new_delay = delay - 1;
-                    self.despawn_delay.store(new_delay, Ordering::Relaxed);
-                    if new_delay == 0 {
-                        self.mob_entity.living_entity.entity.remove().await;
-                        return;
-                    }
+    fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) {
+        // Despawn delay handling (vanilla aiStep / maybeDespawn)
+        if !self.is_trading.load(Ordering::Relaxed) {
+            let delay = self.despawn_delay.load(Ordering::Relaxed);
+            if delay > 0 {
+                let new_delay = delay - 1;
+                self.despawn_delay.store(new_delay, Ordering::Relaxed);
+                if new_delay == 0 {
+                    self.mob_entity.living_entity.entity.remove();
+                    return;
                 }
             }
+        }
 
-            // Trade sound cooldown
-            let cooldown = self.trade_sound_cooldown.load(Ordering::Relaxed);
-            if cooldown > 0 {
-                self.trade_sound_cooldown
-                    .store(cooldown - 1, Ordering::Relaxed);
-            }
+        // Trade sound cooldown
+        let cooldown = self.trade_sound_cooldown.load(Ordering::Relaxed);
+        if cooldown > 0 {
+            self.trade_sound_cooldown
+                .store(cooldown - 1, Ordering::Relaxed);
+        }
 
-            // Ambient sound handling
-            if self.ambient_sound_timer.fetch_sub(1, Ordering::Relaxed) <= 0 {
-                let mut rng = rand::rng();
-                self.ambient_sound_timer
-                    .store(rng.random_range(80..=160), Ordering::Relaxed);
-                let sound = if self.is_trading.load(Ordering::Relaxed) {
-                    Sound::EntityWanderingTraderTrade
-                } else {
-                    Sound::EntityWanderingTraderAmbient
-                };
-                self.mob_entity
-                    .living_entity
-                    .entity
-                    .world
-                    .load()
-                    .play_sound(
-                        sound,
-                        SoundCategory::Neutral,
-                        &self.mob_entity.living_entity.entity.pos.load(),
-                    );
-            }
-        })
+        // Ambient sound handling
+        if self.ambient_sound_timer.fetch_sub(1, Ordering::Relaxed) <= 0 {
+            let mut rng = rand::rng();
+            self.ambient_sound_timer
+                .store(rng.random_range(80..=160), Ordering::Relaxed);
+            let sound = if self.is_trading.load(Ordering::Relaxed) {
+                Sound::EntityWanderingTraderTrade
+            } else {
+                Sound::EntityWanderingTraderAmbient
+            };
+            self.mob_entity
+                .living_entity
+                .entity
+                .world
+                .load()
+                .play_sound(
+                    sound,
+                    SoundCategory::Neutral,
+                    &self.mob_entity.living_entity.entity.pos.load(),
+                );
+        }
     }
 }
 
@@ -822,44 +834,38 @@ impl LookAtTradingPlayerGoal {
 }
 
 impl Goal for LookAtTradingPlayerGoal {
-    fn can_start<'a>(&'a mut self, mob: &'a dyn Mob) -> GoalFuture<'a, bool> {
-        Box::pin(async move {
-            let Some(player) = mob.get_trading_player() else {
-                return false;
-            };
-            let mob_pos = mob.get_mob_entity().living_entity.entity.pos.load();
-            let player_pos = player.get_entity().pos.load();
-            mob_pos.squared_distance_to_vec(&player_pos) <= self.range * self.range
-        })
+    fn can_start(&mut self, mob: &dyn Mob) -> bool {
+        let Some(player) = mob.get_trading_player() else {
+            return false;
+        };
+        let mob_pos = mob.get_mob_entity().living_entity.entity.pos.load();
+        let player_pos = player.get_entity().pos.load();
+        mob_pos.squared_distance_to_vec(&player_pos) <= self.range * self.range
     }
 
-    fn should_continue<'a>(&'a self, mob: &'a dyn Mob) -> GoalFuture<'a, bool> {
-        Box::pin(async move {
-            let Some(player) = mob.get_trading_player() else {
-                return false;
-            };
-            let mob_pos = mob.get_mob_entity().living_entity.entity.pos.load();
-            let player_pos = player.get_entity().pos.load();
-            mob_pos.squared_distance_to_vec(&player_pos) <= self.range * self.range
-        })
+    fn should_continue(&self, mob: &dyn Mob) -> bool {
+        let Some(player) = mob.get_trading_player() else {
+            return false;
+        };
+        let mob_pos = mob.get_mob_entity().living_entity.entity.pos.load();
+        let player_pos = player.get_entity().pos.load();
+        mob_pos.squared_distance_to_vec(&player_pos) <= self.range * self.range
     }
 
-    fn tick<'a>(&'a mut self, mob: &'a dyn Mob) -> GoalFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(player) = mob.get_trading_player() {
-                let player_pos = player.get_entity().pos.load();
-                mob.get_mob_entity()
-                    .look_control
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .look_at(
-                        mob,
-                        player_pos.x,
-                        player.get_entity().get_eye_y(),
-                        player_pos.z,
-                    );
-            }
-        })
+    fn tick(&mut self, mob: &dyn Mob) {
+        if let Some(player) = mob.get_trading_player() {
+            let player_pos = player.get_entity().pos.load();
+            mob.get_mob_entity()
+                .look_control
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .look_at(
+                    mob,
+                    player_pos.x,
+                    player.get_entity().get_eye_y(),
+                    player_pos.z,
+                );
+        }
     }
 
     fn should_run_every_tick(&self) -> bool {
@@ -902,99 +908,103 @@ impl WanderToPositionGoal {
 }
 
 impl Goal for WanderToPositionGoal {
-    fn can_start<'a>(&'a mut self, _mob: &'a dyn Mob) -> GoalFuture<'a, bool> {
-        Box::pin(async move {
-            let Some(trader) = self.trader.upgrade() else {
-                return false;
-            };
-            let wander_target = *trader.wander_target.lock().await;
-            let Some(wander_pos) = wander_target else {
-                return false;
-            };
-            let entity_pos = trader.mob_entity.living_entity.entity.pos.load();
-            Self::is_too_far_away(&wander_pos, &entity_pos, self.stop_distance)
-        })
+    fn can_start(&mut self, _mob: &dyn Mob) -> bool {
+        let Some(trader) = self.trader.upgrade() else {
+            return false;
+        };
+        let wander_target = *trader
+            .wander_target
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let Some(wander_pos) = wander_target else {
+            return false;
+        };
+        let entity_pos = trader.mob_entity.living_entity.entity.pos.load();
+        Self::is_too_far_away(&wander_pos, &entity_pos, self.stop_distance)
     }
 
-    fn should_continue<'a>(&'a self, _mob: &'a dyn Mob) -> GoalFuture<'a, bool> {
-        Box::pin(async move {
-            let Some(trader) = self.trader.upgrade() else {
-                return false;
-            };
-            let wander_target = *trader.wander_target.lock().await;
-            let Some(wander_pos) = wander_target else {
-                return false;
-            };
-            let entity_pos = trader.mob_entity.living_entity.entity.pos.load();
-            Self::is_too_far_away(&wander_pos, &entity_pos, self.stop_distance)
-        })
+    fn should_continue(&self, _mob: &dyn Mob) -> bool {
+        let Some(trader) = self.trader.upgrade() else {
+            return false;
+        };
+        let wander_target = *trader
+            .wander_target
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let Some(wander_pos) = wander_target else {
+            return false;
+        };
+        let entity_pos = trader.mob_entity.living_entity.entity.pos.load();
+        Self::is_too_far_away(&wander_pos, &entity_pos, self.stop_distance)
     }
 
-    fn stop<'a>(&'a mut self, _mob: &'a dyn Mob) -> GoalFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(trader) = self.trader.upgrade() {
-                *trader.wander_target.lock().await = None;
-                trader
-                    .mob_entity
-                    .navigator
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .stop();
-            }
-        })
-    }
-
-    fn tick<'a>(&'a mut self, _mob: &'a dyn Mob) -> GoalFuture<'a, ()> {
-        Box::pin(async move {
-            let Some(trader) = self.trader.upgrade() else {
-                return;
-            };
-            let wander_target = *trader.wander_target.lock().await;
-            let Some(wander_pos) = wander_target else {
-                return;
-            };
-            let is_idle = trader
+    fn stop(&mut self, _mob: &dyn Mob) {
+        if let Some(trader) = self.trader.upgrade() {
+            *trader
+                .wander_target
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+            trader
                 .mob_entity
                 .navigator
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .is_idle();
-            if is_idle {
-                let entity_pos = trader.mob_entity.living_entity.entity.pos.load();
-                let center = Vector3::new(
-                    wander_pos.0.x as f64 + 0.5,
-                    wander_pos.0.y as f64 + 0.5,
-                    wander_pos.0.z as f64 + 0.5,
-                );
-                let target_pos = if Self::is_too_far_away(&wander_pos, &entity_pos, 10.0) {
-                    let dx = center.x - entity_pos.x;
-                    let dy = center.y - entity_pos.y;
-                    let dz = center.z - entity_pos.z;
-                    let len = (dx * dx + dy * dy + dz * dz).sqrt();
-                    if len > 0.0 {
-                        Vector3::new(
-                            entity_pos.x + (dx / len) * 10.0,
-                            entity_pos.y + (dy / len) * 10.0,
-                            entity_pos.z + (dz / len) * 10.0,
-                        )
-                    } else {
-                        center
-                    }
+                .stop();
+        }
+    }
+
+    fn tick(&mut self, _mob: &dyn Mob) {
+        let Some(trader) = self.trader.upgrade() else {
+            return;
+        };
+        let wander_target = *trader
+            .wander_target
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let Some(wander_pos) = wander_target else {
+            return;
+        };
+        let is_idle = trader
+            .mob_entity
+            .navigator
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_idle();
+        if is_idle {
+            let entity_pos = trader.mob_entity.living_entity.entity.pos.load();
+            let center = Vector3::new(
+                wander_pos.0.x as f64 + 0.5,
+                wander_pos.0.y as f64 + 0.5,
+                wander_pos.0.z as f64 + 0.5,
+            );
+            let target_pos = if Self::is_too_far_away(&wander_pos, &entity_pos, 10.0) {
+                let dx = center.x - entity_pos.x;
+                let dy = center.y - entity_pos.y;
+                let dz = center.z - entity_pos.z;
+                let len = (dx * dx + dy * dy + dz * dz).sqrt();
+                if len > 0.0 {
+                    Vector3::new(
+                        entity_pos.x + (dx / len) * 10.0,
+                        entity_pos.y + (dy / len) * 10.0,
+                        entity_pos.z + (dz / len) * 10.0,
+                    )
                 } else {
                     center
-                };
-                trader
-                    .mob_entity
-                    .navigator
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .set_progress(NavigatorGoal::new(
-                        entity_pos,
-                        target_pos,
-                        self.speed_modifier,
-                    ));
-            }
-        })
+                }
+            } else {
+                center
+            };
+            trader
+                .mob_entity
+                .navigator
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .set_progress(NavigatorGoal::new(
+                    entity_pos,
+                    target_pos,
+                    self.speed_modifier,
+                ));
+        }
     }
 
     fn controls(&self) -> Controls {
@@ -1014,42 +1024,36 @@ impl MoveTowardsRestrictionGoal {
 }
 
 impl Goal for MoveTowardsRestrictionGoal {
-    fn can_start<'a>(&'a mut self, mob: &'a dyn Mob) -> GoalFuture<'a, bool> {
-        Box::pin(async move {
-            let mob_entity = mob.get_mob_entity();
-            mob_entity.has_position_target() && !mob_entity.is_in_position_target_range()
-        })
+    fn can_start(&mut self, mob: &dyn Mob) -> bool {
+        let mob_entity = mob.get_mob_entity();
+        mob_entity.has_position_target() && !mob_entity.is_in_position_target_range()
     }
 
-    fn should_continue<'a>(&'a self, mob: &'a dyn Mob) -> GoalFuture<'a, bool> {
-        Box::pin(async move {
-            let mob_entity = mob.get_mob_entity();
-            !mob_entity
-                .navigator
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .is_idle()
-                && mob_entity.has_position_target()
-                && !mob_entity.is_in_position_target_range()
-        })
+    fn should_continue(&self, mob: &dyn Mob) -> bool {
+        let mob_entity = mob.get_mob_entity();
+        !mob_entity
+            .navigator
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_idle()
+            && mob_entity.has_position_target()
+            && !mob_entity.is_in_position_target_range()
     }
 
-    fn start<'a>(&'a mut self, mob: &'a dyn Mob) -> GoalFuture<'a, ()> {
-        Box::pin(async move {
-            let mob_entity = mob.get_mob_entity();
-            let target = mob_entity.position_target.load();
-            let entity_pos = mob_entity.living_entity.entity.pos.load();
-            let dest = Vector3::new(
-                target.0.x as f64 + 0.5,
-                target.0.y as f64,
-                target.0.z as f64 + 0.5,
-            );
-            mob_entity
-                .navigator
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .set_progress(NavigatorGoal::new(entity_pos, dest, self.speed));
-        })
+    fn start(&mut self, mob: &dyn Mob) {
+        let mob_entity = mob.get_mob_entity();
+        let target = mob_entity.position_target.load();
+        let entity_pos = mob_entity.living_entity.entity.pos.load();
+        let dest = Vector3::new(
+            target.0.x as f64 + 0.5,
+            target.0.y as f64,
+            target.0.z as f64 + 0.5,
+        );
+        mob_entity
+            .navigator
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set_progress(NavigatorGoal::new(entity_pos, dest, self.speed));
     }
 
     fn controls(&self) -> Controls {
@@ -1080,161 +1084,136 @@ impl WanderingTraderUseItemGoal {
 }
 
 impl Goal for WanderingTraderUseItemGoal {
-    fn can_start<'a>(&'a mut self, _mob: &'a dyn Mob) -> GoalFuture<'a, bool> {
-        Box::pin(async move {
-            let Some(trader) = self.trader.upgrade() else {
-                return false;
-            };
-            if !trader.mob_entity.living_entity.entity.is_alive()
-                || trader.is_trading.load(Ordering::Relaxed)
-            {
-                return false;
-            }
-            let world = trader.mob_entity.living_entity.entity.world.load();
-            let day_time = world.get_time_of_day().await % 24000;
-            let is_dark = (NIGHT_START..=NIGHT_END).contains(&day_time);
-            let is_invisible = trader
-                .mob_entity
-                .living_entity
-                .get_effect(&StatusEffect::INVISIBILITY)
-                .await
-                .is_some();
+    fn can_start(&mut self, _mob: &dyn Mob) -> bool {
+        let Some(trader) = self.trader.upgrade() else {
+            return false;
+        };
+        if !trader.mob_entity.living_entity.entity.is_alive()
+            || trader.is_trading.load(Ordering::Relaxed)
+        {
+            return false;
+        }
+        let world = trader.mob_entity.living_entity.entity.world.load();
+        let day_time = world.get_time_of_day() % 24000;
+        let is_dark = (NIGHT_START..=NIGHT_END).contains(&day_time);
+        let is_invisible = trader
+            .mob_entity
+            .living_entity
+            .has_effect(&StatusEffect::INVISIBILITY);
 
-            if is_dark && !is_invisible {
-                self.goal_type = Some(PotionGoalType::Invisibility);
-                return true;
-            }
-            if !is_dark && is_invisible {
-                self.goal_type = Some(PotionGoalType::Milk);
-                return true;
-            }
-            false
-        })
+        if is_dark && !is_invisible {
+            self.goal_type = Some(PotionGoalType::Invisibility);
+            return true;
+        }
+        if !is_dark && is_invisible {
+            self.goal_type = Some(PotionGoalType::Milk);
+            return true;
+        }
+        false
     }
 
-    fn should_continue<'a>(&'a self, _mob: &'a dyn Mob) -> GoalFuture<'a, bool> {
-        Box::pin(async move {
-            let Some(trader) = self.trader.upgrade() else {
-                return false;
-            };
-            self.timer > 0
-                && trader.mob_entity.living_entity.entity.is_alive()
-                && !trader.is_trading.load(Ordering::Relaxed)
-        })
+    fn should_continue(&self, _mob: &dyn Mob) -> bool {
+        let Some(trader) = self.trader.upgrade() else {
+            return false;
+        };
+        self.timer > 0
+            && trader.mob_entity.living_entity.entity.is_alive()
+            && !trader.is_trading.load(Ordering::Relaxed)
     }
 
-    fn start<'a>(&'a mut self, _mob: &'a dyn Mob) -> GoalFuture<'a, ()> {
-        Box::pin(async move {
-            let Some(trader) = self.trader.upgrade() else {
-                return;
-            };
-            self.timer = 32;
-            let stack = match self.goal_type {
-                Some(PotionGoalType::Invisibility) => create_invisibility_potion(),
-                Some(PotionGoalType::Milk) => ItemStack::new(1, &Item::MILK_BUCKET),
-                None => return,
-            };
-            let mut equip = trader
-                .mob_entity
-                .living_entity
-                .entity_equipment
-                .lock()
-                .await;
+    fn start(&mut self, _mob: &dyn Mob) {
+        let Some(trader) = self.trader.upgrade() else {
+            return;
+        };
+        self.timer = 32;
+        let stack = match self.goal_type {
+            Some(PotionGoalType::Invisibility) => create_invisibility_potion(),
+            Some(PotionGoalType::Milk) => ItemStack::new(1, &Item::MILK_BUCKET),
+            None => return,
+        };
+        if let Ok(mut equip) = trader.mob_entity.living_entity.entity_equipment.try_lock() {
             equip.put(&EquipmentSlot::MAIN_HAND, stack.clone());
             drop(equip);
             trader
                 .mob_entity
                 .living_entity
                 .send_equipment_changes(&[(EquipmentSlot::MAIN_HAND, stack)]);
-        })
+        }
     }
 
-    fn tick<'a>(&'a mut self, _mob: &'a dyn Mob) -> GoalFuture<'a, ()> {
-        Box::pin(async move {
-            let Some(trader) = self.trader.upgrade() else {
-                return;
+    fn tick(&mut self, _mob: &dyn Mob) {
+        let Some(trader) = self.trader.upgrade() else {
+            return;
+        };
+        self.timer -= 1;
+        if self.timer > 0 && self.timer % 4 == 0 {
+            let sound = match self.goal_type {
+                Some(PotionGoalType::Invisibility) => Sound::EntityWanderingTraderDrinkPotion,
+                Some(PotionGoalType::Milk) => Sound::EntityWanderingTraderDrinkMilk,
+                None => return,
             };
-            self.timer -= 1;
-            if self.timer > 0 && self.timer % 4 == 0 {
-                let sound = match self.goal_type {
-                    Some(PotionGoalType::Invisibility) => Sound::EntityWanderingTraderDrinkPotion,
-                    Some(PotionGoalType::Milk) => Sound::EntityWanderingTraderDrinkMilk,
-                    None => return,
-                };
-                trader
-                    .mob_entity
-                    .living_entity
-                    .entity
-                    .world
-                    .load()
-                    .play_sound(
-                        sound,
-                        SoundCategory::Neutral,
-                        &trader.mob_entity.living_entity.entity.pos.load(),
-                    );
-            }
-            if self.timer == 0 {
-                match self.goal_type {
-                    Some(PotionGoalType::Invisibility) => {
-                        trader
-                            .mob_entity
-                            .living_entity
-                            .add_effect(Effect {
-                                effect_type: &StatusEffect::INVISIBILITY,
-                                duration: 6000,
-                                amplifier: 0,
-                                ambient: false,
-                                show_particles: true,
-                                show_icon: true,
-                                blend: false,
-                            })
-                            .await;
-                        trader
-                            .mob_entity
-                            .living_entity
-                            .entity
-                            .world
-                            .load()
-                            .play_sound(
-                                Sound::EntityWanderingTraderDisappeared,
-                                SoundCategory::Neutral,
-                                &trader.mob_entity.living_entity.entity.pos.load(),
-                            );
-                    }
-                    Some(PotionGoalType::Milk) => {
-                        trader
-                            .mob_entity
-                            .living_entity
-                            .remove_effect(&StatusEffect::INVISIBILITY)
-                            .await;
-                        trader
-                            .mob_entity
-                            .living_entity
-                            .entity
-                            .world
-                            .load()
-                            .play_sound(
-                                Sound::EntityWanderingTraderReappeared,
-                                SoundCategory::Neutral,
-                                &trader.mob_entity.living_entity.entity.pos.load(),
-                            );
-                    }
-                    None => {}
+            trader
+                .mob_entity
+                .living_entity
+                .entity
+                .world
+                .load()
+                .play_sound(
+                    sound,
+                    SoundCategory::Neutral,
+                    &trader.mob_entity.living_entity.entity.pos.load(),
+                );
+        }
+        if self.timer == 0 {
+            match self.goal_type {
+                Some(PotionGoalType::Invisibility) => {
+                    trader.mob_entity.living_entity.add_effect(Effect {
+                        effect_type: &StatusEffect::INVISIBILITY,
+                        duration: 6000,
+                        amplifier: 0,
+                        ambient: false,
+                        show_particles: true,
+                        show_icon: true,
+                        blend: false,
+                    });
+                    trader
+                        .mob_entity
+                        .living_entity
+                        .entity
+                        .world
+                        .load()
+                        .play_sound(
+                            Sound::EntityWanderingTraderDisappeared,
+                            SoundCategory::Neutral,
+                            &trader.mob_entity.living_entity.entity.pos.load(),
+                        );
                 }
+                Some(PotionGoalType::Milk) => {
+                    trader
+                        .mob_entity
+                        .living_entity
+                        .remove_effect(&StatusEffect::INVISIBILITY);
+                    trader
+                        .mob_entity
+                        .living_entity
+                        .entity
+                        .world
+                        .load()
+                        .play_sound(
+                            Sound::EntityWanderingTraderReappeared,
+                            SoundCategory::Neutral,
+                            &trader.mob_entity.living_entity.entity.pos.load(),
+                        );
+                }
+                None => {}
             }
-        })
+        }
     }
 
-    fn stop<'a>(&'a mut self, _mob: &'a dyn Mob) -> GoalFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(trader) = self.trader.upgrade() {
-                let empty = ItemStack::EMPTY;
-                let mut equip = trader
-                    .mob_entity
-                    .living_entity
-                    .entity_equipment
-                    .lock()
-                    .await;
+    fn stop(&mut self, _mob: &dyn Mob) {
+        if let Some(trader) = self.trader.upgrade() {
+            let empty = ItemStack::EMPTY;
+            if let Ok(mut equip) = trader.mob_entity.living_entity.entity_equipment.try_lock() {
                 equip.put(&EquipmentSlot::MAIN_HAND, empty.clone());
                 drop(equip);
                 trader
@@ -1242,9 +1221,9 @@ impl Goal for WanderingTraderUseItemGoal {
                     .living_entity
                     .send_equipment_changes(&[(EquipmentSlot::MAIN_HAND, empty.clone())]);
             }
-            self.goal_type = None;
-            self.timer = 0;
-        })
+        }
+        self.goal_type = None;
+        self.timer = 0;
     }
 }
 

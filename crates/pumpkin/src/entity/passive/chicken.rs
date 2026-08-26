@@ -150,61 +150,60 @@ impl Mob for ChickenEntity {
         self.variant.store(variant, Ordering::Relaxed);
     }
 
-    fn mob_init_data_tracker(&self) -> EntityBaseFuture<'_, ()> {
-        Box::pin(async move {
-            let entity = self.get_entity();
-            let is_baby = entity.age.load(Ordering::Relaxed) < 0;
-            if is_baby {
-                entity.send_meta_data(
-                    &[pumpkin_protocol::java::client::play::Metadata::new(
-                        pumpkin_data::tracked_data::chicken::BABY_ID,
-                        true,
-                    )],
-                    None,
-                );
-            }
+    fn mob_init_data_tracker(&self) {
+        let entity = self.get_entity();
+        let is_baby = entity.age.load(Ordering::Relaxed) < 0;
+        if is_baby {
             entity.send_meta_data(
                 &[pumpkin_protocol::java::client::play::Metadata::new(
-                    pumpkin_data::tracked_data::chicken::VARIANT,
-                    VarInt(self.variant.load(Ordering::Relaxed) as i32),
+                    pumpkin_data::tracked_data::chicken::BABY_ID,
+                    true,
                 )],
                 None,
             );
-        })
+        }
+        entity.send_meta_data(
+            &[pumpkin_protocol::java::client::play::Metadata::new(
+                pumpkin_data::tracked_data::chicken::VARIANT,
+                VarInt(self.variant.load(Ordering::Relaxed) as i32),
+            )],
+            None,
+        );
     }
 
-    fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async {
-            if self.mob_entity.living_entity.dead.load(Relaxed) {
-                return;
-            }
-            let entity = &self.mob_entity.living_entity.entity;
-            let current_velocity = entity.velocity.load();
-            let on_ground = entity.on_ground.load(Ordering::Relaxed);
+    fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) {
+        if self.mob_entity.living_entity.dead.load(Relaxed) {
+            return;
+        }
+        let entity = &self.mob_entity.living_entity.entity;
+        let current_velocity = entity.velocity.load();
+        let on_ground = entity.on_ground.load(Ordering::Relaxed);
 
-            // TODO: move velocity logic to physics tick when implemented
-            if (!on_ground) && current_velocity.y < 0.0 {
-                entity.set_velocity(current_velocity.multiply(1.0, 0.6, 1.0));
+        // TODO: move velocity logic to physics tick when implemented
+        if (!on_ground) && current_velocity.y < 0.0 {
+            entity.set_velocity(current_velocity.multiply(1.0, 0.6, 1.0));
+        }
+        if self.egg_lay_time.fetch_sub(1, Ordering::Relaxed) <= 1 {
+            let next_time = rand::rng().random_range(6000..12000);
+            let world = entity.world.load_full();
+            let pos = entity.block_pos.load();
+            let entity_id = entity.entity_id;
+            let mut drop_event =
+                crate::plugin::api::events::entity::entity_drop_item::EntityDropItemEvent::new(
+                    entity_id,
+                    "minecraft:egg".to_string(),
+                    1,
+                );
+            if let Some(server) = world.server.upgrade() {
+                server
+                    .plugin_manager
+                    .fire_blocking(&server, &mut drop_event);
             }
-            if self.egg_lay_time.fetch_sub(1, Ordering::Relaxed) <= 1 {
-                let next_time = rand::rng().random_range(6000..12000);
-                let world = entity.world.load_full();
-                let pos = entity.block_pos.load();
-                let mut drop_event =
-                    crate::plugin::api::events::entity::entity_drop_item::EntityDropItemEvent::new(
-                        entity.entity_id,
-                        "minecraft:egg".to_string(),
-                        1,
-                    );
-                if let Some(server) = world.server.upgrade() {
-                    server.plugin_manager.fire(&server, &mut drop_event).await;
-                }
-                if !drop_event.cancelled {
-                    world.drop_stack(&pos, ItemStack::new(1, &Item::EGG)).await;
-                }
-                self.egg_lay_time.store(next_time, Ordering::Relaxed);
+            if !drop_event.cancelled {
+                world.drop_stack(&pos, ItemStack::new(1, &Item::EGG));
             }
-        })
+            self.egg_lay_time.store(next_time, Ordering::Relaxed);
+        }
     }
 
     fn mob_interact<'a>(

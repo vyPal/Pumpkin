@@ -88,14 +88,14 @@ impl Context {
 }
 
 trait Filler {
-    async fn execute_for_pos(context: &Context, block_position: BlockPos) -> FillerResult;
+    fn execute_for_pos(context: &Context, block_position: BlockPos) -> FillerResult;
 
-    async fn execute_for_region(context: &mut Context) {
+    fn execute_for_region(context: &mut Context) {
         for x in context.start_x..=context.end_x {
             for y in context.start_y..=context.end_y {
                 for z in context.start_z..=context.end_z {
                     let block_position = BlockPos(Vector3::new(x, y, z));
-                    let filler_result = Self::execute_for_pos(context, block_position).await;
+                    let filler_result = Self::execute_for_pos(context, block_position);
                     match filler_result {
                         FillerResult::PlacedBlock => {
                             context.placed_blocks += 1;
@@ -114,54 +114,46 @@ trait Filler {
 
 struct DestroyFiller;
 impl Filler for DestroyFiller {
-    async fn execute_for_pos(context: &Context, block_position: BlockPos) -> FillerResult {
+    fn execute_for_pos(context: &Context, block_position: BlockPos) -> FillerResult {
         if let Some(filter) = &context.option_filter
             && not_in_filter(filter, context.world.get_block(&block_position))
         {
             return FillerResult::DidNotPlaceBlock;
         }
-        context
-            .world
-            .break_block(
-                &block_position,
-                None,
-                BlockFlags::SKIP_DROPS | BlockFlags::FORCE_STATE,
-            )
-            .await;
-        context
-            .world
-            .set_block_state(
-                &block_position,
-                context.block_state_id,
-                BlockFlags::FORCE_STATE,
-            )
-            .await;
+        context.world.break_block(
+            &block_position,
+            None,
+            BlockFlags::SKIP_DROPS | BlockFlags::FORCE_STATE,
+        );
+        context.world.set_block_state(
+            &block_position,
+            context.block_state_id,
+            BlockFlags::FORCE_STATE,
+        );
         FillerResult::PlacedBlock
     }
 }
 
 struct HollowFiller;
 impl Filler for HollowFiller {
-    async fn execute_for_pos(context: &Context, block_position: BlockPos) -> FillerResult {
+    fn execute_for_pos(context: &Context, block_position: BlockPos) -> FillerResult {
         if let Some(filter) = &context.option_filter
             && not_in_filter(filter, context.world.get_block(&block_position))
         {
             return FillerResult::DidNotPlaceBlock;
         }
         if context.is_edge(block_position) {
-            context
-                .world
-                .set_block_state(
-                    &block_position,
-                    context.block_state_id,
-                    BlockFlags::FORCE_STATE,
-                )
-                .await;
+            context.world.set_block_state(
+                &block_position,
+                context.block_state_id,
+                BlockFlags::FORCE_STATE,
+            );
         } else {
-            context
-                .world
-                .set_block_state(&block_position, BlockStateId::AIR, BlockFlags::FORCE_STATE)
-                .await;
+            context.world.set_block_state(
+                &block_position,
+                BlockStateId::AIR,
+                BlockFlags::FORCE_STATE,
+            );
         }
         FillerResult::PlacedBlock
     }
@@ -169,7 +161,7 @@ impl Filler for HollowFiller {
 
 struct KeepFiller;
 impl Filler for KeepFiller {
-    async fn execute_for_pos(context: &Context, block_position: BlockPos) -> FillerResult {
+    fn execute_for_pos(context: &Context, block_position: BlockPos) -> FillerResult {
         let (old_block, old_state) = context.world.get_block_and_state(&block_position);
         if old_state.is_air() {
             if let Some(filter) = &context.option_filter
@@ -177,14 +169,11 @@ impl Filler for KeepFiller {
             {
                 return FillerResult::DidNotPlaceBlock;
             }
-            context
-                .world
-                .set_block_state(
-                    &block_position,
-                    context.block_state_id,
-                    BlockFlags::FORCE_STATE,
-                )
-                .await;
+            context.world.set_block_state(
+                &block_position,
+                context.block_state_id,
+                BlockFlags::FORCE_STATE,
+            );
             FillerResult::PlacedBlock
         } else {
             FillerResult::DidNotPlaceBlock
@@ -194,7 +183,7 @@ impl Filler for KeepFiller {
 
 struct OutlineFiller;
 impl Filler for OutlineFiller {
-    async fn execute_for_pos(context: &Context, block_position: BlockPos) -> FillerResult {
+    fn execute_for_pos(context: &Context, block_position: BlockPos) -> FillerResult {
         if !context.is_edge(block_position) {
             return FillerResult::DidNotPlaceBlock;
         }
@@ -203,54 +192,45 @@ impl Filler for OutlineFiller {
         {
             return FillerResult::DidNotPlaceBlock;
         }
-        context
-            .world
-            .set_block_state(
-                &block_position,
-                context.block_state_id,
-                BlockFlags::FORCE_STATE,
-            )
-            .await;
+        context.world.set_block_state(
+            &block_position,
+            context.block_state_id,
+            BlockFlags::FORCE_STATE,
+        );
         FillerResult::PlacedBlock
     }
 }
 
 struct ReplaceFiller;
 impl Filler for ReplaceFiller {
-    async fn execute_for_pos(context: &Context, block_position: BlockPos) -> FillerResult {
+    fn execute_for_pos(context: &Context, block_position: BlockPos) -> FillerResult {
         if let Some(filter) = &context.option_filter
             && not_in_filter(filter, context.world.get_block(&block_position))
         {
             return FillerResult::DidNotPlaceBlock;
         }
-        context
-            .world
-            .set_block_state(
-                &block_position,
-                context.block_state_id,
-                BlockFlags::FORCE_STATE,
-            )
-            .await;
+        context.world.set_block_state(
+            &block_position,
+            context.block_state_id,
+            BlockFlags::FORCE_STATE,
+        );
         FillerResult::PlacedBlock
     }
 }
 
 struct StrictFiller;
 impl Filler for StrictFiller {
-    async fn execute_for_pos(context: &Context, block_position: BlockPos) -> FillerResult {
+    fn execute_for_pos(context: &Context, block_position: BlockPos) -> FillerResult {
         if let Some(filter) = &context.option_filter
             && not_in_filter(filter, context.world.get_block(&block_position))
         {
             return FillerResult::DidNotPlaceBlock;
         }
-        context
-            .world
-            .set_block_state(
-                &block_position,
-                context.block_state_id,
-                BlockFlags::SKIP_BLOCK_ADDED_CALLBACK,
-            )
-            .await;
+        context.world.set_block_state(
+            &block_position,
+            context.block_state_id,
+            BlockFlags::SKIP_BLOCK_ADDED_CALLBACK,
+        );
         FillerResult::PlacedBlockWithoutUpdate
     }
 }
@@ -316,16 +296,16 @@ impl CommandExecutor for Executor {
             }
 
             match mode {
-                Mode::Destroy => DestroyFiller::execute_for_region(&mut context).await,
-                Mode::Replace => ReplaceFiller::execute_for_region(&mut context).await,
-                Mode::Keep => KeepFiller::execute_for_region(&mut context).await,
-                Mode::Hollow => HollowFiller::execute_for_region(&mut context).await,
-                Mode::Outline => OutlineFiller::execute_for_region(&mut context).await,
-                Mode::Strict => StrictFiller::execute_for_region(&mut context).await,
+                Mode::Destroy => DestroyFiller::execute_for_region(&mut context),
+                Mode::Replace => ReplaceFiller::execute_for_region(&mut context),
+                Mode::Keep => KeepFiller::execute_for_region(&mut context),
+                Mode::Hollow => HollowFiller::execute_for_region(&mut context),
+                Mode::Outline => OutlineFiller::execute_for_region(&mut context),
+                Mode::Strict => StrictFiller::execute_for_region(&mut context),
             }
 
             for i in context.to_update {
-                context.world.update_neighbors(&i, None).await;
+                context.world.update_neighbors(&i, None);
             }
 
             if context.placed_blocks == 0 {

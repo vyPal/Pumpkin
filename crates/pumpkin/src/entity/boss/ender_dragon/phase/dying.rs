@@ -54,7 +54,10 @@ impl super::Phase for DyingPhase {
             }
 
             let xp_count = if let Some(ref fight_mutex) = world.dragon_fight
-                && !fight_mutex.lock().await.has_previously_killed_dragon()
+                && !fight_mutex
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .has_previously_killed_dragon()
             {
                 12000
             } else {
@@ -66,8 +69,7 @@ impl super::Phase for DyingPhase {
                     &world,
                     entity.pos.load(),
                     (xp_count as f32 * 0.08) as u32,
-                )
-                .await;
+                );
             }
 
             entity.velocity.store(Vector3::new(0.0, 0.1, 0.0));
@@ -77,20 +79,18 @@ impl super::Phase for DyingPhase {
                     &world,
                     entity.pos.load(),
                     (xp_count as f32 * 0.2) as u32,
-                )
-                .await;
+                );
 
                 if let Some(ref fight_mutex) = world.dragon_fight {
                     fight_mutex
                         .lock()
-                        .await
-                        .set_dragon_killed(&world, entity.entity_uuid)
-                        .await;
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .set_dragon_killed(&world, entity.entity_uuid);
                 }
                 for part in &dragon.parts {
-                    part.entity.remove().await;
+                    part.entity.remove();
                 }
-                entity.remove().await;
+                entity.remove();
             }
         })
     }

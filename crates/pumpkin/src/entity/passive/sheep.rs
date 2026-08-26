@@ -156,10 +156,8 @@ impl Mob for SheepEntity {
         &self.mob_entity
     }
 
-    fn on_eating_grass(&self) -> EntityBaseFuture<'_, ()> {
-        Box::pin(async {
-            self.set_sheared(false);
-        })
+    fn on_eating_grass(&self) {
+        self.set_sheared(false);
     }
 
     fn get_sheep(&self) -> Option<&SheepEntity> {

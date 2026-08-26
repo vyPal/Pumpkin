@@ -22,7 +22,7 @@ impl ItemBehaviour for BundleItem {
         player: &'a Player,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
         Box::pin(async move {
-            let mut held_item = player.inventory.held_item().await;
+            let mut held_item = player.inventory.held_item();
             let mut matched = false;
             let mut used_slot_index = player.inventory.get_selected_slot() as usize;
 
@@ -40,13 +40,13 @@ impl ItemBehaviour for BundleItem {
                     );
                     let updated_bundle = held_item.clone();
 
-                    player.drop_item(extracted_stack).await;
+                    player.drop_item(extracted_stack);
                     player.sync_hand_slot(used_slot_index, updated_bundle).await;
                 }
             }
 
             if !matched {
-                let mut off_hand_item = player.inventory.off_hand_item().await;
+                let mut off_hand_item = player.inventory.off_hand_item();
                 if !off_hand_item.is_empty() && Self::ids().contains(&off_hand_item.item.id) {
                     used_slot_index = 40; // OFF_HAND_SLOT
                     if let Some(bundle_contents) =
@@ -61,7 +61,7 @@ impl ItemBehaviour for BundleItem {
                         );
                         let updated_bundle = off_hand_item.clone();
 
-                        player.drop_item(extracted_stack).await;
+                        player.drop_item(extracted_stack);
                         player.sync_hand_slot(used_slot_index, updated_bundle).await;
                     }
                 }

@@ -41,13 +41,14 @@ impl ItemBehaviour for BowItem {
 
             // Get the held item stack
             let inventory = player.inventory();
-            let stack = inventory.held_item().await;
+            let stack = inventory.held_item();
 
             // Start the bow drawing animation
-            player
-                .living_entity
-                .set_active_hand(pumpkin_util::Hand::Right, stack, Self::USE_DURATION)
-                .await;
+            player.living_entity.set_active_hand(
+                pumpkin_util::Hand::Right,
+                stack,
+                Self::USE_DURATION,
+            );
         })
     }
 
@@ -108,7 +109,7 @@ impl BowItem {
 
         // Check for Infinity enchantment
         let mut has_infinity = false;
-        let held = player.inventory().held_item().await;
+        let held = player.inventory().held_item();
         if let Some(enchantments) =
             held.get_data_component::<pumpkin_data::data_component_impl::EnchantmentsImpl>()
         {
@@ -118,7 +119,7 @@ impl BowItem {
                 .any(|(e, _)| **e == pumpkin_data::Enchantment::INFINITY);
         }
 
-        Self::fire_arrow(player, power, projectile).await;
+        Self::fire_arrow(player, power, &projectile);
 
         // Consume arrow (if not creative and no Infinity)
         if let Some(slot) = arrow_slot
@@ -149,7 +150,7 @@ impl BowItem {
     }
 
     /// Fire an arrow from the bow
-    pub async fn fire_arrow(player: &Player, power: f32, projectile: ItemStack) {
+    pub fn fire_arrow(player: &Player, power: f32, projectile: &ItemStack) {
         if power < 0.1 {
             return; // Not enough charge
         }
@@ -173,10 +174,10 @@ impl BowItem {
         };
 
         let mut arrow =
-            ArrowEntity::new_shot(arrow_entity, player.get_entity(), &projectile, pickup);
+            ArrowEntity::new_shot(arrow_entity, player.get_entity(), projectile, pickup);
 
         // Read enchantments of the held item (bow)
-        let stack = player.inventory().held_item().await;
+        let stack = player.inventory().held_item();
         if let Some(enchantments) =
             stack.get_data_component::<pumpkin_data::data_component_impl::EnchantmentsImpl>()
         {
@@ -204,7 +205,7 @@ impl BowItem {
 
         // Spawn the arrow entity in the world
         let arrow_arc: Arc<dyn EntityBase> = Arc::new(arrow);
-        world.spawn_entity(arrow_arc).await;
+        world.spawn_entity(arrow_arc);
 
         // Play bow shoot sound
         let sound_pitch = 1.0 / (rand::random::<f32>() * 0.4 + 1.2) + power * 0.5;

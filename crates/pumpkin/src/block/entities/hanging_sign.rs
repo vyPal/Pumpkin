@@ -10,7 +10,7 @@ use super::BlockEntity;
 use crate::block::entities::sign::Text;
 use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_util::math::position::BlockPos;
-use tokio::sync::Mutex;
+use std::sync::Mutex;
 
 pub struct HangingSignBlockEntity {
     pub front_text: Text,

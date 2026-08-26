@@ -36,7 +36,7 @@ impl ScoreboardTarget for World {
         je_packet: &J,
         be_packet: &B,
     ) {
-        self.broadcast_editioned(je_packet, be_packet).await;
+        self.broadcast_editioned(je_packet, be_packet);
     }
 
     async fn send_je<J: ClientPacket + Sync>(&self, je_packet: &J) {
@@ -64,7 +64,7 @@ impl ScoreboardTarget for std::sync::Arc<World> {
         je_packet: &J,
         be_packet: &B,
     ) {
-        self.broadcast_editioned(je_packet, be_packet).await;
+        self.broadcast_editioned(je_packet, be_packet);
     }
 
     async fn send_je<J: ClientPacket + Sync>(&self, je_packet: &J) {

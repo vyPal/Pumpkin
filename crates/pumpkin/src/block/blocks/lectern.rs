@@ -4,7 +4,7 @@ use std::sync::atomic::Ordering;
 use crate::block::entities::lectern::LecternBlockEntity;
 use crate::block::registry::BlockActionResult;
 use crate::block::{
-    BlockBehaviour, BlockFuture, BrokenArgs, EmitsRedstonePowerArgs, GetComparatorOutputArgs,
+    BlockBehaviour, BrokenArgs, EmitsRedstonePowerArgs, GetComparatorOutputArgs,
     GetRedstonePowerArgs, NormalUseArgs, OnPlaceArgs, OnScheduledTickArgs, OnStateReplacedArgs,
     PlacedArgs, UseWithItemArgs,
 };
@@ -63,7 +63,7 @@ impl LecternController for LecternPageController {
             }
             entity.page.store(page as usize, Ordering::Relaxed);
             entity.mark_dirty();
-            LecternBlock::pulse(&self.world, &self.position).await;
+            LecternBlock::pulse(&self.world, &self.position);
         })
     }
 
@@ -72,7 +72,7 @@ impl LecternController for LecternPageController {
             if let Some(entity) = self.entity() {
                 entity.page.store(0, Ordering::Relaxed);
             }
-            LecternBlock::set_has_book(&self.world, &self.position, false).await;
+            LecternBlock::set_has_book(&self.world, &self.position, false);
         })
     }
 }
@@ -113,22 +113,20 @@ impl LecternBlock {
 
     /// The lectern strongly powers the block below it, so its neighbors need
     /// updating whenever the power or book state changes.
-    async fn update_neighbors_below(world: &Arc<World>, position: &BlockPos) {
-        world.update_neighbors(&position.down(), None).await;
+    fn update_neighbors_below(world: &Arc<World>, position: &BlockPos) {
+        world.update_neighbors(&position.down(), None);
     }
 
     /// Emits the vanilla page-turn redstone pulse: powered for two game ticks.
-    pub(crate) async fn pulse(world: &Arc<World>, position: &BlockPos) {
+    pub(crate) fn pulse(world: &Arc<World>, position: &BlockPos) {
         let (block, state_id) = world.get_block_and_state_id(position);
         if block != &Block::LECTERN {
             return;
         }
         let mut props = LecternLikeProperties::from_state_id(state_id, block);
         props.powered = true;
-        world
-            .set_block_state(position, props.to_state_id(block), BlockFlags::NOTIFY_ALL)
-            .await;
-        Self::update_neighbors_below(world, position).await;
+        world.set_block_state(position, props.to_state_id(block), BlockFlags::NOTIFY_ALL);
+        Self::update_neighbors_below(world, position);
         world.schedule_block_tick(
             block,
             *position,
@@ -139,7 +137,7 @@ impl LecternBlock {
     }
 
     /// Sets `has_book`, dropping any pending pulse like vanilla `setHasBook`.
-    pub(crate) async fn set_has_book(world: &Arc<World>, position: &BlockPos, has_book: bool) {
+    pub(crate) fn set_has_book(world: &Arc<World>, position: &BlockPos, has_book: bool) {
         let (block, state_id) = world.get_block_and_state_id(position);
         if block != &Block::LECTERN {
             return;
@@ -147,214 +145,175 @@ impl LecternBlock {
         let mut props = LecternLikeProperties::from_state_id(state_id, block);
         props.powered = false;
         props.has_book = has_book;
-        world
-            .set_block_state(position, props.to_state_id(block), BlockFlags::NOTIFY_ALL)
-            .await;
-        Self::update_neighbors_below(world, position).await;
+        world.set_block_state(position, props.to_state_id(block), BlockFlags::NOTIFY_ALL);
+        Self::update_neighbors_below(world, position);
     }
 }
 
 impl BlockBehaviour for LecternBlock {
-    fn placed<'a>(&'a self, args: PlacedArgs<'a>) -> BlockFuture<'a, ()> {
-        Box::pin(async move {
-            let block_entity = LecternBlockEntity::new(*args.position);
-            args.world.add_block_entity(Arc::new(block_entity));
-        })
+    fn placed(&self, args: PlacedArgs<'_>) {
+        let block_entity = LecternBlockEntity::new(*args.position);
+        args.world.add_block_entity(Arc::new(block_entity));
     }
 
-    fn on_place<'a>(&'a self, args: OnPlaceArgs<'a>) -> BlockFuture<'a, BlockStateId> {
-        Box::pin(async move {
-            let mut props = LecternLikeProperties::default(args.block);
-            props.facing = args
-                .player
-                .living_entity
-                .entity
-                .get_horizontal_facing()
-                .opposite();
-            props.to_state_id(args.block)
-        })
+    fn on_place(&self, args: OnPlaceArgs<'_>) -> BlockStateId {
+        let mut props = LecternLikeProperties::default(args.block);
+        props.facing = args
+            .player
+            .living_entity
+            .entity
+            .get_horizontal_facing()
+            .opposite();
+        props.to_state_id(args.block)
     }
 
-    fn normal_use<'a>(&'a self, args: NormalUseArgs<'a>) -> BlockFuture<'a, BlockActionResult> {
-        Box::pin(async move {
-            let props = LecternLikeProperties::from_state_id(
-                args.world.get_block_state(args.position).id,
-                args.block,
-            );
-            if !props.has_book {
-                return BlockActionResult::Pass;
-            }
+    fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
+        let props = LecternLikeProperties::from_state_id(
+            args.world.get_block_state(args.position).id,
+            args.block,
+        );
+        if !props.has_book {
+            return BlockActionResult::Pass;
+        }
 
-            let Some(block_entity) = args.world.get_block_entity(args.position) else {
-                return BlockActionResult::Pass;
-            };
-            let Some(inventory) = block_entity.get_inventory() else {
-                return BlockActionResult::Pass;
-            };
+        let Some(block_entity) = args.world.get_block_entity(args.position) else {
+            return BlockActionResult::Pass;
+        };
+        let Some(inventory) = block_entity.get_inventory() else {
+            return BlockActionResult::Pass;
+        };
 
-            args.player
-                .increment_stat(
-                    pumpkin_data::statistic::StatisticCategory::Custom,
-                    pumpkin_data::statistic::CustomStatistic::InteractWithLectern as i32,
-                    1,
-                )
-                .await;
+        args.player.increment_stat(
+            pumpkin_data::statistic::StatisticCategory::Custom,
+            pumpkin_data::statistic::CustomStatistic::InteractWithLectern as i32,
+            1,
+        );
 
-            let controller = Arc::new(LecternPageController {
-                world: args.world.clone(),
-                position: *args.position,
-                inventory: inventory.clone(),
-            });
-            args.player
+        let controller = Arc::new(LecternPageController {
+            world: args.world.clone(),
+            position: *args.position,
+            inventory: inventory.clone(),
+        });
+        let player = args.player.clone();
+        let pos = *args.position;
+        tokio::spawn(async move {
+            player
                 .open_handled_screen(
                     &LecternScreenFactory {
                         inventory,
                         controller,
                     },
-                    Some(*args.position),
+                    Some(pos),
                 )
                 .await;
+        });
 
-            BlockActionResult::Success
-        })
+        BlockActionResult::Success
     }
 
-    fn use_with_item<'a>(
-        &'a self,
-        args: UseWithItemArgs<'a>,
-    ) -> BlockFuture<'a, BlockActionResult> {
-        Box::pin(async move {
-            let item_stack = &mut *args.item_stack;
-            if !item_stack.item.has_tag(&tag::Item::MINECRAFT_LECTERN_BOOKS) {
-                return BlockActionResult::PassToDefaultBlockAction;
+    fn use_with_item(&self, args: UseWithItemArgs<'_>) -> BlockActionResult {
+        let item_stack = &mut *args.item_stack;
+        if !item_stack.item.has_tag(&tag::Item::MINECRAFT_LECTERN_BOOKS) {
+            return BlockActionResult::PassToDefaultBlockAction;
+        }
+
+        let props = LecternLikeProperties::from_state_id(
+            args.world.get_block_state(args.position).id,
+            args.block,
+        );
+        if props.has_book {
+            // Fall through so `normal_use` opens the reading screen.
+            return BlockActionResult::PassToDefaultBlockAction;
+        }
+
+        let Some(lectern) = args.world.get_block_entity(args.position) else {
+            return BlockActionResult::PassToDefaultBlockAction;
+        };
+        let Some(lectern) = lectern.as_any().downcast_ref::<LecternBlockEntity>() else {
+            return BlockActionResult::PassToDefaultBlockAction;
+        };
+
+        let book = item_stack.split_unless_creative(args.player.gamemode.load(), 1);
+        futures::executor::block_on(lectern.set_stack(0, book));
+
+        Self::set_has_book(args.world, args.position, true);
+        args.world
+            .play_block_sound(Sound::ItemBookPut, SoundCategory::Blocks, *args.position);
+
+        BlockActionResult::Success
+    }
+
+    fn on_scheduled_tick(&self, args: OnScheduledTickArgs<'_>) {
+        let mut props = LecternLikeProperties::from_state_id(
+            args.world.get_block_state(args.position).id,
+            args.block,
+        );
+        props.powered = false;
+        args.world.set_block_state(
+            args.position,
+            props.to_state_id(args.block),
+            BlockFlags::NOTIFY_ALL,
+        );
+    }
+
+    fn emits_redstone_power(&self, _args: EmitsRedstonePowerArgs<'_>) -> bool {
+        true
+    }
+
+    fn get_weak_redstone_power(&self, args: GetRedstonePowerArgs<'_>) -> u8 {
+        let props = LecternLikeProperties::from_state_id(args.state.id, args.block);
+        if props.powered { 15 } else { 0 }
+    }
+
+    fn get_strong_redstone_power(&self, args: GetRedstonePowerArgs<'_>) -> u8 {
+        let props = LecternLikeProperties::from_state_id(args.state.id, args.block);
+        if props.powered && args.direction == BlockDirection::Up {
+            15
+        } else {
+            0
+        }
+    }
+
+    fn on_state_replaced(&self, args: OnStateReplacedArgs<'_>) {
+        if !args.moved {
+            let props = LecternLikeProperties::from_state_id(args.old_state_id, args.block);
+            if props.powered {
+                Self::update_neighbors_below(args.world, args.position);
             }
+        }
+    }
 
-            let props = LecternLikeProperties::from_state_id(
-                args.world.get_block_state(args.position).id,
-                args.block,
-            );
-            if props.has_book {
-                // Fall through so `normal_use` opens the reading screen.
-                return BlockActionResult::PassToDefaultBlockAction;
+    fn broken(&self, args: BrokenArgs<'_>) {
+        if let Some(block_entity) = args.world.get_block_entity(args.position)
+            && let Some(lectern_entity) = block_entity.as_any().downcast_ref::<LecternBlockEntity>()
+        {
+            let book = futures::executor::block_on(lectern_entity.remove_stack(0));
+            if !book.is_empty() {
+                // Drop the book item
+                let entity = Entity::new(
+                    args.world.clone(),
+                    Vector3::new(
+                        f64::from(args.position.0.x) + 0.5,
+                        f64::from(args.position.0.y) + 0.5,
+                        f64::from(args.position.0.z) + 0.5,
+                    ),
+                    &EntityType::ITEM,
+                );
+                let item_entity = ItemEntity::new(entity, book);
+                args.world.spawn_entity(Arc::new(item_entity));
             }
-
-            let Some(lectern) = args.world.get_block_entity(args.position) else {
-                return BlockActionResult::PassToDefaultBlockAction;
-            };
-            let Some(lectern) = lectern.as_any().downcast_ref::<LecternBlockEntity>() else {
-                return BlockActionResult::PassToDefaultBlockAction;
-            };
-
-            let book = item_stack.split_unless_creative(args.player.gamemode.load(), 1);
-            let _ = item_stack;
-            lectern.set_stack(0, book).await;
-
-            Self::set_has_book(args.world, args.position, true).await;
-            args.world
-                .play_block_sound(Sound::ItemBookPut, SoundCategory::Blocks, *args.position);
-
-            BlockActionResult::Success
-        })
+        }
     }
 
-    fn on_scheduled_tick<'a>(&'a self, args: OnScheduledTickArgs<'a>) -> BlockFuture<'a, ()> {
-        Box::pin(async move {
-            let mut props = LecternLikeProperties::from_state_id(
-                args.world.get_block_state(args.position).id,
-                args.block,
-            );
-            props.powered = false;
-            args.world
-                .set_block_state(
-                    args.position,
-                    props.to_state_id(args.block),
-                    BlockFlags::NOTIFY_ALL,
-                )
-                .await;
-            Self::update_neighbors_below(args.world, args.position).await;
-        })
-    }
-
-    fn emits_redstone_power<'a>(
-        &'a self,
-        _args: EmitsRedstonePowerArgs<'a>,
-    ) -> BlockFuture<'a, bool> {
-        Box::pin(async move { true })
-    }
-
-    fn get_weak_redstone_power<'a>(
-        &'a self,
-        args: GetRedstonePowerArgs<'a>,
-    ) -> BlockFuture<'a, u8> {
-        Box::pin(async move {
-            let props = LecternLikeProperties::from_state_id(args.state.id, args.block);
-            if props.powered { 15 } else { 0 }
-        })
-    }
-
-    fn get_strong_redstone_power<'a>(
-        &'a self,
-        args: GetRedstonePowerArgs<'a>,
-    ) -> BlockFuture<'a, u8> {
-        Box::pin(async move {
-            let props = LecternLikeProperties::from_state_id(args.state.id, args.block);
-            if props.powered && args.direction == BlockDirection::Up {
-                15
-            } else {
-                0
-            }
-        })
-    }
-
-    fn on_state_replaced<'a>(&'a self, args: OnStateReplacedArgs<'a>) -> BlockFuture<'a, ()> {
-        Box::pin(async move {
-            if !args.moved {
-                let props = LecternLikeProperties::from_state_id(args.old_state_id, args.block);
-                if props.powered {
-                    Self::update_neighbors_below(args.world, args.position).await;
-                }
-            }
-        })
-    }
-
-    fn broken<'a>(&'a self, args: BrokenArgs<'a>) -> BlockFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(block_entity) = args.world.get_block_entity(args.position)
-                && let Some(lectern_entity) =
-                    block_entity.as_any().downcast_ref::<LecternBlockEntity>()
-            {
-                let book = lectern_entity.remove_stack(0).await;
-                if !book.is_empty() {
-                    // Drop the book item
-                    let entity = Entity::new(
-                        args.world.clone(),
-                        Vector3::new(
-                            f64::from(args.position.0.x) + 0.5,
-                            f64::from(args.position.0.y) + 0.5,
-                            f64::from(args.position.0.z) + 0.5,
-                        ),
-                        &EntityType::ITEM,
-                    );
-                    let item_entity = ItemEntity::new(entity, book);
-                    args.world.spawn_entity(Arc::new(item_entity)).await;
-                }
-            }
-        })
-    }
-
-    fn get_comparator_output<'a>(
-        &'a self,
-        args: GetComparatorOutputArgs<'a>,
-    ) -> BlockFuture<'a, Option<u8>> {
-        Box::pin(async move {
-            if let Some(block_entity) = args.world.get_block_entity(args.position)
-                && let Some(lectern_entity) =
-                    block_entity.as_any().downcast_ref::<LecternBlockEntity>()
-            {
-                Some(lectern_entity.comparator_output().await)
-            } else {
-                Some(0)
-            }
-        })
+    fn get_comparator_output(&self, args: GetComparatorOutputArgs<'_>) -> Option<u8> {
+        if let Some(block_entity) = args.world.get_block_entity(args.position)
+            && let Some(lectern_entity) = block_entity.as_any().downcast_ref::<LecternBlockEntity>()
+        {
+            Some(futures::executor::block_on(
+                lectern_entity.comparator_output(),
+            ))
+        } else {
+            Some(0)
+        }
     }
 }

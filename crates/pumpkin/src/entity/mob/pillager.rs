@@ -13,7 +13,7 @@ use pumpkin_protocol::java::client::play::Metadata;
 use tokio::sync::Mutex;
 
 use crate::entity::{
-    Entity, EntityBase, EntityBaseFuture, NbtFuture,
+    Entity, EntityBase, NbtFuture,
     ai::goal::{
         active_target::ActiveTargetGoal, look_around::RandomLookAroundGoal,
         look_at_entity::LookAtEntityGoal, ranged_crossbow_attack::RangedCrossbowAttackGoal,
@@ -125,11 +125,11 @@ impl PillagerEntity {
         }
     }
 
-    pub async fn drop_inventory(&self) {
-        let items = {
-            let mut inv = self.inventory.lock().await;
-            std::mem::take(&mut *inv)
-        };
+    pub fn drop_inventory(&self) {
+        let items = self
+            .inventory
+            .try_lock()
+            .map_or_else(|_| Vec::new(), |mut inv| std::mem::take(&mut *inv));
         let entity = &self.mob_entity.living_entity.entity;
         let world = entity.world.load();
         let pos = entity.pos.load();
@@ -139,7 +139,7 @@ impl PillagerEntity {
                     Entity::new(world.clone(), pos, &EntityType::ITEM),
                     item,
                 );
-                world.spawn_entity(Arc::new(item_entity)).await;
+                world.spawn_entity(Arc::new(item_entity));
             }
         }
     }
@@ -162,19 +162,17 @@ impl Mob for PillagerEntity {
         Some(self)
     }
 
-    fn mob_init_data_tracker(&self) -> EntityBaseFuture<'_, ()> {
-        Box::pin(async move {
-            let entity = self.get_entity();
-            if self.is_charging_crossbow() {
-                entity.send_meta_data(
-                    &[Metadata::new(
-                        tracked_data::pillager::IS_CHARGING_CROSSBOW,
-                        true,
-                    )],
-                    None,
-                );
-            }
-        })
+    fn mob_init_data_tracker(&self) {
+        let entity = self.get_entity();
+        if self.is_charging_crossbow() {
+            entity.send_meta_data(
+                &[Metadata::new(
+                    tracked_data::pillager::IS_CHARGING_CROSSBOW,
+                    true,
+                )],
+                None,
+            );
+        }
     }
 
     fn mob_write_nbt<'a>(&'a self, nbt: &'a mut NbtCompound) -> NbtFuture<'a, ()> {
@@ -217,16 +215,14 @@ impl Mob for PillagerEntity {
         })
     }
 
-    fn on_damage<'a>(
-        &'a self,
+    fn on_damage(
+        &self,
         _damage_type: pumpkin_data::damage::DamageType,
-        _source: Option<&'a dyn EntityBase>,
-    ) -> EntityBaseFuture<'a, ()> {
-        Box::pin(async move {
-            if self.mob_entity.living_entity.dead.load(Ordering::Relaxed) {
-                self.drop_inventory().await;
-            }
-        })
+        _source: Option<&dyn EntityBase>,
+    ) {
+        if self.mob_entity.living_entity.dead.load(Ordering::Relaxed) {
+            self.drop_inventory();
+        }
     }
 }
 

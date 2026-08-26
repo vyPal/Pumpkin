@@ -38,7 +38,6 @@ impl ItemBehaviour for BoneMealItem {
             if server
                 .block_registry
                 .bone_meal(block, &world, &location, state_id)
-                .await
             {
                 world.sync_world_event(WorldEvent::ParticlesAndSoundPlantGrowth, location, 15);
                 item.decrement_unless_creative(player.gamemode.load(), 1);

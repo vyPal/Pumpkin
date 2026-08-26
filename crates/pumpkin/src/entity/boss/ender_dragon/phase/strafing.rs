@@ -153,7 +153,7 @@ impl super::Phase for StrafingPhase {
                         0.5,
                         -100,
                     );
-                    world.spawn_entity(cloud).await;
+                    world.spawn_entity(cloud);
 
                     dragon.path.lock().await.clear();
                     dragon.set_phase(EnderDragonPhase::Circling).await;

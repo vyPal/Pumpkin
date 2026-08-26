@@ -104,7 +104,7 @@ impl ZombieEntityBase {
         self.can_break_doors.load(Ordering::Relaxed)
     }
 
-    pub async fn set_can_break_doors(&self, can_break_doors: bool, mob: &dyn Mob) {
+    pub fn set_can_break_doors(&self, can_break_doors: bool, mob: &dyn Mob) {
         if self
             .can_break_doors
             .swap(can_break_doors, Ordering::Relaxed)
@@ -120,11 +120,11 @@ impl ZombieEntityBase {
                     goal_selector.add_goal(1, Box::new(BreakDoorGoal::default()));
                     Vec::new()
                 } else {
-                    goal_selector.remove_goal_sync::<BreakDoorGoal>()
+                    goal_selector.remove_goals::<BreakDoorGoal>()
                 }
             };
             for goal in &mut stopped {
-                goal.stop(mob).await;
+                goal.stop(mob);
             }
         }
     }
@@ -159,7 +159,10 @@ impl Mob for ZombieEntityBase {
                 };
 
                 let living = &self.mob_entity.living_entity;
-                let mut equipment = living.entity_equipment.lock().await;
+                let mut equipment = living
+                    .entity_equipment
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 let mut first = true;
 
                 for slot in &MobEntity::EQUIPMENT_POPULATION_ORDER {
@@ -189,7 +192,10 @@ impl Mob for ZombieEntityBase {
                     _ => &Item::IRON_SHOVEL,
                 };
                 let living = &self.mob_entity.living_entity;
-                let mut equipment = living.entity_equipment.lock().await;
+                let mut equipment = living
+                    .entity_equipment
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 equipment.put(&EquipmentSlot::MAIN_HAND, ItemStack::new(1, weapon_item));
             }
         })
@@ -206,7 +212,7 @@ impl Mob for ZombieEntityBase {
     fn mob_read_nbt<'a>(&'a self, nbt: &'a NbtCompound) -> NbtFuture<'a, ()> {
         Box::pin(async move {
             if let Some(can_break_doors) = nbt.get_bool("CanBreakDoors") {
-                self.set_can_break_doors(can_break_doors, self).await;
+                self.set_can_break_doors(can_break_doors, self);
             }
         })
     }

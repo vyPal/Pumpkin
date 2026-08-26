@@ -111,7 +111,10 @@ impl CommandSender {
             Self::Player(c) => c.send_system_message(&text).await,
             Self::Rcon(s) => s.lock().await.push(text.to_pretty_console()),
             Self::CommandBlock(block_entity, _) => {
-                let mut last_output = block_entity.last_output.lock().await;
+                let mut last_output = block_entity
+                    .last_output
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
 
                 let now = time::OffsetDateTime::now_utc();
                 let format = time::macros::format_description!("[hour]:[minute]:[second]");

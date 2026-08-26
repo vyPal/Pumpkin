@@ -15,7 +15,7 @@ use pumpkin_util::text::TextComponent;
 use pumpkin_world::inventory::{Clearable, Inventory, InventoryFuture};
 use tokio::sync::{Mutex, RwLock};
 
-use crate::entity::{Entity, EntityBase, player::Player};
+use crate::entity::{Entity, player::Player};
 use crate::world::loot::fill_chest_inventory;
 use pumpkin_data::chest_loot_table::get_chest_loot_table;
 
@@ -200,13 +200,37 @@ pub(super) async fn open(
         .is_some()
 }
 
-pub(super) async fn velocity(
+pub(super) fn velocity(
     entity: &Entity,
     inventory: &MinecartInventory,
     velocity: Vector3<f64>,
 ) -> Vector3<f64> {
-    let signal = crate::block::calculate_comparator_output(inventory).await;
-    let mut friction = if inventory.has_loot_table().await {
+    let has_loot = inventory
+        .loot_table
+        .try_lock()
+        .is_ok_and(|guard| guard.is_some());
+    let signal = if has_loot {
+        0
+    } else if let Ok(items) = inventory.items.try_read() {
+        let mut total_fill = 0.0;
+        let mut has_items = false;
+        for stack in items.iter() {
+            if !stack.is_empty() {
+                let max_count = stack.get_max_stack_size();
+                total_fill += f64::from(stack.item_count) / f64::from(max_count);
+                has_items = true;
+            }
+        }
+        if has_items {
+            let factor = total_fill / inventory.size as f64;
+            (factor * 14.0).floor() as u8 + 1
+        } else {
+            0
+        }
+    } else {
+        0
+    };
+    let mut friction = if has_loot {
         0.98
     } else {
         0.98 + f64::from(15 - signal) * 0.001

@@ -9,7 +9,7 @@ use std::{
 use super::BlockEntity;
 use pumpkin_nbt::{compound::NbtCompound, tag::NbtTag};
 use pumpkin_util::math::position::BlockPos;
-use tokio::sync::Mutex;
+use std::sync::Mutex;
 
 pub use pumpkin_data::dye_color::DyeColor;
 

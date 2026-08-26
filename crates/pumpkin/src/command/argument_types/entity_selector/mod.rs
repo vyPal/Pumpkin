@@ -8,7 +8,6 @@ use crate::command::context::command_source::CommandSource;
 use crate::command::errors::command_syntax_error::CommandSyntaxError;
 use crate::entity::EntityBase;
 use crate::entity::player::Player;
-use crate::entity::player::advancement::AdvancementProgress;
 use crate::world::World;
 use pumpkin_data::Advancement;
 use pumpkin_data::entity::EntityType;
@@ -554,11 +553,9 @@ impl EntitySelectorPredicate {
                 let Some(player) = entity.get_player() else {
                     return false;
                 };
-                let adv_mgr = player.advancements.blocking_lock();
                 for (adv_id, expected_done) in advancements_map {
                     if let Some(advancement) = Advancement::from_name(adv_id) {
-                        let progress = adv_mgr.progress.map.get(advancement);
-                        let is_done = progress.is_some_and(AdvancementProgress::is_done);
+                        let is_done = player.has_advancement(advancement);
                         if is_done != *expected_done {
                             return false;
                         }

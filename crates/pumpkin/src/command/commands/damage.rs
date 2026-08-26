@@ -78,9 +78,14 @@ impl CommandExecutor for LocationExecutor {
 
             let location = Position3DArgumentConsumer::find_arg(args, ARG_LOCATION)?;
 
-            let success = target
-                .damage_with_context(&*target, amount, damage_type, Some(location), None, None)
-                .await;
+            let success = target.damage_with_context(
+                &*target,
+                amount,
+                damage_type,
+                Some(location),
+                None,
+                None,
+            );
 
             send_damage_result(sender, success, amount, target.get_display_name().await).await
         })
@@ -113,16 +118,14 @@ impl CommandExecutor for EntityExecutor {
                 None
             };
 
-            let success = target
-                .damage_with_context(
-                    &*target,
-                    amount,
-                    damage_type,
-                    None,
-                    source.as_ref().map(|e| e.as_ref() as &dyn EntityBase),
-                    cause.as_ref().map(|e| e.as_ref() as &dyn EntityBase),
-                )
-                .await;
+            let success = target.damage_with_context(
+                &*target,
+                amount,
+                damage_type,
+                None,
+                source.as_ref().map(|e| e.as_ref() as &dyn EntityBase),
+                cause.as_ref().map(|e| e.as_ref() as &dyn EntityBase),
+            );
 
             send_damage_result(sender, success, amount, target.get_display_name().await).await
         })

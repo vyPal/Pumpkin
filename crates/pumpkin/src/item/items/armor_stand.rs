@@ -89,7 +89,7 @@ impl ItemBehaviour for ArmorStandItem {
 
                 let armor_stand = ArmorStandEntity::new(entity);
 
-                world.spawn_entity(Arc::new(armor_stand)).await;
+                world.spawn_entity(Arc::new(armor_stand));
                 item.decrement_unless_creative(player.gamemode.load(), 1);
             }
         })

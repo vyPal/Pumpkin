@@ -722,13 +722,13 @@ impl BedrockClient {
                 self.handle_respawn(player, SRespawn::read(reader)?).await;
             }
             SAnimate::PACKET_ID => {
-                self.handle_animate(player, server, &SAnimate::read(reader)?).await;
+                self.handle_animate(player, server, &SAnimate::read(reader)?);
             }
             SActorEvent::PACKET_ID => {
-                self.handle_actor_event(player, SActorEvent::read(reader)?).await;
+                self.handle_actor_event(player, &SActorEvent::read(reader)?);
             }
             SEmote::PACKET_ID => {
-                self.handle_emote(player, server, SEmote::read_slice(reader)?).await;
+                self.handle_emote(player, server, SEmote::read_slice(reader)?);
             }
             SEmoteList::PACKET_ID => {
                 self.handle_emote_list(player, server, &SEmoteList::read(reader)?);

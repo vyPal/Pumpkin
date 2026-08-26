@@ -56,7 +56,7 @@ impl ItemBehaviour for EndCrystalItem {
 
             let entity = Entity::new(world.clone(), location.to_f64(), &EntityType::END_CRYSTAL);
             let end_crystal = Arc::new(EndCrystalEntity::new(entity));
-            world.spawn_entity(end_crystal.clone()).await;
+            world.spawn_entity(end_crystal.clone());
             end_crystal.set_show_bottom(false);
             item.decrement_unless_creative(player.gamemode.load(), 1);
         })

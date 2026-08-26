@@ -103,7 +103,7 @@ impl ItemBehaviour for SpawnEggItem {
                 apply_entity_variant(item, mob.as_ref());
 
                 // Broadcast the new mob to all players
-                world.spawn_entity(mob).await;
+                world.spawn_entity(mob);
                 item.decrement_unless_creative(player.gamemode.load(), 1);
             }
         })

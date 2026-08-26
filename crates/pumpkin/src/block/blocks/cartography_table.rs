@@ -1,5 +1,5 @@
 use crate::block::registry::BlockActionResult;
-use crate::block::{BlockBehaviour, BlockFuture, NormalUseArgs};
+use crate::block::{BlockBehaviour, NormalUseArgs};
 
 use pumpkin_data::translation;
 use pumpkin_inventory::cartography_table_screen_handler::CartographyTableScreenHandler;
@@ -16,21 +16,21 @@ use tokio::sync::Mutex;
 pub struct CartographyTableBlock;
 
 impl BlockBehaviour for CartographyTableBlock {
-    fn normal_use<'a>(&'a self, args: NormalUseArgs<'a>) -> BlockFuture<'a, BlockActionResult> {
-        Box::pin(async move {
-            args.player
-                .increment_stat(
-                    pumpkin_data::statistic::StatisticCategory::Custom,
-                    pumpkin_data::statistic::CustomStatistic::InteractWithCartographyTable as i32,
-                    1,
-                )
+    fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
+        args.player.increment_stat(
+            pumpkin_data::statistic::StatisticCategory::Custom,
+            pumpkin_data::statistic::CustomStatistic::InteractWithCartographyTable as i32,
+            1,
+        );
+        let player = Arc::clone(args.player);
+        let pos = *args.position;
+        tokio::spawn(async move {
+            player
+                .open_handled_screen(&CartographyTableScreenFactory, Some(pos))
                 .await;
-            args.player
-                .open_handled_screen(&CartographyTableScreenFactory, Some(*args.position))
-                .await;
+        });
 
-            BlockActionResult::Success
-        })
+        BlockActionResult::Success
     }
 }
 

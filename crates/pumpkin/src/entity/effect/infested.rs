@@ -64,7 +64,7 @@ impl MobEffect for InfestedMobEffect {
                         f64::from(rz),
                     ));
 
-                    world.spawn_entity(silver).await;
+                    world.spawn_entity(silver);
                     world.play_sound(Sound::EntitySilverfishHurt, SoundCategory::Hostile, &center);
                 }
             }

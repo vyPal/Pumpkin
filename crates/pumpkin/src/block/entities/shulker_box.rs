@@ -10,9 +10,7 @@ use std::{array::from_fn, sync::Arc};
 use tokio::sync::RwLock;
 
 use crate::block::entities::BlockEntity;
-use crate::block::viewer::{
-    ViewerCountListener, ViewerCountTracker, ViewerCountTrackerExt, ViewerFuture,
-};
+use crate::block::viewer::{ViewerCountListener, ViewerCountTracker, ViewerCountTrackerExt};
 use crate::world::World;
 use pumpkin_world::inventory::{Clearable, Inventory, InventoryFuture, sync_write_items_to_nbt};
 
@@ -57,12 +55,9 @@ impl BlockEntity for ShulkerBoxBlockEntity {
         self.write_inventory_nbt(nbt, true)
     }
 
-    fn tick<'a>(&'a self, world: &'a Arc<World>) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            self.viewers
-                .update_viewer_count::<Self>(self, world, &self.position)
-                .await;
-        })
+    fn tick(&self, world: &Arc<World>) {
+        self.viewers
+            .update_viewer_count::<Self>(self, world, &self.position);
     }
 
     fn on_block_replaced<'a>(
@@ -92,8 +87,9 @@ impl BlockEntity for ShulkerBoxBlockEntity {
 
     fn chunk_data_nbt(&self) -> Option<NbtCompound> {
         let mut nbt = NbtCompound::new();
-        let items = futures::executor::block_on(self.items.read());
-        sync_write_items_to_nbt(items.as_slice(), &mut nbt);
+        if let Ok(items) = self.items.try_read() {
+            sync_write_items_to_nbt(items.as_slice(), &mut nbt);
+        }
         Some(nbt)
     }
 
@@ -103,40 +99,18 @@ impl BlockEntity for ShulkerBoxBlockEntity {
 }
 
 impl ViewerCountListener for ShulkerBoxBlockEntity {
-    fn on_container_open<'a>(
-        &'a self,
-        world: &'a Arc<World>,
-        position: &'a BlockPos,
-    ) -> ViewerFuture<'a, ()> {
-        Box::pin(async move {
-            Self::play_sound(world, position, 1);
-            // TODO: this.world.emitGameEvent(player, GameEvent.CONTAINER_OPEN, this.pos);
-        })
+    fn on_container_open(&self, world: &Arc<World>, position: &BlockPos) {
+        Self::play_sound(world, position, 1);
+        // TODO: this.world.emitGameEvent(player, GameEvent.CONTAINER_OPEN, this.pos);
     }
 
-    fn on_container_close<'a>(
-        &'a self,
-        world: &'a Arc<World>,
-        position: &'a BlockPos,
-    ) -> ViewerFuture<'a, ()> {
-        Box::pin(async move {
-            Self::play_sound(world, position, 0);
-            // TODO: this.world.emitGameEvent(player, GameEvent.CONTAINER_CLOSE, this.pos);
-        })
+    fn on_container_close(&self, world: &Arc<World>, position: &BlockPos) {
+        Self::play_sound(world, position, 0);
+        // TODO: this.world.emitGameEvent(player, GameEvent.CONTAINER_CLOSE, this.pos);
     }
 
-    fn on_viewer_count_update<'a>(
-        &'a self,
-        world: &'a Arc<World>,
-        position: &'a BlockPos,
-        _old: u16,
-        new: u16,
-    ) -> ViewerFuture<'a, ()> {
-        Box::pin(async move {
-            world
-                .add_synced_block_event(*position, Self::OPEN_ANIMATION_EVENT_TYPE, new as u8)
-                .await;
-        })
+    fn on_viewer_count_update(&self, world: &Arc<World>, position: &BlockPos, _old: u16, new: u16) {
+        world.add_synced_block_event(*position, Self::OPEN_ANIMATION_EVENT_TYPE, new as u8);
     }
 }
 

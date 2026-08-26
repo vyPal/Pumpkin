@@ -1,5 +1,5 @@
 use crate::block::registry::BlockActionResult;
-use crate::block::{BlockBehaviour, BlockFuture, NormalUseArgs};
+use crate::block::{BlockBehaviour, NormalUseArgs};
 
 use pumpkin_data::translation;
 use pumpkin_inventory::crafting::crafting_screen_handler::CraftingTableScreenHandler;
@@ -16,24 +16,22 @@ use tokio::sync::Mutex;
 pub struct CraftingTableBlock;
 
 impl BlockBehaviour for CraftingTableBlock {
-    fn normal_use<'a>(&'a self, args: NormalUseArgs<'a>) -> BlockFuture<'a, BlockActionResult> {
-        Box::pin(async move {
-            args.player
-                .increment_stat(
-                    pumpkin_data::statistic::StatisticCategory::Custom,
-                    pumpkin_data::statistic::CustomStatistic::InteractWithCraftingTable as i32,
-                    1,
-                )
+    fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
+        args.player.increment_stat(
+            pumpkin_data::statistic::StatisticCategory::Custom,
+            pumpkin_data::statistic::CustomStatistic::InteractWithCraftingTable as i32,
+            1,
+        );
+        let player = Arc::clone(args.player);
+        let recipe_manager = args.server.recipe_manager.clone();
+        let pos = *args.position;
+        tokio::spawn(async move {
+            player
+                .open_handled_screen(&CraftingTableScreenFactory(recipe_manager), Some(pos))
                 .await;
-            args.player
-                .open_handled_screen(
-                    &CraftingTableScreenFactory(args.server.recipe_manager.clone()),
-                    Some(*args.position),
-                )
-                .await;
+        });
 
-            BlockActionResult::Success
-        })
+        BlockActionResult::Success
     }
 }
 

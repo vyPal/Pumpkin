@@ -53,7 +53,7 @@ impl TntMinecart {
         );
     }
 
-    pub(super) async fn tick(&self, entity: &Entity) -> bool {
+    pub(super) fn tick(&self, entity: &Entity) -> bool {
         let fuse = self.fuse.load(Ordering::Relaxed);
         if fuse > 0 {
             self.fuse.store(fuse - 1, Ordering::Relaxed);
@@ -71,18 +71,17 @@ impl TntMinecart {
             self.explode(
                 entity,
                 velocity.x.mul_add(velocity.x, velocity.z * velocity.z),
-            )
-            .await;
+            );
             return true;
         }
         false
     }
 
-    pub(super) async fn explode(&self, entity: &Entity, horizontal_speed_squared: f64) {
+    pub(super) fn explode(&self, entity: &Entity, horizontal_speed_squared: f64) {
         let world = entity.world.load();
         if !world.level_info.load().game_rules.tnt_explodes {
             if self.fuse.load(Ordering::Relaxed) > -1 {
-                entity.remove().await;
+                entity.remove();
             }
             return;
         }
@@ -95,14 +94,17 @@ impl TntMinecart {
         );
         let pos = entity.pos.load();
         let primed = self.fuse.load(Ordering::Relaxed) > -1;
-        entity.remove().await;
-        if primed {
-            world.explode_tnt_minecart(pos, power).await;
-        } else {
-            world
-                .explode(pos, power, crate::world::ExplosionInteraction::Tnt)
-                .await;
-        }
+        entity.remove();
+        let world_clone = world.clone();
+        tokio::spawn(async move {
+            if primed {
+                world_clone.explode_tnt_minecart(pos, power).await;
+            } else {
+                world_clone
+                    .explode(pos, power, crate::world::ExplosionInteraction::Tnt)
+                    .await;
+            }
+        });
     }
 
     pub(super) fn set_fuse(&self, fuse: i32) {

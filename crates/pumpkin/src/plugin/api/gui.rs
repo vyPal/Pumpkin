@@ -42,7 +42,7 @@ impl Clearable for PluginInventory {
 
 impl Inventory for PluginInventory {
     fn size(&self) -> usize {
-        futures::executor::block_on(self.slots.read()).len()
+        self.slots.blocking_read().len()
     }
 
     fn is_empty(&self) -> InventoryFuture<'_, bool> {

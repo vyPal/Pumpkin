@@ -32,7 +32,7 @@ impl ItemBehaviour for CrossbowItem {
     ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
         Box::pin(async move {
             let inventory = player.inventory();
-            let stack = inventory.held_item().await;
+            let stack = inventory.held_item();
 
             // Every crossbow carries a ChargedProjectiles component by default, so its mere
             // presence does not mean the crossbow is loaded. Vanilla checks the list is also
@@ -52,8 +52,7 @@ impl ItemBehaviour for CrossbowItem {
 
             player
                 .living_entity
-                .set_active_hand(pumpkin_util::Hand::Right, stack, 72000)
-                .await;
+                .set_active_hand(pumpkin_util::Hand::Right, stack, 72000);
         })
     }
 
@@ -67,7 +66,7 @@ impl ItemBehaviour for CrossbowItem {
             let use_ticks = 72000 - use_ticks;
 
             let mut charge_time = 25;
-            let mut stack = player.inventory().held_item().await;
+            let mut stack = player.inventory().held_item();
 
             if let Some(enchantments) = stack.get_data_component::<EnchantmentsImpl>() {
                 for (enchantment, level) in enchantments.enchantment.iter() {
@@ -107,7 +106,7 @@ impl ItemBehaviour for CrossbowItem {
                             projectiles: vec![arrow_nbt],
                         })),
                     ));
-                    player.inventory().set_held_item(stack).await;
+                    player.inventory().set_held_item(stack);
 
                     if player.gamemode.load() != GameMode::Creative {
                         player.consume_arrow(slot).await;
@@ -120,7 +119,7 @@ impl ItemBehaviour for CrossbowItem {
                     );
                 }
             }
-            player.living_entity.clear_active_hand().await;
+            player.living_entity.clear_active_hand();
         })
     }
 
@@ -135,7 +134,7 @@ impl ItemBehaviour for CrossbowItem {
 
 impl CrossbowItem {
     async fn fire_projectiles(player: &Player) {
-        let mut held = player.inventory().held_item().await;
+        let mut held = player.inventory().held_item();
         let projectiles = held.get_data_component::<ChargedProjectilesImpl>().cloned();
         let has_multishot =
             held.get_data_component::<EnchantmentsImpl>()
@@ -186,13 +185,13 @@ impl CrossbowItem {
                     );
                     arrow.set_velocity_from_rotation(pitch, t_yaw, 0.0, 3.15, 1.0);
                     let arrow_arc: Arc<dyn EntityBase> = Arc::new(arrow);
-                    world.spawn_entity(arrow_arc).await;
+                    world.spawn_entity(arrow_arc);
                 }
             }
 
             held.patch
                 .retain(|(id, _)| *id != DataComponent::ChargedProjectiles);
-            player.inventory().set_held_item(held).await;
+            player.inventory().set_held_item(held);
             player.damage_held_item(1).await;
         }
     }

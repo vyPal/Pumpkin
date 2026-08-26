@@ -51,7 +51,7 @@ impl BedrockClient {
                         packet.filtered_message.map(std::borrow::Cow::into_owned),
                     );
 
-                    entity.world.load().broadcast_editioned(&je_packet, &be_packet).await;
+                    entity.world.load().broadcast_editioned(&je_packet, &be_packet);
                 }
             }
         }}

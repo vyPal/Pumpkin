@@ -12,7 +12,7 @@ use pumpkin_util::text::TextComponent;
 use pumpkin_world::inventory::Inventory;
 
 use crate::block::registry::BlockActionResult;
-use crate::block::{BlockBehaviour, BlockFuture, NormalUseArgs};
+use crate::block::{BlockBehaviour, NormalUseArgs};
 
 // Create the factory just like ChestScreenFactory
 struct BeaconScreenFactory(Arc<dyn Inventory>);
@@ -48,29 +48,29 @@ impl ScreenHandlerFactory for BeaconScreenFactory {
 pub struct BeaconBlock;
 
 impl BlockBehaviour for BeaconBlock {
-    fn normal_use<'a>(&'a self, args: NormalUseArgs<'a>) -> BlockFuture<'a, BlockActionResult> {
-        Box::pin(async move {
-            let block_entity = args.world.get_block_entity(args.position);
+    fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
+        let block_entity = args.world.get_block_entity(args.position);
 
-            // Extract the inventory from the entity
-            let Some(inventory) = block_entity.and_then(BlockEntity::get_inventory) else {
-                return BlockActionResult::Fail;
-            };
+        // Extract the inventory from the entity
+        let Some(inventory) = block_entity.and_then(BlockEntity::get_inventory) else {
+            return BlockActionResult::Fail;
+        };
 
-            args.player
-                .increment_stat(
-                    pumpkin_data::statistic::StatisticCategory::Custom,
-                    pumpkin_data::statistic::CustomStatistic::InteractWithBeacon as i32,
-                    1,
-                )
+        args.player.increment_stat(
+            pumpkin_data::statistic::StatisticCategory::Custom,
+            pumpkin_data::statistic::CustomStatistic::InteractWithBeacon as i32,
+            1,
+        );
+
+        // Open the screen using the factory
+        let player = Arc::clone(args.player);
+        let pos = *args.position;
+        tokio::spawn(async move {
+            player
+                .open_handled_screen(&BeaconScreenFactory(inventory), Some(pos))
                 .await;
+        });
 
-            // Open the screen using the factory
-            args.player
-                .open_handled_screen(&BeaconScreenFactory(inventory), Some(*args.position))
-                .await;
-
-            BlockActionResult::Success
-        })
+        BlockActionResult::Success
     }
 }

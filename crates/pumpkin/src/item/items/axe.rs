@@ -42,7 +42,7 @@ impl ItemBehaviour for AxeItem {
             // First we try to strip the block. by getting his equivalent and applying it the axis.
 
             // If there is a strip equivalent.
-            let changed = if let Some(replacement) = replacement_block {
+            let changed = replacement_block.is_some_and(|replacement| {
                 let new_block = replacement.to_block();
                 // Bamboo blocks are pillars too, but they are not part of the logs tag.
                 let new_state_id = if block.has_tag(&tag::Block::MINECRAFT_LOGS)
@@ -81,13 +81,11 @@ impl ItemBehaviour for AxeItem {
                                 other_state_id,
                                 new_block,
                             );
-                        world
-                            .set_block_state(
-                                &other_half_pos,
-                                other_new_state_id,
-                                BlockFlags::NOTIFY_ALL,
-                            )
-                            .await;
+                        world.set_block_state(
+                            &other_half_pos,
+                            other_new_state_id,
+                            BlockFlags::NOTIFY_ALL,
+                        );
                     }
                     crate::block::blocks::weathering_copper::with_properties_of(
                         block,
@@ -101,13 +99,9 @@ impl ItemBehaviour for AxeItem {
                         new_block,
                     )
                 };
-                world
-                    .set_block_state(&location, new_state_id, BlockFlags::NOTIFY_ALL)
-                    .await;
+                world.set_block_state(&location, new_state_id, BlockFlags::NOTIFY_ALL);
                 true
-            } else {
-                false
-            };
+            });
 
             if changed && player.gamemode.load() != GameMode::Creative {
                 // TODO: Handle DamageResult::Broken to broadcast item break and update player slot.

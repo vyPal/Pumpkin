@@ -8,8 +8,8 @@ use crate::block::blocks::redstone::block_receives_redstone_power;
 use crate::block::blocks::tnt::TNTBlock;
 use crate::block::registry::BlockActionResult;
 use crate::block::{
-    BlockBehaviour, BlockFuture, GetComparatorOutputArgs, NormalUseArgs, OnNeighborUpdateArgs,
-    OnPlaceArgs, OnScheduledTickArgs, PlacedArgs,
+    BlockBehaviour, GetComparatorOutputArgs, NormalUseArgs, OnNeighborUpdateArgs, OnPlaceArgs,
+    OnScheduledTickArgs, PlacedArgs,
 };
 use crate::entity::decoration::armor_stand::ArmorStandEntity;
 use crate::entity::item::ItemEntity;
@@ -98,16 +98,6 @@ struct DispenseContext<'a> {
     facing: Facing,
 }
 
-impl<'a> DispenseContext<'a> {
-    const fn new(args: &OnScheduledTickArgs<'a>, facing: Facing) -> Self {
-        Self {
-            world: args.world,
-            position: args.position,
-            facing,
-        }
-    }
-}
-
 fn triangle<R: Rng>(rng: &mut R, min: f64, max: f64) -> f64 {
     (rng.random::<f64>() - rng.random::<f64>()).mul_add(max, min)
 }
@@ -135,106 +125,98 @@ const fn to_data3d(facing: Facing) -> i32 {
 }
 
 impl BlockBehaviour for DispenserBlock {
-    fn normal_use<'a>(&'a self, args: NormalUseArgs<'a>) -> BlockFuture<'a, BlockActionResult> {
-        Box::pin(async move {
-            if let Some(block_entity) = args.world.get_block_entity(args.position)
-                && let Some(inventory) = block_entity.get_inventory()
-            {
-                args.player
-                    .open_handled_screen(&DispenserScreenFactory(inventory), Some(*args.position))
+    fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
+        if let Some(block_entity) = args.world.get_block_entity(args.position)
+            && let Some(inventory) = block_entity.get_inventory()
+        {
+            let player = Arc::clone(args.player);
+            let pos = *args.position;
+            tokio::spawn(async move {
+                player
+                    .open_handled_screen(&DispenserScreenFactory(inventory), Some(pos))
                     .await;
-            }
-            BlockActionResult::Success
-        })
+            });
+        }
+        BlockActionResult::Success
     }
 
-    fn on_place<'a>(&'a self, args: OnPlaceArgs<'a>) -> BlockFuture<'a, BlockStateId> {
-        Box::pin(async move {
-            let mut props = DispenserLikeProperties::default(args.block);
-            props.facing = args.player.get_entity().get_facing().opposite();
-            props.to_state_id(args.block)
-        })
+    fn on_place(&self, args: OnPlaceArgs<'_>) -> BlockStateId {
+        let mut props = DispenserLikeProperties::default(args.block);
+        props.facing = args.player.get_entity().get_facing().opposite();
+        props.to_state_id(args.block)
     }
 
-    fn placed<'a>(&'a self, args: PlacedArgs<'a>) -> BlockFuture<'a, ()> {
-        Box::pin(async move {
-            let dispenser_block_entity = DispenserBlockEntity::new(*args.position);
+    fn placed(&self, args: PlacedArgs<'_>) {
+        let dispenser_block_entity = DispenserBlockEntity::new(*args.position);
+        args.world
+            .add_block_entity(Arc::new(dispenser_block_entity));
+    }
+
+    fn on_neighbor_update(&self, args: OnNeighborUpdateArgs<'_>) {
+        let powered = block_receives_redstone_power(args.world, args.position)
+            || block_receives_redstone_power(args.world, &args.position.up());
+
+        let mut props = DispenserLikeProperties::from_state_id(
+            args.world.get_block_state(args.position).id,
+            args.block,
+        );
+
+        if powered && !props.triggered {
             args.world
-                .add_block_entity(Arc::new(dispenser_block_entity));
-        })
-    }
-
-    fn on_neighbor_update<'a>(&'a self, args: OnNeighborUpdateArgs<'a>) -> BlockFuture<'a, ()> {
-        Box::pin(async move {
-            let powered = block_receives_redstone_power(args.world, args.position).await
-                || block_receives_redstone_power(args.world, &args.position.up()).await;
-
-            let mut props = DispenserLikeProperties::from_state_id(
-                args.world.get_block_state(args.position).id,
-                args.block,
+                .schedule_block_tick(args.block, *args.position, 4, TickPriority::Normal);
+            props.triggered = true;
+            args.world.set_block_state(
+                args.position,
+                props.to_state_id(args.block),
+                BlockFlags::NOTIFY_LISTENERS,
             );
-
-            if powered && !props.triggered {
-                args.world
-                    .schedule_block_tick(args.block, *args.position, 4, TickPriority::Normal);
-                props.triggered = true;
-                args.world
-                    .set_block_state(
-                        args.position,
-                        props.to_state_id(args.block),
-                        BlockFlags::NOTIFY_LISTENERS,
-                    )
-                    .await;
-            } else if !powered && props.triggered {
-                props.triggered = false;
-                args.world
-                    .set_block_state(
-                        args.position,
-                        props.to_state_id(args.block),
-                        BlockFlags::NOTIFY_LISTENERS,
-                    )
-                    .await;
-            }
-        })
+        } else if !powered && props.triggered {
+            props.triggered = false;
+            args.world.set_block_state(
+                args.position,
+                props.to_state_id(args.block),
+                BlockFlags::NOTIFY_LISTENERS,
+            );
+        }
     }
 
-    fn on_scheduled_tick<'a>(&'a self, args: OnScheduledTickArgs<'a>) -> BlockFuture<'a, ()> {
-        Box::pin(async move {
-            if let Some(block_entity) = args.world.get_block_entity(args.position) {
+    fn on_scheduled_tick(&self, args: OnScheduledTickArgs<'_>) {
+        let world = args.world.clone();
+        let position = *args.position;
+        tokio::spawn(async move {
+            let (block, state) = world.get_block_and_state(&position);
+            if let Some(block_entity) = world.get_block_entity(&position) {
                 let Some(dispenser) = block_entity.as_any().downcast_ref::<DispenserBlockEntity>()
                 else {
                     return;
                 };
 
                 if let Some((slot_index, mut item)) = dispenser.get_random_slot().await {
-                    let props = DispenserLikeProperties::from_state_id(
-                        args.world.get_block_state(args.position).id,
-                        args.block,
-                    );
-                    let ctx = DispenseContext::new(&args, props.facing);
+                    let props = DispenserLikeProperties::from_state_id(state.id, block);
+                    let ctx = DispenseContext {
+                        world: &world,
+                        position: &position,
+                        facing: props.facing,
+                    };
                     Self::dispense(&ctx, dispenser, &mut item).await;
                     dispenser.set_stack(slot_index, item).await;
                 } else {
-                    args.world
-                        .sync_world_event(WorldEvent::SoundDispenserFail, *args.position, 0);
+                    world.sync_world_event(WorldEvent::SoundDispenserFail, position, 0);
                 }
             }
-        })
+        });
     }
 
-    fn get_comparator_output<'a>(
-        &'a self,
-        args: GetComparatorOutputArgs<'a>,
-    ) -> BlockFuture<'a, Option<u8>> {
-        Box::pin(async move {
-            if let Some(block_entity) = args.world.get_block_entity(args.position)
-                && let Some(inventory) = block_entity.get_inventory()
-            {
-                Some(crate::block::calculate_comparator_output(inventory.as_ref()).await)
-            } else {
-                None
-            }
-        })
+    fn get_comparator_output(&self, args: GetComparatorOutputArgs<'_>) -> Option<u8> {
+        if let Some(block_entity) = args.world.get_block_entity(args.position)
+            && let Some(inventory) = block_entity.get_inventory()
+        {
+            Some(crate::block::calculate_comparator_output(
+                inventory.as_ref(),
+            ))
+        } else {
+            None
+        }
     }
 }
 
@@ -279,34 +261,34 @@ impl DispenserBlock {
 
         if arrows.contains(&item.item.id) {
             // Arrows
-            Self::fire_arrow(ctx, item).await;
+            Self::fire_arrow(ctx, item);
         } else if boats.contains(&item.item.id) {
             // Boats
-            if !Self::dispense_boat(ctx, item).await {
-                Self::drop_item(ctx, item).await;
+            if !Self::dispense_boat(ctx, item) {
+                Self::drop_item(ctx, item);
             }
         } else if item.item.id == Item::ARMOR_STAND.id {
             // Armor stands
-            if !Self::dispense_armor_stand(ctx, item).await {
-                Self::drop_item(ctx, item).await;
+            if !Self::dispense_armor_stand(ctx, item) {
+                Self::drop_item(ctx, item);
             }
         } else if item.item.id == Item::TNT.id {
             // TNT
-            Self::dispense_tnt(ctx, item).await;
+            Self::dispense_tnt(ctx, item);
         } else if item.item.id == Item::SNOWBALL.id {
-            Self::dispense_snowball(ctx, item).await;
+            Self::dispense_snowball(ctx, item);
         } else if item.item.id == Item::EGG.id {
-            Self::dispense_egg(ctx, item).await;
+            Self::dispense_egg(ctx, item);
         } else if item.item.id == Item::SPLASH_POTION.id {
-            Self::dispense_splash_potion(ctx, item).await;
+            Self::dispense_splash_potion(ctx, item);
         } else if item.item.id == Item::LINGERING_POTION.id {
-            Self::dispense_lingering_potion(ctx, item).await;
+            Self::dispense_lingering_potion(ctx, item);
         } else if item.item.id == Item::FIRE_CHARGE.id {
-            Self::dispense_fire_charge(ctx, item).await;
+            Self::dispense_fire_charge(ctx, item);
         } else if item.item.id == Item::WIND_CHARGE.id {
-            Self::dispense_wind_charge(ctx, item).await;
+            Self::dispense_wind_charge(ctx, item);
         } else if item.item.id == Item::FIREWORK_ROCKET.id {
-            Self::dispense_firework_rocket(ctx, item).await;
+            Self::dispense_firework_rocket(ctx, item);
         } else if item.item.id == Item::BUCKET.id {
             // Empty buckets pick up the fluid in front of the dispenser
             Self::dispense_empty_bucket(ctx, dispenser, item).await;
@@ -321,10 +303,10 @@ impl DispenserBlock {
             Self::dispense_honeycomb(ctx, item).await;
         } else if entity_from_egg(item.item.id).is_some() {
             // Spawn eggs
-            Self::dispense_spawn_egg(ctx, item).await;
+            Self::dispense_spawn_egg(ctx, item);
         } else {
             // Default / Drop
-            Self::drop_item(ctx, item).await;
+            Self::drop_item(ctx, item);
         }
     }
 
@@ -344,12 +326,12 @@ impl DispenserBlock {
         thrown.set_velocity(facing.x, facing.y + 0.1, facing.z, power, uncertainty);
     }
 
-    async fn finish_projectile_launch(
+    fn finish_projectile_launch(
         ctx: &DispenseContext<'_>,
         projectile: Arc<dyn EntityBase>,
         launch_event: WorldEvent,
     ) {
-        ctx.world.spawn_entity(projectile).await;
+        ctx.world.spawn_entity(projectile);
         Self::play_dispense_effects(ctx, launch_event);
     }
 
@@ -362,7 +344,7 @@ impl DispenserBlock {
         );
     }
 
-    async fn fire_arrow(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
+    fn fire_arrow(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
         let projectile = item.split(1);
 
         let facing = to_normal(ctx.facing);
@@ -386,8 +368,7 @@ impl DispenserBlock {
             ctx,
             Arc::new(arrow),
             WorldEvent::SoundDispenserProjectileLaunch,
-        )
-        .await;
+        );
     }
 
     fn target_position(ctx: &DispenseContext<'_>) -> BlockPos {
@@ -409,7 +390,7 @@ impl DispenserBlock {
             && ctx.world.get_entities_at_box(&bounding_box).is_empty()
     }
 
-    async fn dispense_boat(ctx: &DispenseContext<'_>, item: &mut ItemStack) -> bool {
+    fn dispense_boat(ctx: &DispenseContext<'_>, item: &mut ItemStack) -> bool {
         let target = Self::target_position(ctx);
         let is_water = |id: u16| id == Fluid::WATER.id || id == Fluid::FLOWING_WATER.id;
 
@@ -437,16 +418,14 @@ impl DispenserBlock {
         let facing = to_normal(ctx.facing);
         let entity = Entity::new(ctx.world.clone(), spawn_pos, entity_type);
         entity.set_rotation(facing.x.atan2(facing.z) as f32 * 57.295_776, 0.0);
-        ctx.world
-            .spawn_entity(Arc::new(BoatEntity::new(entity)))
-            .await;
+        ctx.world.spawn_entity(Arc::new(BoatEntity::new(entity)));
 
         ctx.world
             .sync_world_event(WorldEvent::SoundDispenserDispense, *ctx.position, 0);
         true
     }
 
-    async fn dispense_armor_stand(ctx: &DispenseContext<'_>, item: &mut ItemStack) -> bool {
+    fn dispense_armor_stand(ctx: &DispenseContext<'_>, item: &mut ItemStack) -> bool {
         let target = Self::target_position(ctx);
         let spawn_pos = target.to_f64();
         let dimensions = EntityDimensions::new(
@@ -469,15 +448,14 @@ impl DispenserBlock {
             &spawn_pos,
         );
         ctx.world
-            .spawn_entity(Arc::new(ArmorStandEntity::new(entity)))
-            .await;
+            .spawn_entity(Arc::new(ArmorStandEntity::new(entity)));
 
         ctx.world
             .sync_world_event(WorldEvent::SoundDispenserDispense, *ctx.position, 0);
         true
     }
 
-    async fn dispense_tnt(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
+    fn dispense_tnt(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
         const TNT_POWER: f32 = 4.0;
         const TNT_FUSE: u32 = 80;
 
@@ -486,7 +464,7 @@ impl DispenserBlock {
 
         let entity = Entity::new(ctx.world.clone(), spawn_pos, &EntityType::TNT);
         let tnt = Arc::new(TNTEntity::new(entity, TNT_POWER, TNT_FUSE));
-        ctx.world.spawn_entity(tnt).await;
+        ctx.world.spawn_entity(tnt);
         ctx.world
             .play_sound(Sound::EntityTntPrimed, SoundCategory::Blocks, &spawn_pos);
 
@@ -494,7 +472,7 @@ impl DispenserBlock {
             .sync_world_event(WorldEvent::SoundDispenserDispense, *ctx.position, 0);
     }
 
-    async fn dispense_spawn_egg(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
+    fn dispense_spawn_egg(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
         let Some(entity_type) = entity_from_egg(item.item.id) else {
             return;
         };
@@ -507,13 +485,13 @@ impl DispenserBlock {
         mob.get_entity().set_rotation(yaw, 0.0);
         apply_entity_variant(item, mob.as_ref());
 
-        ctx.world.spawn_entity(mob).await;
+        ctx.world.spawn_entity(mob);
 
         ctx.world
             .sync_world_event(WorldEvent::SoundDispenserDispense, *ctx.position, 0);
     }
 
-    async fn dispense_snowball(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
+    fn dispense_snowball(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
         let _ = item.split(1);
         let entity = Entity::new(
             ctx.world.clone(),
@@ -531,11 +509,10 @@ impl DispenserBlock {
             ctx,
             Arc::new(snowball),
             WorldEvent::SoundDispenserProjectileLaunch,
-        )
-        .await;
+        );
     }
 
-    async fn dispense_egg(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
+    fn dispense_egg(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
         let projectile = item.split(1);
         let entity = Entity::new(
             ctx.world.clone(),
@@ -543,7 +520,7 @@ impl DispenserBlock {
             &EntityType::EGG,
         );
         let egg = EggEntity::new(entity);
-        egg.set_item_stack(projectile).await;
+        egg.set_item_stack(projectile);
         Self::launch_thrown(
             ctx,
             &egg.thrown,
@@ -554,11 +531,10 @@ impl DispenserBlock {
             ctx,
             Arc::new(egg),
             WorldEvent::SoundDispenserProjectileLaunch,
-        )
-        .await;
+        );
     }
 
-    async fn dispense_splash_potion(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
+    fn dispense_splash_potion(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
         let projectile = item.split(1);
         let entity = Entity::new(
             ctx.world.clone(),
@@ -566,7 +542,7 @@ impl DispenserBlock {
             &EntityType::SPLASH_POTION,
         );
         let potion = SplashPotionEntity::new(entity);
-        potion.set_item_stack(projectile).await;
+        potion.set_item_stack(projectile);
         Self::launch_thrown(
             ctx,
             &potion.thrown,
@@ -577,11 +553,10 @@ impl DispenserBlock {
             ctx,
             Arc::new(potion),
             WorldEvent::SoundDispenserProjectileLaunch,
-        )
-        .await;
+        );
     }
 
-    async fn dispense_lingering_potion(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
+    fn dispense_lingering_potion(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
         let projectile = item.split(1);
         let entity = Entity::new(
             ctx.world.clone(),
@@ -589,7 +564,7 @@ impl DispenserBlock {
             &EntityType::LINGERING_POTION,
         );
         let potion = LingeringPotionEntity::new(entity);
-        potion.set_item_stack(projectile).await;
+        potion.set_item_stack(projectile);
         Self::launch_thrown(
             ctx,
             &potion.thrown,
@@ -600,11 +575,10 @@ impl DispenserBlock {
             ctx,
             Arc::new(potion),
             WorldEvent::SoundDispenserProjectileLaunch,
-        )
-        .await;
+        );
     }
 
-    async fn dispense_fire_charge(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
+    fn dispense_fire_charge(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
         let _ = item.split(1);
         let entity = Entity::new(
             ctx.world.clone(),
@@ -622,11 +596,10 @@ impl DispenserBlock {
             Self::FIREBALL_PROJECTILE_POWER,
             Self::FIREBALL_PROJECTILE_UNCERTAINTY,
         );
-        Self::finish_projectile_launch(ctx, Arc::new(fireball), WorldEvent::SoundBlazeFireball)
-            .await;
+        Self::finish_projectile_launch(ctx, Arc::new(fireball), WorldEvent::SoundBlazeFireball);
     }
 
-    async fn dispense_wind_charge(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
+    fn dispense_wind_charge(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
         let _ = item.split(1);
         let entity = Entity::new(
             ctx.world.clone(),
@@ -650,11 +623,10 @@ impl DispenserBlock {
             ctx,
             Arc::new(WindChargeEntity::new_normal(thrown)),
             WorldEvent::SoundWindChargeShoot,
-        )
-        .await;
+        );
     }
 
-    async fn dispense_firework_rocket(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
+    fn dispense_firework_rocket(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
         let _ = item.split(1);
         let facing = to_normal(ctx.facing);
         // Vanilla spawns fireworks closer to the dispenser face and slightly above center.
@@ -688,7 +660,7 @@ impl DispenserBlock {
             velocity.y.atan2(velocity.horizontal_length()) as f32 * 57.295_776,
         );
 
-        Self::finish_projectile_launch(ctx, Arc::new(rocket), WorldEvent::SoundFireworkShoot).await;
+        Self::finish_projectile_launch(ctx, Arc::new(rocket), WorldEvent::SoundFireworkShoot);
     }
 
     async fn dispense_empty_bucket(
@@ -698,7 +670,7 @@ impl DispenserBlock {
     ) {
         let front = Self::target_position(ctx);
         let Some(filled) = try_pickup_fluid_at(ctx.world, front).await else {
-            Self::drop_item(ctx, item).await;
+            Self::drop_item(ctx, item);
             return;
         };
 
@@ -707,7 +679,7 @@ impl DispenserBlock {
         if item.is_empty() {
             *item = filled_stack;
         } else if let Some(rest) = Self::add_to_first_free_slot(dispenser, filled_stack).await {
-            Self::eject_item(ctx, rest).await;
+            Self::eject_item(ctx, rest);
         }
 
         Self::play_dispense_effects(ctx, WorldEvent::SoundDispenserDispense);
@@ -752,7 +724,7 @@ impl DispenserBlock {
             *item = ItemStack::new(1, &Item::BUCKET);
             Self::play_dispense_effects(ctx, WorldEvent::SoundDispenserDispense);
         } else {
-            Self::drop_item(ctx, item).await;
+            Self::drop_item(ctx, item);
         }
     }
 
@@ -761,14 +733,12 @@ impl DispenserBlock {
         let front_block = ctx.world.get_block(&front);
 
         let ignited = if front_block == &Block::TNT {
-            TNTBlock::prime(ctx.world, &front).await;
+            TNTBlock::prime(ctx.world, &front);
             true
         } else {
             Ignition::ignite_block(
                 |world: Arc<World>, pos: BlockPos, new_state_id: BlockStateId| async move {
-                    world
-                        .set_block_state(&pos, new_state_id, BlockFlags::NOTIFY_ALL)
-                        .await;
+                    world.set_block_state(&pos, new_state_id, BlockFlags::NOTIFY_ALL);
                 },
                 ctx.world,
                 front,
@@ -799,13 +769,13 @@ impl DispenserBlock {
         }
     }
 
-    async fn drop_item(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
+    fn drop_item(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
         let drop_item = item.split(1);
-        Self::eject_item(ctx, drop_item).await;
+        Self::eject_item(ctx, drop_item);
         Self::play_dispense_effects(ctx, WorldEvent::SoundDispenserDispense);
     }
 
-    async fn eject_item(ctx: &DispenseContext<'_>, stack: ItemStack) {
+    fn eject_item(ctx: &DispenseContext<'_>, stack: ItemStack) {
         let facing = to_normal(ctx.facing);
         let mut position = ctx.position.to_centered_f64().add(&(facing * 0.7));
 
@@ -824,6 +794,6 @@ impl DispenserBlock {
         );
 
         let item_entity = Arc::new(ItemEntity::new_with_velocity(entity, stack, velocity, 40));
-        ctx.world.spawn_entity(item_entity).await;
+        ctx.world.spawn_entity(item_entity);
     }
 }

@@ -78,7 +78,7 @@ impl JavaClient {
             drop(player_screen_handler);
         } else if is_negative && is_legal {
             // Item drop
-            player.drop_item(item_stack).await;
+            player.drop_item(item_stack);
         }
         Ok(())
     }

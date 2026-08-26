@@ -31,12 +31,12 @@ impl ItemBehaviour for MapItem {
             };
 
             let inventory = player.inventory();
-            let held_stack = inventory.held_item().await;
+            let held_stack = inventory.held_item();
             let (found, mut hand_stack, hand) =
                 if !held_stack.is_empty() && held_stack.item.id == Item::MAP.id {
                     (true, held_stack, pumpkin_util::Hand::Right)
                 } else {
-                    let off_hand = inventory.off_hand_item().await;
+                    let off_hand = inventory.off_hand_item();
                     if !off_hand.is_empty() && off_hand.item.id == Item::MAP.id {
                         (true, off_hand, pumpkin_util::Hand::Left)
                     } else {
@@ -62,10 +62,10 @@ impl ItemBehaviour for MapItem {
 
                 let gamemode = player.gamemode.load();
                 if hand_stack.item_count == 1 && gamemode != GameMode::Creative {
-                    inventory.set_stack_in_hand(hand, filled_map).await;
+                    inventory.set_stack_in_hand(hand, filled_map);
                 } else {
                     hand_stack.decrement_unless_creative(gamemode, 1);
-                    inventory.set_stack_in_hand(hand, hand_stack).await;
+                    inventory.set_stack_in_hand(hand, hand_stack);
                     inventory.offer_or_drop_stack(filled_map, player).await;
                 }
             }

@@ -24,7 +24,7 @@ impl JavaClient {
         };
         let stack = ItemStack::new(1, item);
 
-        let slot_with_stack = player.inventory().get_slot_with_stack(&stack).await;
+        let slot_with_stack = player.inventory().get_slot_with_stack(&stack);
 
         if slot_with_stack != -1 {
             if PlayerInventory::is_valid_hotbar_index(slot_with_stack as usize) {
@@ -32,11 +32,10 @@ impl JavaClient {
             } else {
                 player
                     .inventory
-                    .swap_slot_with_hotbar(slot_with_stack as usize)
-                    .await;
+                    .swap_slot_with_hotbar(slot_with_stack as usize);
             }
         } else if player.gamemode.load() == GameMode::Creative {
-            player.inventory.swap_stack_with_hotbar(stack).await;
+            player.inventory.swap_stack_with_hotbar(stack);
         }
 
         player
@@ -87,7 +86,7 @@ impl JavaClient {
         if let Some(item) = found_egg.and_then(Item::from_id) {
             let stack = ItemStack::new(1, item);
 
-            let slot_with_stack = player.inventory().get_slot_with_stack(&stack).await;
+            let slot_with_stack = player.inventory().get_slot_with_stack(&stack);
 
             if slot_with_stack != -1 {
                 if PlayerInventory::is_valid_hotbar_index(slot_with_stack as usize) {
@@ -95,11 +94,10 @@ impl JavaClient {
                 } else {
                     player
                         .inventory
-                        .swap_slot_with_hotbar(slot_with_stack as usize)
-                        .await;
+                        .swap_slot_with_hotbar(slot_with_stack as usize);
                 }
             } else if player.gamemode.load() == GameMode::Creative {
-                player.inventory.swap_stack_with_hotbar(stack).await;
+                player.inventory.swap_stack_with_hotbar(stack);
             }
 
             player

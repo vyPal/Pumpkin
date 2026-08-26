@@ -24,7 +24,9 @@ macro_rules! impl_block_entity_for_chest {
 
                 let mut chest = Self {
                     position,
-                    items: tokio::sync::RwLock::new(std::array::from_fn(|_| ItemStack::EMPTY.clone())),
+                    items: tokio::sync::RwLock::new(std::array::from_fn(|_| {
+                        ItemStack::EMPTY.clone()
+                    })),
                     dirty: std::sync::atomic::AtomicBool::new(false),
                     viewers: $crate::block::viewer::ViewerCountTracker::new(),
                     loot_table: StdMutex::new(loot_table_key),
@@ -53,7 +55,10 @@ macro_rules! impl_block_entity_for_chest {
                 Box::pin(async move {
                     // Clone the loot table key without holding the lock across an await.
                     let loot_table_key = {
-                        let guard = self.loot_table.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                        let guard = self
+                            .loot_table
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
                         guard.clone()
                     };
 
@@ -70,22 +75,18 @@ macro_rules! impl_block_entity_for_chest {
                 })
             }
 
-            fn tick<'a>(
-                &'a self,
-                world: &'a Arc<$crate::world::World>,
-            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>> {
-                Box::pin(async move {
-                    $crate::block::viewer::ViewerCountTrackerExt::update_viewer_count::<$struct_name>(
-                        &self.viewers,
-                        self,
-                        world,
-                        &self.position,
-                    )
-                    .await;
-                })
+            fn tick(&self, world: &Arc<$crate::world::World>) {
+                $crate::block::viewer::ViewerCountTrackerExt::update_viewer_count::<$struct_name>(
+                    &self.viewers,
+                    self,
+                    world,
+                    &self.position,
+                );
             }
 
-            fn get_inventory(self: Arc<Self>) -> Option<Arc<dyn pumpkin_world::inventory::Inventory>> {
+            fn get_inventory(
+                self: Arc<Self>,
+            ) -> Option<Arc<dyn pumpkin_world::inventory::Inventory>> {
                 Some(self)
             }
 
@@ -100,12 +101,13 @@ macro_rules! impl_block_entity_for_chest {
 
             fn chunk_data_nbt(&self) -> Option<pumpkin_nbt::compound::NbtCompound> {
                 let mut nbt = pumpkin_nbt::compound::NbtCompound::new();
-                let has_loot_table = self.loot_table.lock().unwrap_or_else(std::sync::PoisonError::into_inner).is_some();
+                let has_loot_table = self
+                    .loot_table
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .is_some();
                 if !has_loot_table {
                     if let Ok(items) = self.items.try_read() {
-                        pumpkin_world::inventory::sync_write_items_to_nbt(&*items, &mut nbt);
-                    } else {
-                        let items = futures::executor::block_on(self.items.read());
                         pumpkin_world::inventory::sync_write_items_to_nbt(&*items, &mut nbt);
                     }
                 }
@@ -117,12 +119,18 @@ macro_rules! impl_block_entity_for_chest {
             }
 
             fn take_loot_table(&self) -> Option<(String, i64)> {
-                let mut guard = self.loot_table.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                let mut guard = self
+                    .loot_table
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 guard.take().map(|key| (key, self.loot_table_seed))
             }
 
             fn has_loot_table(&self) -> bool {
-                self.loot_table.lock().unwrap_or_else(std::sync::PoisonError::into_inner).is_some()
+                self.loot_table
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .is_some()
             }
         }
     };
@@ -244,57 +252,43 @@ macro_rules! impl_clearable_for_chest {
 macro_rules! impl_viewer_count_listener_for_chest {
     ($struct_name:ty) => {
         impl $crate::block::viewer::ViewerCountListener for $struct_name {
-            fn on_container_open<'a>(
-                &'a self,
-                world: &'a Arc<$crate::world::World>,
-                _position: &'a pumpkin_util::math::position::BlockPos,
-            ) -> $crate::block::viewer::ViewerFuture<'a, ()> {
-                Box::pin(async move {
-                    self.play_sound(world, pumpkin_data::sound::Sound::BlockChestOpen)
-                        .await;
-                })
+            fn on_container_open(
+                &self,
+                world: &Arc<$crate::world::World>,
+                _position: &pumpkin_util::math::position::BlockPos,
+            ) {
+                self.play_sound(world, pumpkin_data::sound::Sound::BlockChestOpen);
             }
 
-            fn on_container_close<'a>(
-                &'a self,
-                world: &'a Arc<$crate::world::World>,
-                _position: &'a pumpkin_util::math::position::BlockPos,
-            ) -> $crate::block::viewer::ViewerFuture<'a, ()> {
-                Box::pin(async move {
-                    self.play_sound(world, pumpkin_data::sound::Sound::BlockChestClose)
-                        .await;
-                })
+            fn on_container_close(
+                &self,
+                world: &Arc<$crate::world::World>,
+                _position: &pumpkin_util::math::position::BlockPos,
+            ) {
+                self.play_sound(world, pumpkin_data::sound::Sound::BlockChestClose);
             }
 
-            fn on_viewer_count_update<'a>(
-                &'a self,
-                world: &'a Arc<$crate::world::World>,
-                position: &'a pumpkin_util::math::position::BlockPos,
+            fn on_viewer_count_update(
+                &self,
+                world: &Arc<$crate::world::World>,
+                position: &pumpkin_util::math::position::BlockPos,
                 old: u16,
                 new: u16,
-            ) -> $crate::block::viewer::ViewerFuture<'a, ()> {
-                Box::pin(async move {
-                    // Trigger block animation
-                    world
-                        .add_synced_block_event(
-                            *position,
-                            Self::LID_ANIMATION_EVENT_TYPE,
-                            new as u8,
-                        )
-                        .await;
+            ) {
+                // Trigger block animation
+                world.add_synced_block_event(*position, Self::LID_ANIMATION_EVENT_TYPE, new as u8);
 
-                    // Update neighbors for redstone signal when viewer count changes
-                    // This is controlled by the EMITS_REDSTONE constant on the struct
-                    if Self::EMITS_REDSTONE && old != new {
-                        // Update direct neighbors
-                        world.clone().update_neighbors(position, None).await;
+                // Update neighbors for redstone signal when viewer count changes
+                // This is controlled by the EMITS_REDSTONE constant on the struct
+                if Self::EMITS_REDSTONE && old != new {
+                    // Update direct neighbors
+                    world.update_neighbors(position, None);
 
-                        // Also update neighbors of the block below (strongly powered block)
-                        // This ensures redstone components adjacent to the block below are notified
-                        let below_pos = position.down();
-                        world.clone().update_neighbors(&below_pos, None).await;
-                    }
-                })
+                    // Also update neighbors of the block below (strongly powered block)
+                    // This ensures redstone components adjacent to the block below are notified
+                    let below_pos = position.down();
+                    world.update_neighbors(&below_pos, None);
+                }
             }
         }
     };
@@ -329,7 +323,7 @@ macro_rules! impl_chest_helper_methods {
                 }
             }
 
-            async fn play_sound(
+            fn play_sound(
                 &self,
                 world: &Arc<$crate::world::World>,
                 sound: pumpkin_data::sound::Sound,
