@@ -409,7 +409,7 @@ impl PlayerAdvancement {
     }
 
     /// Grants the rewards (like experience) associated with completing an advancement.
-    pub fn grant_reward(player: Arc<Player>, reward: &'static AdvancementReward) {
+    pub fn grant_reward(player: &Arc<Player>, reward: &'static AdvancementReward) {
         player.add_experience_points(reward.experience);
     }
 
@@ -438,7 +438,7 @@ impl PlayerAdvancement {
                         server.plugin_manager.fire(&server, &mut event).await;
                     }
                 });
-                Self::grant_reward(player.clone(), advancement.reward);
+                Self::grant_reward(&player, advancement.reward);
                 if let Some(display) = advancement.display
                     && display.announce_to_chat
                     && player

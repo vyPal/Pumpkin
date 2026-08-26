@@ -38,7 +38,7 @@ impl JavaClient {
             return;
         }
 
-        if player.check_chat_spam(server).await {
+        if player.check_chat_spam(server) {
             return;
         }
 

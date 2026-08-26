@@ -52,11 +52,9 @@ impl MinecartInventory {
             *guard = loot_table;
         }
 
-        if !has_loot_table {
-            if let Ok(mut items) = self.items.try_write() {
-                items.fill_with(|| ItemStack::EMPTY.clone());
-                self.read_data(nbt, &mut items);
-            }
+        if !has_loot_table && let Ok(mut items) = self.items.try_write() {
+            items.fill_with(|| ItemStack::EMPTY.clone());
+            self.read_data(nbt, &mut items);
         }
     }
 

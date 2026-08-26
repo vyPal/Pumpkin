@@ -18,7 +18,7 @@ impl JavaClient {
         let sneaking = interact.sneaking;
         let player_entity = &player.get_entity();
         if player_entity.is_sneaking() != sneaking {
-            player_entity.set_sneaking(sneaking).await;
+            player_entity.set_sneaking(sneaking);
         }
         let Ok(action) = ActionType::try_from(interact.r#type.0) else {
             self.kick(TextComponent::text("Invalid action type")).await;

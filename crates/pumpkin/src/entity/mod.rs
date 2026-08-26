@@ -345,11 +345,9 @@ pub trait EntityBase: Send + Sync + std::any::Any {
             let version = client.version.load();
             let is_mob = entity.entity_type.mob || self.get_mob().is_some();
             if version < JavaMinecraftVersion::V_1_19 && is_mob {
-                let metadata = if let Some(mob) = self.get_mob() {
-                    mob.mob_java_spawn_metadata(version)
-                } else {
-                    None
-                };
+                let metadata = self
+                    .get_mob()
+                    .and_then(|mob| mob.mob_java_spawn_metadata(version));
                 let spawn_packet = entity.create_spawn_living_packet(metadata.clone());
                 if let Ok(data) = client.serialize_packet(&spawn_packet) {
                     client.enqueue_packet(data).await;
@@ -2355,13 +2353,31 @@ impl Entity {
                 let yaw = self.yaw.load();
 
                 tokio::spawn(async move {
-                    let transition = portal_type.get_portal_destination(
-                        &world_clone,
-                        dest_world_opt,
-                        &caller_clone,
-                        entry_pos,
-                        src_portal,
-                    );
+                    let world_for_dest = world_clone.clone();
+                    let caller_for_dest = caller_clone.clone();
+                    let gen_pool = world_for_dest.level.gen_pool.clone();
+                    let transition = if let Some(pool) = gen_pool {
+                        let (tx, rx) = tokio::sync::oneshot::channel();
+                        pool.spawn(move || {
+                            let dest = portal_type.get_portal_destination(
+                                &world_for_dest,
+                                dest_world_opt,
+                                &caller_for_dest,
+                                entry_pos,
+                                src_portal.as_ref(),
+                            );
+                            let _ = tx.send(dest);
+                        });
+                        rx.await.ok().flatten()
+                    } else {
+                        portal_type.get_portal_destination(
+                            &world_for_dest,
+                            dest_world_opt,
+                            &caller_for_dest,
+                            entry_pos,
+                            src_portal.as_ref(),
+                        )
+                    };
 
                     if let Some(transition) = transition {
                         let dest_world = transition.new_world.clone();
@@ -2398,7 +2414,7 @@ impl Entity {
 
     /// Recursively teleports all passengers (and their passengers) to the destination
     fn teleport_passengers_recursive<'a>(
-        entity: &'a Entity,
+        entity: &'a Self,
         position: Vector3<f64>,
         yaw_delta: Option<f32>,
         dest_world: &'a Arc<World>,
@@ -2706,8 +2722,7 @@ impl Entity {
         ));
     }
 
-    #[expect(clippy::unused_async)]
-    pub async fn set_sneaking(&self, sneaking: bool) {
+    pub fn set_sneaking(&self, sneaking: bool) {
         //assert!(self.sneaking.load(Relaxed) != sneaking);
         self.sneaking.store(sneaking, Relaxed);
         self.set_flag(Flag::Sneaking, sneaking);
@@ -2863,8 +2878,7 @@ impl Entity {
         ]
     }
 
-    #[expect(clippy::unused_async)]
-    pub async fn set_sprinting(&self, sprinting: bool) {
+    pub fn set_sprinting(&self, sprinting: bool) {
         //assert!(self.sprinting.load(Relaxed) != sprinting);
         self.sprinting.store(sprinting, Relaxed);
         self.set_flag(Flag::Sprinting, sprinting);
@@ -2877,8 +2891,7 @@ impl Entity {
         !self.on_ground.load(Relaxed)
     }
 
-    #[expect(clippy::unused_async)]
-    pub async fn set_fall_flying(&self, fall_flying: bool) {
+    pub fn set_fall_flying(&self, fall_flying: bool) {
         assert_ne!(self.fall_flying.load(Relaxed), fall_flying);
         self.fall_flying.store(fall_flying, Relaxed);
         self.set_flag(Flag::FallFlying, fall_flying);
@@ -3510,20 +3523,18 @@ impl Entity {
                 .passengers
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            let removed_passenger = if let Some(idx) = passengers
+            let removed_passenger = passengers
                 .iter()
                 .position(|p| p.get_entity().entity_id == passenger_id)
-            {
-                let passenger = passengers.remove(idx);
-                *passenger
-                    .get_entity()
-                    .vehicle
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
-                Some(passenger)
-            } else {
-                None
-            };
+                .map(|idx| {
+                    let passenger = passengers.remove(idx);
+                    *passenger
+                        .get_entity()
+                        .vehicle
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+                    passenger
+                });
 
             let passenger_ids: Vec<VarInt> = passengers
                 .iter()
@@ -3788,7 +3799,7 @@ impl Entity {
 
                 // Vanilla: setSneaking(false) after dismount via sneak input
                 if passenger_entity.sneaking.load(Relaxed) {
-                    passenger_entity.set_sneaking(false).await;
+                    passenger_entity.set_sneaking(false);
                 }
             } else {
                 passenger_entity.set_pos(dismount_pos);

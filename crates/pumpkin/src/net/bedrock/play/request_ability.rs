@@ -2,10 +2,10 @@
 use super::*;
 
 impl BedrockClient {
-    pub async fn handle_request_ability(
+    pub fn handle_request_ability(
         &self,
         player: &Arc<Player>,
-        packet: pumpkin_protocol::bedrock::server::request_ability::SRequestAbility,
+        packet: &pumpkin_protocol::bedrock::server::request_ability::SRequestAbility,
     ) {
         player.update_last_action_time();
         let ability_id = packet.ability.0;
@@ -27,7 +27,7 @@ impl BedrockClient {
                             abilities.flying = false;
                         }
                     }
-                    player.send_abilities_update().await;
+                    player.send_abilities_update();
                 }
             }
             _ => {

@@ -62,11 +62,8 @@ pub struct EntitySelector {
 impl EntitySelector {
     /// Returns an [`Err`] if a [`CommandSource`] does not have permission to use
     /// this entity selector.
-    pub async fn check_permissions(
-        &self,
-        source: &CommandSource,
-    ) -> Result<(), CommandSyntaxError> {
-        if self.uses_selector_variable && !source.has_permission(ENTITY_SELECTOR_PERMISSION).await {
+    pub fn check_permissions(&self, source: &CommandSource) -> Result<(), CommandSyntaxError> {
+        if self.uses_selector_variable && !source.has_permission(ENTITY_SELECTOR_PERMISSION) {
             Err(SELECTORS_NOT_ALLOWED_ERROR_TYPE.create_without_context())
         } else {
             Ok(())
@@ -82,11 +79,11 @@ impl EntitySelector {
     }
 
     /// Tries to find a single entity represented by this selector.
-    pub async fn find_single_entity(
+    pub fn find_single_entity(
         &self,
         source: &CommandSource,
     ) -> Result<Arc<dyn EntityBase>, CommandSyntaxError> {
-        let list = self.find_entities(source).await?;
+        let list = self.find_entities(source)?;
         match list.as_slice() {
             [] => Err(entity::NO_ENTITIES_ERROR_TYPE.create_without_context()),
             [entity] => Ok(entity.clone()),
@@ -95,14 +92,13 @@ impl EntitySelector {
     }
 
     /// Tries to find any entities represented by this selector. If none are found, an empty `Vec` will still be returned.
-    pub async fn find_entities(
+    pub fn find_entities(
         &self,
         source: &CommandSource,
     ) -> Result<Vec<Arc<dyn EntityBase>>, CommandSyntaxError> {
-        self.check_permissions(source).await?;
+        self.check_permissions(source)?;
         if !self.includes_entities {
             self.find_players(source)
-                .await
                 .map(|v| v.into_iter().map(|p| p as Arc<dyn EntityBase>).collect())
         } else if let Some(name) = self.player_name.as_ref() {
             // Try to get the player by name.
@@ -160,11 +156,11 @@ impl EntitySelector {
     }
 
     /// Tries to find a single player represented by this selector.
-    pub async fn find_single_player(
+    pub fn find_single_player(
         &self,
         source: &CommandSource,
     ) -> Result<Arc<Player>, CommandSyntaxError> {
-        let mut list = self.find_players(source).await?;
+        let mut list = self.find_players(source)?;
         if list.len() == 1 {
             list.pop()
                 .ok_or_else(|| entity::NO_PLAYERS_ERROR_TYPE.create_without_context())
@@ -174,11 +170,11 @@ impl EntitySelector {
     }
 
     /// Tries to find any players represented by this selector.
-    pub async fn find_players(
+    pub fn find_players(
         &self,
         source: &CommandSource,
     ) -> Result<Vec<Arc<Player>>, CommandSyntaxError> {
-        self.check_permissions(source).await?;
+        self.check_permissions(source)?;
         if let Some(name) = self.player_name.as_ref() {
             // Try to get the player by name.
             let player = source
@@ -529,7 +525,10 @@ impl EntitySelectorPredicate {
             Self::Team(expected_team, invert) => {
                 let actual_name = entity_actual_name(entity);
                 let world = entity.get_entity().world.load();
-                let scoreboard = world.scoreboard.blocking_lock();
+                let scoreboard = world
+                    .scoreboard
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 let has_team = scoreboard.get_teams().iter().any(|(name, team)| {
                     name == expected_team && team.players.contains(&actual_name)
                 });
@@ -538,7 +537,10 @@ impl EntitySelectorPredicate {
             Self::Scores(scores_map) => {
                 let actual_name = entity_actual_name(entity);
                 let world = entity.get_entity().world.load();
-                let scoreboard = world.scoreboard.blocking_lock();
+                let scoreboard = world
+                    .scoreboard
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 let entity_scores = scoreboard.get_scores().get(&actual_name);
                 for (objective, bounds) in scores_map {
                     let score_val = entity_scores

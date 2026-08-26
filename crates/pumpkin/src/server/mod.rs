@@ -115,11 +115,11 @@ pub struct Server {
     /// Pulled from Mojang API on startup
     pub mojang_public_keys: ArcSwap<Vec<RsaPublicKey>>,
     /// The server's custom bossbars
-    pub bossbars: Mutex<CustomBossbars>,
+    pub bossbars: std::sync::Mutex<CustomBossbars>,
     /// Manages all maps on the server
     pub map_manager: MapManager,
     /// The default gamemode when a player joins the server (reset every restart)
-    pub defaultgamemode: Mutex<DefaultGamemode>,
+    pub defaultgamemode: std::sync::Mutex<DefaultGamemode>,
     /// Manages player data storage
     pub player_data_storage: ServerPlayerData,
     // Manages player advancement
@@ -230,7 +230,7 @@ impl Server {
             &advanced_config.networking.java.motd,
             advanced_config.networking.java.max_players,
         ));
-        let defaultgamemode = Mutex::new(DefaultGamemode {
+        let defaultgamemode = std::sync::Mutex::new(DefaultGamemode {
             gamemode: basic_config.default_gamemode,
         });
         let players_dir = world_path.join("players");
@@ -293,7 +293,7 @@ impl Server {
             bedrock_private_key: OnceCell::new(),
             listing,
             branding: CachedBranding::new(),
-            bossbars: Mutex::new(CustomBossbars::new()),
+            bossbars: std::sync::Mutex::new(CustomBossbars::new()),
             map_manager: MapManager::new(),
             defaultgamemode,
             player_data_storage,
@@ -453,19 +453,12 @@ impl Server {
         let enabled_packs = server.level_info.load().data_packs.enabled.clone();
         server
             .datapack_manager
-            .load_all(&world_path, &enabled_packs, &server.recipe_manager)
-            .await;
+            .load_all(&world_path, &enabled_packs, &server.recipe_manager);
 
-        let server_for_load = server.clone();
-        tokio::spawn(async move {
-            let source = crate::command::CommandSender::Console
-                .into_source(&server_for_load)
-                .await;
-            let _ = server_for_load
-                .datapack_manager
-                .execute_function(&server_for_load, &source, "#minecraft:load")
-                .await;
-        });
+        let source = crate::command::CommandSender::Console.into_source(&server);
+        let _ = server
+            .datapack_manager
+            .execute_function(&server, &source, "#minecraft:load");
 
         server
     }
@@ -583,22 +576,18 @@ impl Server {
             .write_world_info(&level_data, &self.basic_config.get_world_path())
     }
 
-    pub async fn reload_datapacks(&self, server: &Arc<Self>) {
+    pub fn reload_datapacks(&self, server: &Arc<Self>) {
         let enabled_packs = self.level_info.load().data_packs.enabled.clone();
         let world_path = self.basic_config.get_world_path();
         self.datapack_manager
-            .load_all(&world_path, &enabled_packs, &self.recipe_manager)
-            .await;
+            .load_all(&world_path, &enabled_packs, &self.recipe_manager);
 
-        let source = crate::command::CommandSender::Console
-            .into_source(server)
-            .await;
+        let source = crate::command::CommandSender::Console.into_source(server);
         let _ = self
             .datapack_manager
-            .execute_function(server, &source, "#minecraft:load")
-            .await;
+            .execute_function(server, &source, "#minecraft:load");
 
-        let dynamic_recipes = self.recipe_manager.get_dynamic_recipes_internal().await;
+        let dynamic_recipes = self.recipe_manager.get_dynamic_recipes_internal();
         for player in self.get_all_players() {
             if let crate::net::ClientPlatform::Java(java_client) = player.client.as_ref() {
                 let add_packet = pumpkin_protocol::java::client::play::CRecipeBookAdd::new(
@@ -606,7 +595,7 @@ impl Server {
                     &dynamic_recipes,
                 );
                 if let Ok(data) = java_client.serialize_packet(&add_packet) {
-                    java_client.send_packet_now(data).await;
+                    java_client.try_enqueue_packet(data);
                 }
             }
         }
@@ -670,7 +659,11 @@ impl Server {
         profile: GameProfile,
         config: Option<PlayerConfig>,
     ) -> Option<(Arc<Player>, Arc<World>)> {
-        let gamemode = self.defaultgamemode.lock().await.gamemode;
+        let gamemode = self
+            .defaultgamemode
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .gamemode;
 
         let first_world = self.worlds.load().first().cloned()?;
 
@@ -727,8 +720,14 @@ impl Server {
                 if world
                     .add_player(&player)
                     .is_ok() {
-                    let mut user_cache = self.data.user_cache.write().await;
-                    user_cache.upsert(player.gameprofile.id, player.gameprofile.name.clone());
+                    {
+                        let mut user_cache = self
+                            .data
+                            .user_cache
+                            .write()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
+                        user_cache.upsert(player.gameprofile.id, player.gameprofile.name.clone());
+                    };
 
                     // TODO: Config if we want increase online
                     if let Some(config) = config {
@@ -745,7 +744,7 @@ impl Server {
             }
 
             'cancelled: {
-                player.kick(DisconnectReason::Kicked, event.kick_message).await;
+                player.kick(DisconnectReason::Kicked, &event.kick_message);
                 None
             }
         }}
@@ -811,23 +810,20 @@ impl Server {
         }
     }
 
-    pub async fn broadcast_message(
+    pub fn broadcast_message(
         self: &Arc<Self>,
         message: &TextComponent,
         sender_name: &TextComponent,
         chat_type: u8,
         target_name: Option<&TextComponent>,
     ) {
-        send_cancellable! {{
-            self;
-            ServerBroadcastEvent::new(message.clone(), sender_name.clone());
-
-            'after: {
-                for world in self.worlds.load().iter() {
-                    world.broadcast_message(&event.message, &event.sender, chat_type, target_name);
-                }
+        let mut event = ServerBroadcastEvent::new(message.clone(), sender_name.clone());
+        self.plugin_manager.fire_blocking(self, &mut event);
+        if !event.cancelled {
+            for world in self.worlds.load().iter() {
+                world.broadcast_message(&event.message, &event.sender, chat_type, target_name);
             }
-        }}
+        }
     }
 
     /// Gets the current difficulty of the server.
@@ -1094,10 +1090,7 @@ impl Server {
 
     /// Ticks the game logic for all worlds. This is the part that is affected by `/tick freeze`.
     pub fn tick_worlds(self: &Arc<Self>) {
-        let server_clone1 = self.clone();
-        self.runtime.spawn(async move {
-            server_clone1.task_scheduler.tick(&server_clone1).await;
-        });
+        self.task_scheduler.tick(self);
 
         let worlds = self.worlds.load();
         let handle = self.runtime.clone();
@@ -1108,12 +1101,7 @@ impl Server {
         });
 
         // Global tasks
-        let server_clone2 = self.clone();
-        self.runtime.spawn(async move {
-            if let Err(e) = server_clone2.player_data_storage.tick(&server_clone2).await {
-                error!("Error ticking player data: {e}");
-            }
-        });
+        self.player_data_storage.tick(self);
     }
 
     /// Updates the tick time statistics with the duration of the last tick.

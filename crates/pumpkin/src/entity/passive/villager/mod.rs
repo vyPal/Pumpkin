@@ -498,7 +498,7 @@ impl VillagerEntity {
         }
     }
 
-    pub async fn set_villager_data(&self, data: VillagerData) {
+    pub fn set_villager_data(&self, data: VillagerData) {
         let old_profession = {
             let mut villager_data = self
                 .villager_data
@@ -739,7 +739,7 @@ impl VillagerEntity {
         self.add_trades(profession, level);
     }
 
-    async fn update_special_prices(&self, player: &Player) {
+    fn update_special_prices(&self, player: &Player) {
         let player_uuid = player.get_entity().entity_uuid;
         let reputation = self
             .gossips
@@ -772,7 +772,7 @@ impl VillagerEntity {
         }
     }
 
-    async fn reset_special_prices(&self) {
+    fn reset_special_prices(&self) {
         for offer in self
             .offers
             .lock()
@@ -840,7 +840,7 @@ impl VillagerEntity {
         );
 
         if reward_exp {
-            ExperienceOrbEntity::spawn(&world, self.get_entity().pos.load(), xp_gain as u32);
+            ExperienceOrbEntity::spawn(world, self.get_entity().pos.load(), xp_gain as u32);
         }
 
         if let Some(player) = world.get_player_by_uuid(player_uuid) {
@@ -855,7 +855,7 @@ impl VillagerEntity {
                     .entry(GossipType::Trading)
                     .or_default();
                 *value = (*value + 2).min(GossipType::Trading.max_value());
-            }
+            };
             self.resend_offers_to_player(&player).await;
         }
     }
@@ -935,7 +935,7 @@ impl VillagerEntity {
             .await;
     }
 
-    async fn decay_gossips(&self, game_time: i64) {
+    fn decay_gossips(&self, game_time: i64) {
         let last_decay = self.last_gossip_decay_time.load(Ordering::Relaxed);
         if last_decay == 0 {
             self.last_gossip_decay_time
@@ -961,7 +961,26 @@ impl VillagerEntity {
             .store(game_time, Ordering::Relaxed);
     }
 
-    async fn work_at_job_site(&self, game_time: i64, day_time: i64, day: i64) {
+    fn notify_trading_player_offers_updated(&self) {
+        if self
+            .trading_player
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_some()
+            && let Some(villager) = self
+                .self_weak
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .as_ref()
+                .and_then(Weak::upgrade)
+        {
+            tokio::spawn(async move {
+                villager.resend_offers_to_trading_player().await;
+            });
+        }
+    }
+
+    fn work_at_job_site(&self, game_time: i64, day_time: i64, day: i64) {
         use rand::RngExt;
 
         if !(2_000..9_000).contains(&day_time)
@@ -1014,7 +1033,7 @@ impl VillagerEntity {
             }
             self.last_restock_time.store(game_time, Ordering::Relaxed);
             self.restocks_today.store(0, Ordering::Relaxed);
-            self.resend_offers_to_trading_player().await;
+            self.notify_trading_player_offers_updated();
         }
 
         let restocks_today = self.restocks_today.load(Ordering::Relaxed);
@@ -1043,11 +1062,11 @@ impl VillagerEntity {
         }
         self.last_restock_time.store(game_time, Ordering::Relaxed);
         self.restocks_today.fetch_add(1, Ordering::Relaxed);
-        self.resend_offers_to_trading_player().await;
+        self.notify_trading_player_offers_updated();
     }
 
     #[expect(clippy::too_many_lines)]
-    async fn update_job_site(&self, world: &crate::world::World) {
+    fn update_job_site(&self, world: &crate::world::World) {
         let data = *self
             .villager_data
             .lock()
@@ -1105,8 +1124,7 @@ impl VillagerEntity {
                         .lock()
                         .unwrap_or_else(std::sync::PoisonError::into_inner)
                         .type_enum();
-                    self.set_villager_data(VillagerData::new(r#type, VillagerProfession::None, 1))
-                        .await;
+                    self.set_villager_data(VillagerData::new(r#type, VillagerProfession::None, 1));
                 }
             }
         }
@@ -1233,8 +1251,7 @@ impl VillagerEntity {
                         .lock()
                         .unwrap_or_else(std::sync::PoisonError::into_inner)
                         .type_enum();
-                    self.set_villager_data(VillagerData::new(r#type, claimed_profession, 1))
-                        .await;
+                    self.set_villager_data(VillagerData::new(r#type, claimed_profession, 1));
                 }
             }
         }
@@ -1434,7 +1451,7 @@ impl ScreenHandlerFactory for VillagerEntity {
             let player_uuid =
                 server_player.map_or_else(uuid::Uuid::nil, |p| p.get_entity().entity_uuid);
             if let Some(player) = server_player {
-                self.update_special_prices(player).await;
+                self.update_special_prices(player);
             }
             let offers = self
                 .offers
@@ -1489,7 +1506,7 @@ impl ScreenHandlerFactory for VillagerEntity {
                             .trading_player
                             .lock()
                             .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
-                        villager.reset_special_prices().await;
+                        villager.reset_special_prices();
                     }
                 })
             }));
@@ -1521,7 +1538,7 @@ impl ScreenHandlerFactory for VillagerEntity {
 
 impl VillagerEntity {
     #[expect(clippy::too_many_lines)]
-    pub async fn async_mob_tick(&self) {
+    pub fn villager_mob_tick(&self) {
         let world = self.get_entity().world.load();
 
         let unhappy_counter = self.unhappy_counter.load(Ordering::Relaxed);
@@ -1580,7 +1597,7 @@ impl VillagerEntity {
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
                 data.level.0 += 1;
-                self.set_villager_data(data).await;
+                self.set_villager_data(data);
                 self.add_trades(data.profession_enum(), data.level.0);
             }
             self.mob_entity.living_entity.add_effect(Effect {
@@ -1601,14 +1618,14 @@ impl VillagerEntity {
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             (time.world_age, time.query_daytime(), time.query_day())
         };
-        self.decay_gossips(game_time).await;
-        self.work_at_job_site(game_time, day_time, day).await;
+        self.decay_gossips(game_time);
+        self.work_at_job_site(game_time, day_time, day);
 
         let age = self.get_entity().age.load(Ordering::Relaxed);
         if age % 20 != 0 {
             return;
         }
-        self.update_job_site(&world).await;
+        self.update_job_site(&world);
 
         // 1. Bed / Sleeping logic (for all villagers: babies, nitwits, adults)
         let is_sleeping = self.get_entity().pose.load() == EntityPose::Sleeping;
@@ -2267,13 +2284,8 @@ impl Mob for VillagerEntity {
         }
     }
 
-    fn mob_tick<'a>(&'a self, caller: &'a Arc<dyn EntityBase>) {
-        let caller_clone = caller.clone();
-        tokio::spawn(async move {
-            if let Some(villager) = caller_clone.cast_any().downcast_ref::<Self>() {
-                villager.async_mob_tick().await;
-            }
-        });
+    fn mob_tick<'a>(&'a self, _caller: &'a Arc<dyn EntityBase>) {
+        self.villager_mob_tick();
     }
 
     fn mob_interact(&self, player: &Arc<Player>, _item_stack: &mut ItemStack) -> bool {
@@ -2322,13 +2334,13 @@ impl Mob for VillagerEntity {
             1,
         );
 
-        if let Some(villager) = self
+        let villager = self
             .self_weak
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .as_ref()
-            .and_then(Weak::upgrade)
-        {
+            .and_then(Weak::upgrade);
+        if let Some(villager) = villager {
             let player = player.clone();
             tokio::spawn(async move {
                 villager.open_trading_screen(&player).await;

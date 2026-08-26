@@ -29,7 +29,7 @@ impl JavaClient {
                     player.abilities.lock().unwrap_or_else(std::sync::PoisonError::into_inner).flying = event.is_flying;
                 }
                 'cancelled: {
-                    player.send_abilities_update().await;
+                    player.send_abilities_update();
                 }
             }}
         }

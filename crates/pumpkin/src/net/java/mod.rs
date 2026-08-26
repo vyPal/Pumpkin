@@ -475,6 +475,35 @@ impl JavaClient {
         }
     }
 
+    pub fn try_kick(&self, reason: &TextComponent) {
+        match self.connection_state.load() {
+            ConnectionState::Login => {
+                let packet = CLoginDisconnect::new(
+                    serde_json::to_string(&reason.0).unwrap_or_else(|_| String::new()),
+                );
+                if let Ok(data) = self.serialize_packet(&packet) {
+                    self.try_enqueue_packet(data);
+                }
+            }
+            ConnectionState::Config => {
+                let reason_text = reason.clone().get_text();
+                let packet = CConfigDisconnect::new(&reason_text);
+                if let Ok(data) = self.serialize_packet(&packet) {
+                    self.try_enqueue_packet(data);
+                }
+            }
+            ConnectionState::Play => {
+                let packet = CPlayDisconnect::new(reason);
+                if let Ok(data) = self.serialize_packet(&packet) {
+                    self.try_enqueue_packet(data);
+                }
+            }
+            _ => {}
+        }
+        debug!("Closing connection for {}", self.id);
+        self.close();
+    }
+
     pub async fn kick(&self, reason: TextComponent) {
         self.kick_explicit(&reason, true).await;
     }
@@ -715,9 +744,8 @@ impl JavaClient {
             id if id == SChangeGameMode::to_id(version) => {
                 self.handle_change_game_mode(
                     player,
-                    SChangeGameMode::read(&mut payload, &version)?,
-                )
-                .await;
+                    &SChangeGameMode::read(&mut payload, &version)?,
+                );
             }
             id if id == SChatAck::to_id(version) => {
                 let packet = SChatAck::read(&mut payload, &version)?;
@@ -775,8 +803,7 @@ impl JavaClient {
                     .await;
             }
             id if id == SPaddleBoat::to_id(version) => {
-                self.handle_paddle_boat(player, SPaddleBoat::read(&mut payload, &version)?)
-                    .await;
+                self.handle_paddle_boat(player, &SPaddleBoat::read(&mut payload, &version)?);
             }
             id if id == SInteract::to_id(version) => {
                 self.handle_interact(player, SInteract::read(&mut payload, &version)?, server)

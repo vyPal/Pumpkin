@@ -79,12 +79,10 @@ impl JavaClient {
             };
             player.world().add_block_entity(Arc::new(command_block));
 
-            player
-                .send_system_message(&TextComponent::text(format!(
-                    "Command set: {}",
-                    command.command
-                )))
-                .await;
+            player.send_system_message(&TextComponent::text(format!(
+                "Command set: {}",
+                command.command
+            )));
 
             // The automatic flag means always active
             if command.is_automatic() && block_type != Block::CHAIN_COMMAND_BLOCK {

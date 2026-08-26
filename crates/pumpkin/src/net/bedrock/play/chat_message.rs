@@ -9,7 +9,7 @@ impl BedrockClient {
         packet: SText<'_>,
     ) {
         player.update_last_action_time();
-        if player.check_chat_spam(server).await {
+        if player.check_chat_spam(server) {
             return;
         }
         let gameprofile = &player.gameprofile;

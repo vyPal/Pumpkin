@@ -269,6 +269,16 @@ impl BedrockClient {
             .set_compression((compression.threshold as usize, compression.level));
     }
 
+    pub fn try_kick(&self, reason: DisconnectReason, message: String) {
+        let packet = CDisconnect::new(reason as i32, message);
+        if let Ok(data) = self.serialize_packet(&packet) {
+            self.try_enqueue_packet(data);
+        }
+        if !self.close_token.is_cancelled() {
+            self.close_token.cancel();
+        }
+    }
+
     pub async fn kick(&self, reason: DisconnectReason, message: String) {
         self.send_packet(&CDisconnect::new(reason as i32, message))
             .await;
@@ -751,8 +761,7 @@ impl BedrockClient {
                     .await;
             }
             SRequestAbility::PACKET_ID => {
-                self.handle_request_ability(player, SRequestAbility::read(reader)?)
-                    .await;
+                self.handle_request_ability(player, &SRequestAbility::read(reader)?);
             }
             SMobEquipment::PACKET_ID => {
                 self.handle_mob_equipment(server, player, SMobEquipment::read(reader)?)

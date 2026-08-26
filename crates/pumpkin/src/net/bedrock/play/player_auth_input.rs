@@ -152,15 +152,15 @@ impl BedrockClient {
         let input_data = packet.input_data;
 
         if input_data.get(InputData::StartSprinting as usize) {
-            entity.set_sprinting(true).await;
+            entity.set_sprinting(true);
         } else if input_data.get(InputData::StopSprinting as usize) {
-            entity.set_sprinting(false).await;
+            entity.set_sprinting(false);
         }
 
         if input_data.get(InputData::StartSneaking as usize) {
-            entity.set_sneaking(true).await;
+            entity.set_sneaking(true);
         } else if input_data.get(InputData::StopSneaking as usize) {
-            entity.set_sneaking(false).await;
+            entity.set_sneaking(false);
         }
 
         if input_data.get(InputData::StartCrawling as usize) {
@@ -186,10 +186,10 @@ impl BedrockClient {
                         {
                             player.abilities.lock().unwrap_or_else(std::sync::PoisonError::into_inner).flying = true;
                         };
-                        player.send_abilities_update().await;
+                        player.send_abilities_update();
                     }
                     'cancelled: {
-                        player.send_abilities_update().await;
+                        player.send_abilities_update();
                     }
                 }}
             }
@@ -209,10 +209,10 @@ impl BedrockClient {
                         {
                             player.abilities.lock().unwrap_or_else(std::sync::PoisonError::into_inner).flying = false;
                         };
-                        player.send_abilities_update().await;
+                        player.send_abilities_update();
                     }
                     'cancelled: {
-                        player.send_abilities_update().await;
+                        player.send_abilities_update();
                     }
                 }}
             }

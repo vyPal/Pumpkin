@@ -458,7 +458,7 @@ impl WanderingTraderEntity {
                 < range * range
     }
 
-    async fn complete_trade(&self, offer_index: usize, world: &Arc<World>, player_uuid: Uuid) {
+    fn complete_trade(&self, offer_index: usize, world: &Arc<World>, player_uuid: Uuid) {
         let (reward_exp, reward_amount) = {
             let mut offers = self
                 .offers
@@ -570,9 +570,7 @@ impl ScreenHandlerFactory for WanderingTraderEntity {
                 let world = world.clone();
                 Box::pin(async move {
                     if let Some(trader) = trade_weak.upgrade() {
-                        trader
-                            .complete_trade(offer_index, &world, player_uuid)
-                            .await;
+                        trader.complete_trade(offer_index, &world, player_uuid);
                     }
                 })
             }));
@@ -785,13 +783,13 @@ impl Mob for WanderingTraderEntity {
             return true;
         }
 
-        if let Some(trader) = self
+        let trader = self
             .self_weak
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .as_ref()
-            .and_then(Weak::upgrade)
-        {
+            .and_then(Weak::upgrade);
+        if let Some(trader) = trader {
             let player = player.clone();
             tokio::spawn(async move {
                 trader.open_trading_screen(&player).await;

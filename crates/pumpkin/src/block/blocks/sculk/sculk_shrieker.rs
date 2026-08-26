@@ -61,7 +61,7 @@ impl SculkShriekerBlock {
                 show_icon: true,
                 blend: true,
             };
-            player.send_effect(darkness.clone()).await;
+            player.send_effect(&darkness);
             player.living_entity.add_effect(darkness);
         }
 

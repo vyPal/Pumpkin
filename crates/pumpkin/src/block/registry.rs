@@ -566,19 +566,17 @@ impl BlockRegistry {
         }
 
         if location.0.y + face.to_offset().y > world.get_top_y() {
-            player
-                .send_system_message_raw(
-                    &pumpkin_util::text::TextComponent::translate_cross(
-                        pumpkin_data::translation::java::BUILD_TOOHIGH,
-                        pumpkin_data::translation::bedrock::BUILD_TOOHIGH,
-                        vec![pumpkin_util::text::TextComponent::text(
-                            (world.get_top_y()).to_string(),
-                        )],
-                    )
-                    .color_named(pumpkin_util::text::color::NamedColor::Red),
-                    true,
+            player.send_system_message_raw(
+                &pumpkin_util::text::TextComponent::translate_cross(
+                    pumpkin_data::translation::java::BUILD_TOOHIGH,
+                    pumpkin_data::translation::bedrock::BUILD_TOOHIGH,
+                    vec![pumpkin_util::text::TextComponent::text(
+                        (world.get_top_y()).to_string(),
+                    )],
                 )
-                .await;
+                .color_named(pumpkin_util::text::color::NamedColor::Red),
+                true,
+            );
             return Err(BlockPlacingError::BlockOutOfWorld);
         }
 

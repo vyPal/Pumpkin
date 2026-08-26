@@ -5,7 +5,7 @@ use crate::entity::{Entity, EntityBase, player::Player};
 pub(super) struct RideableMinecart;
 
 impl RideableMinecart {
-    pub(super) fn interact(&self, entity: &Entity, player: &Arc<Player>) -> bool {
+    pub(super) fn interact(entity: &Entity, player: &Arc<Player>) -> bool {
         if player.get_entity().is_sneaking()
             || !entity
                 .passengers

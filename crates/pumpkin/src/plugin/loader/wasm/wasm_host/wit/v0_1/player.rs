@@ -1316,7 +1316,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         mode: pumpkin::plugin::common::GameMode,
     ) -> wasmtime::Result<bool> {
         let player = player_from_resource(self, &player)?;
-        Ok(player.set_gamemode(from_wasm_game_mode(mode)).await)
+        Ok(player.set_gamemode(from_wasm_game_mode(mode)))
     }
 
     async fn get_locale(&mut self, player: Resource<Player>) -> wasmtime::Result<String> {
@@ -1346,9 +1346,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         let server = self.server.as_ref().expect("server not available");
         let level = from_wit_permission_level(level);
         let command_dispatcher = server.command_dispatcher.load();
-        player
-            .set_permission_lvl(server, level, &command_dispatcher)
-            .await;
+        player.set_permission_lvl(server, level, &command_dispatcher);
         Ok(())
     }
 
@@ -1403,7 +1401,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     ) -> wasmtime::Result<bool> {
         let player = player_from_resource(self, &player)?;
         let server = self.server.as_ref().expect("server not available");
-        Ok(player.has_permission(server, &node).await)
+        Ok(player.has_permission(server, &node))
     }
 
     async fn get_display_name(
@@ -1423,7 +1421,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     ) -> wasmtime::Result<()> {
         let display_name = text_component_from_resource(self, &display_name);
         let player = player_from_resource(self, &player)?;
-        player.set_display_name(Some(display_name)).await;
+        player.set_display_name(Some(display_name));
         Ok(())
     }
 
@@ -1462,7 +1460,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     ) -> wasmtime::Result<()> {
         let component = text_component_from_resource(self, &text);
         let player = player_from_resource(self, &player)?;
-        player.send_system_message_raw(&component, overlay).await;
+        player.send_system_message_raw(&component, overlay);
         Ok(())
     }
 
@@ -1500,14 +1498,14 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         if let Some(status_effect) =
             pumpkin_data::effect::StatusEffect::from_name(effect_type.to_name())
         {
-            player.remove_effect(status_effect).await;
+            player.remove_effect(status_effect);
         }
         Ok(())
     }
 
     async fn clear_effects(&mut self, player: Resource<Player>) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.remove_all_effects().await;
+        player.remove_all_effects();
         Ok(())
     }
 
@@ -1651,7 +1649,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
 
     async fn get_team(&mut self, player: Resource<Player>) -> wasmtime::Result<Option<String>> {
         let player = player_from_resource(self, &player)?;
-        let team = player.get_team().await;
+        let team = player.get_team();
         Ok(team.map(|t| t.name))
     }
 
@@ -1690,7 +1688,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         allowed: bool,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.set_allow_flight(allowed).await;
+        player.set_allow_flight(allowed);
         Ok(())
     }
 
@@ -1700,7 +1698,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         speed: f32,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.set_fly_speed(speed).await;
+        player.set_fly_speed(speed);
         Ok(())
     }
 
@@ -1710,7 +1708,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         speed: f32,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.set_walk_speed(speed).await;
+        player.set_walk_speed(speed);
         Ok(())
     }
 
@@ -1720,7 +1718,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         invulnerable: bool,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.set_invulnerable(invulnerable).await;
+        player.set_invulnerable(invulnerable);
         Ok(())
     }
 
@@ -1731,13 +1729,13 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         relative: bool,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.set_player_time(time, relative).await;
+        player.set_player_time(time, relative);
         Ok(())
     }
 
     async fn reset_player_time(&mut self, player: Resource<Player>) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.reset_player_time().await;
+        player.reset_player_time();
         Ok(())
     }
 
@@ -2096,7 +2094,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     ) -> wasmtime::Result<()> {
         let component = text_component_from_resource(self, &text);
         let player = player_from_resource(self, &player)?;
-        player.show_title(&component, &TitleMode::Title).await;
+        player.show_title(&component, &TitleMode::Title);
         Ok(())
     }
 
@@ -2107,7 +2105,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     ) -> wasmtime::Result<()> {
         let component = text_component_from_resource(self, &text);
         let player = player_from_resource(self, &player)?;
-        player.show_title(&component, &TitleMode::SubTitle).await;
+        player.show_title(&component, &TitleMode::SubTitle);
         Ok(())
     }
 
@@ -2118,7 +2116,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     ) -> wasmtime::Result<()> {
         let component = text_component_from_resource(self, &text);
         let player = player_from_resource(self, &player)?;
-        player.show_title(&component, &TitleMode::ActionBar).await;
+        player.show_title(&component, &TitleMode::ActionBar);
         Ok(())
     }
 
@@ -2130,7 +2128,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         fade_out: i32,
     ) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.send_title_animation(fade_in, stay, fade_out).await;
+        player.send_title_animation(fade_in, stay, fade_out);
         Ok(())
     }
 
@@ -2212,16 +2210,14 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         let expires = parse_ban_expiry(options.expires_at_utc, options.duration_seconds);
         let player = player_from_resource(self, &player)?;
         let server = self.server.as_ref().expect("server not available");
-        player
-            .ban_explicit(
-                server,
-                reason,
-                options.source,
-                expires,
-                options.kick_if_online,
-                options.log_to_console,
-            )
-            .await;
+        player.ban_explicit(
+            server,
+            reason,
+            options.source,
+            expires,
+            options.kick_if_online,
+            options.log_to_console,
+        );
         Ok(())
     }
 
@@ -2237,16 +2233,14 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         let expires = parse_ban_expiry(options.expires_at_utc, options.duration_seconds);
         let player = player_from_resource(self, &player)?;
         let server = self.server.as_ref().expect("server not available");
-        player
-            .ban_ip_explicit(
-                server,
-                reason,
-                options.source,
-                expires,
-                options.kick_matching_players,
-                options.log_to_console,
-            )
-            .await;
+        player.ban_ip_explicit(
+            server,
+            reason,
+            options.source,
+            expires,
+            options.kick_matching_players,
+            options.log_to_console,
+        );
         Ok(())
     }
 
@@ -2446,7 +2440,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             abilities.flying = flying;
         };
-        player.send_abilities_update().await;
+        player.send_abilities_update();
         Ok(())
     }
 
@@ -2489,7 +2483,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
             a.fly_speed = abilities.fly_speed;
             a.walk_speed = abilities.walk_speed;
         };
-        player.send_abilities_update().await;
+        player.send_abilities_update();
         Ok(())
     }
 
@@ -3131,7 +3125,7 @@ impl pumpkin::plugin::player::HostJavaPlayer for PluginHostState {
             .map_err(|_| wasmtime::Error::msg("invalid java-player resource handle"))?
             .provider
             .clone();
-        player.reset_scoreboard().await;
+        player.reset_scoreboard();
         Ok(())
     }
 
@@ -3380,7 +3374,7 @@ impl pumpkin::plugin::player::HostBedrockPlayer for PluginHostState {
                 _ => {} // Not supported yet
             }
         };
-        player.send_abilities_update().await;
+        player.send_abilities_update();
         Ok(())
     }
 
@@ -3642,7 +3636,7 @@ impl pumpkin::plugin::player::HostBedrockPlayer for PluginHostState {
             .map_err(|_| wasmtime::Error::msg("invalid bedrock-player resource handle"))?
             .provider
             .clone();
-        player.reset_scoreboard().await;
+        player.reset_scoreboard();
         Ok(())
     }
 

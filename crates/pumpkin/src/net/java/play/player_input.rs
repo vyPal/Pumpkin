@@ -36,7 +36,7 @@ impl JavaClient {
                 server;
                 PlayerToggleSneakEvent::new(player.clone(), sneak);
                 'after: {
-                    player.get_entity().set_sneaking(event.is_sneaking).await;
+                    player.get_entity().set_sneaking(event.is_sneaking);
                     if event.is_sneaking {
                         let vehicle = player
                             .get_entity()

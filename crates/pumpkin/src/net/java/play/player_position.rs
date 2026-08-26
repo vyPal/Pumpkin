@@ -106,7 +106,7 @@ impl JavaClient {
                 let new_on_ground = packet.collision & FLAG_ON_GROUND != 0;
                 entity.on_ground.store(new_on_ground, Ordering::Relaxed);
                 if new_on_ground && entity.is_fall_flying() {
-                    entity.set_fall_flying(false).await;
+                    entity.set_fall_flying(false);
                 }
                 let world = &player.world();
 

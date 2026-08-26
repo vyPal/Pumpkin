@@ -24,7 +24,7 @@ impl ItemMetadata for BowItem {
 impl ItemBehaviour for BowItem {
     fn normal_use(&self, _item: &Item, player: &Player) {
         // Check if player has arrows (or is in creative mode)
-        let has_arrows = self.has_arrows(player);
+        let has_arrows = Self::has_arrows(player);
         let gamemode = player.gamemode.load();
 
         if !has_arrows && gamemode != GameMode::Creative {
@@ -79,12 +79,13 @@ impl BowItem {
             return;
         }
 
-        let projectile = if let Some(slot) = arrow_slot {
-            let stack = player.inventory.get_slot(slot);
-            stack.copy_with_count(1)
-        } else {
-            ItemStack::new(1, &Item::ARROW)
-        };
+        let projectile = arrow_slot.map_or_else(
+            || ItemStack::new(1, &Item::ARROW),
+            |slot| {
+                let stack = player.inventory.get_slot(slot);
+                stack.copy_with_count(1)
+            },
+        );
         let infinite_projectile = projectile.item.id == Item::ARROW.id;
 
         // Calculate power and fire
@@ -117,7 +118,7 @@ impl BowItem {
     }
 
     /// Check if player has arrows in their inventory
-    fn has_arrows(&self, player: &Player) -> bool {
+    fn has_arrows(player: &Player) -> bool {
         player.find_arrow().is_some()
     }
 

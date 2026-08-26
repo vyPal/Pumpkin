@@ -719,7 +719,7 @@ impl EnderDragonEntity {
         {
             -1.0
         } else {
-            (p5.y - p0.y) as f64
+            p5.y - p0.y
         };
 
         let yaw_accel = *self

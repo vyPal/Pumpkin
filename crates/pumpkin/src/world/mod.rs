@@ -154,7 +154,6 @@ use rand::seq::SliceRandom;
 use rand::{RngExt, rng};
 use scoreboard::Scoreboard;
 use time::LevelTime;
-use tokio::sync::Mutex;
 
 pub mod block_placer;
 pub mod border;
@@ -247,7 +246,7 @@ pub struct World {
     /// This does not include players.
     pub entities: ArcSwap<Vec<Arc<dyn EntityBase>>>,
     /// The world's scoreboard, used for tracking scores, objectives, and display information.
-    pub scoreboard: Mutex<Scoreboard>,
+    pub scoreboard: std::sync::Mutex<Scoreboard>,
     /// The world's worldborder, defining the playable area and controlling its expansion or contraction.
     pub worldborder: std::sync::Mutex<Worldborder>,
     /// The world's time, including counting ticks for weather, time cycles, and statistics.
@@ -377,7 +376,7 @@ impl World {
             level_info,
             players: ArcSwap::new(Arc::new(Vec::new())),
             entities: ArcSwap::new(Arc::new(Vec::new())),
-            scoreboard: Mutex::new(Scoreboard::default()),
+            scoreboard: std::sync::Mutex::new(Scoreboard::default()),
             worldborder: std::sync::Mutex::new(Worldborder::new(
                 0.0,
                 0.0,
@@ -896,16 +895,14 @@ impl World {
                 drop(cache);
 
                 if tracked_count > 4096 {
-                    recipient
-                        .kick(
-                            crate::net::DisconnectReason::Kicked,
-                            TextComponent::translate_cross(
-                                pumpkin_data::translation::java::MULTIPLAYER_DISCONNECT_TOO_MANY_PENDING_CHATS,
-                                pumpkin_data::translation::java::MULTIPLAYER_DISCONNECT_TOO_MANY_PENDING_CHATS,
-                                [],
-                            ),
-                        )
-                        .await;
+                    recipient.kick(
+                        crate::net::DisconnectReason::Kicked,
+                        &TextComponent::translate_cross(
+                            pumpkin_data::translation::java::MULTIPLAYER_DISCONNECT_TOO_MANY_PENDING_CHATS,
+                            pumpkin_data::translation::java::MULTIPLAYER_DISCONNECT_TOO_MANY_PENDING_CHATS,
+                            [],
+                        ),
+                    );
                 }
             }
 
@@ -2330,7 +2327,12 @@ impl World {
             custom_biome_name: String::new(),
             dimension: VarInt(0),
             generator_type: VarInt(1),
-            world_gamemode: server.defaultgamemode.lock().await.gamemode.into(),
+            world_gamemode: server
+                .defaultgamemode
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .gamemode
+                .into(),
             hardcore: base_config.hardcore,
             difficulty: VarInt(level_info.difficulty as i32),
             spawn_position: BlockPos::new(
@@ -2737,12 +2739,11 @@ impl World {
         if let Ok(data) = client.serialize_packet(&actor_data) {
             client.send_game_packet(data).await;
         }
-        player.send_abilities_update().await;
+        player.send_abilities_update();
 
         {
             let command_dispatcher = server.command_dispatcher.load();
-            client_suggestions::send_bedrock_commands_packet(&player, server, &command_dispatcher)
-                .await;
+            client_suggestions::send_bedrock_commands_packet(&player, server, &command_dispatcher);
         };
 
         client
@@ -3110,11 +3111,11 @@ impl World {
         player.send_permission_lvl_update();
 
         // Difficulty of the world
-        player.send_difficulty_update().await;
+        player.send_difficulty_update();
         {
             let command_dispatcher = server.command_dispatcher.load();
 
-            client_suggestions::send_c_commands_packet(player, server, &command_dispatcher).await;
+            client_suggestions::send_c_commands_packet(player, server, &command_dispatcher);
         };
         if client.version.load() < JavaMinecraftVersion::V_1_20_2
             && client.version.load() >= JavaMinecraftVersion::V_1_13
@@ -3619,7 +3620,7 @@ impl World {
         }
         player.send_client_information();
 
-        player.send_abilities_update().await;
+        player.send_abilities_update();
 
         // Sync selected slot
         player
@@ -3642,10 +3643,10 @@ impl World {
             .init_client(client);
 
         // Sends initial time
-        player.send_time(self).await;
+        player.send_time(self);
 
         // Sends initial scoreboard state
-        player.send_scoreboard().await;
+        player.send_scoreboard();
 
         let (spawn_block_pos, yaw, pitch) = {
             let level_info_lock = self.level_info.load();
@@ -3700,7 +3701,7 @@ impl World {
         let player_bossbars = server
             .bossbars
             .lock()
-            .await
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .get_player_bars(&player.gameprofile.id)
             .map(|bars| bars.into_iter().cloned().collect::<Vec<_>>());
         if let Some(bossbars) = player_bossbars {
@@ -3714,7 +3715,7 @@ impl World {
             .on_screen_handler_opened(player.player_screen_handler.clone())
             .await;
 
-        player.send_active_effects().await;
+        player.send_active_effects();
         player.breath_manager.send_air_supply(player);
         self.send_player_equipment(player);
 
@@ -3857,13 +3858,13 @@ impl World {
         if let Some(calc) = damage_calculator {
             explosion = explosion.with_damage_calculator(calc);
         }
-        self.run_explosion(explosion, position, power);
+        self.run_explosion(&explosion, position, power);
     }
 
     pub fn explode_tnt_minecart(self: &Arc<Self>, position: Vector3<f64>, power: f32) {
         let block_interaction = self.get_block_interaction(ExplosionInteraction::Tnt);
         let explosion = Explosion::new(power, position, block_interaction).preserving_rails();
-        self.run_explosion(explosion, position, power);
+        self.run_explosion(&explosion, position, power);
     }
 
     #[must_use]
@@ -3897,7 +3898,7 @@ impl World {
         }
     }
 
-    fn run_explosion(self: &Arc<Self>, explosion: Explosion, position: Vector3<f64>, power: f32) {
+    fn run_explosion(self: &Arc<Self>, explosion: &Explosion, position: Vector3<f64>, power: f32) {
         let mut event = crate::plugin::api::events::entity::entity_explode::EntityExplodeEvent::new(
             0, position, power,
         );
@@ -4368,7 +4369,7 @@ impl World {
                         base_entity.velocity.store(Vector3::default());
 
                         player.client.enqueue_spawn_packet(&entity).await;
-                        player.try_restore_vehicle(&entity).await;
+                        player.try_restore_vehicle(&entity);
                         entities_to_add.push(entity);
                     }
 
@@ -4387,7 +4388,7 @@ impl World {
                         let base_entity = entity.get_entity();
                         if base_entity.chunk_pos.load() == position {
                             player.client.enqueue_spawn_packet(entity).await;
-                            player.try_restore_vehicle(entity).await;
+                            player.try_restore_vehicle(entity);
                         }
                     }
                 }
@@ -4793,7 +4794,7 @@ impl World {
 
                     if !event.cancelled {
                         for player in self.players.load().iter() {
-                            player.send_system_message(&event.leave_message).await;
+                            player.send_system_message(&event.leave_message);
                         }
                         info!("{}", event.leave_message.to_pretty_console());
                     }

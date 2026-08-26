@@ -770,7 +770,7 @@ impl EntityBase for MinecartEntity {
                 });
                 true
             }
-            MinecartKind::Rideable(minecart) => minecart.interact(&self.vehicle.entity, player),
+            MinecartKind::Rideable(_) => RideableMinecart::interact(&self.vehicle.entity, player),
             MinecartKind::Tnt(_) | MinecartKind::Other => false,
         }
     }

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use pumpkin_data::block_properties::{BlockProperties, RespawnAnchorLikeProperties};
 use pumpkin_data::dimension::Dimension;
 use pumpkin_data::item::Item;
@@ -61,46 +59,35 @@ impl BlockBehaviour for RespawnAnchorBlock {
         }
 
         if props.charges == 0 {
-            let player = Arc::clone(args.player);
-            tokio::spawn(async move {
-                player
-                    .send_system_message(&pumpkin_macros::translate_cross!(
-                        translation::java::BLOCK_MINECRAFT_BED_NO_SLEEP,
-                        translation::bedrock::TILE_BED_NOSLEEP
-                    ))
-                    .await;
-            });
+            args.player
+                .send_system_message(&pumpkin_macros::translate_cross!(
+                    translation::java::BLOCK_MINECRAFT_BED_NO_SLEEP,
+                    translation::bedrock::TILE_BED_NOSLEEP
+                ));
             return BlockActionResult::SuccessServer;
         }
 
-        let player = Arc::clone(args.player);
-        let world = Arc::clone(args.world);
+        let player = args.player;
+        let world = args.world;
         let pos = *args.position;
-        tokio::spawn(async move {
-            if player
-                .set_respawn_point(
-                    world.dimension.clone(),
-                    pos,
-                    player.get_entity().yaw.load(),
-                    player.get_entity().pitch.load(),
-                    false,
-                )
-                .await
-            {
-                world.play_sound(
-                    Sound::BlockRespawnAnchorSetSpawn,
-                    SoundCategory::Blocks,
-                    &pos.to_f64(),
-                );
+        if player.set_respawn_point(
+            world.dimension.clone(),
+            pos,
+            player.get_entity().yaw.load(),
+            player.get_entity().pitch.load(),
+            false,
+        ) {
+            world.play_sound(
+                Sound::BlockRespawnAnchorSetSpawn,
+                SoundCategory::Blocks,
+                &pos.to_f64(),
+            );
 
-                player
-                    .send_system_message(&pumpkin_macros::translate_cross!(
-                        translation::java::BLOCK_MINECRAFT_SET_SPAWN,
-                        translation::bedrock::TILE_BED_RESPAWNSET
-                    ))
-                    .await;
-            }
-        });
+            player.send_system_message(&pumpkin_macros::translate_cross!(
+                translation::java::BLOCK_MINECRAFT_SET_SPAWN,
+                translation::bedrock::TILE_BED_RESPAWNSET
+            ));
+        }
 
         BlockActionResult::SuccessServer
     }

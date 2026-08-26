@@ -114,7 +114,7 @@ impl CommandBlock {
         }
     }
 
-    async fn execute(
+    fn execute(
         server: &Arc<Server>,
         world: Arc<World>,
         block_entity: Arc<dyn BlockEntity>,
@@ -133,24 +133,16 @@ impl CommandBlock {
         if command.is_empty() {
             command_entity.success_count.store(0, Ordering::Release);
         } else {
-            let source = CommandSender::CommandBlock(command_entity, world.clone())
-                .into_source(server)
-                .await;
+            let source = CommandSender::CommandBlock(command_entity, world).into_source(server);
 
             server
                 .command_dispatcher
                 .load()
-                .handle_command(&source, command)
-                .await;
+                .handle_command(&source, command);
         }
     }
 
-    async fn chain_execute(
-        server: &Arc<Server>,
-        world: Arc<World>,
-        start: BlockPos,
-        direction: Facing,
-    ) {
+    fn chain_execute(server: &Arc<Server>, world: &Arc<World>, start: BlockPos, direction: Facing) {
         let mut i = u16::MAX;
         let mut pos = start;
 
@@ -179,7 +171,7 @@ impl CommandBlock {
             let props = CommandBlockLikeProperties::from_state_id(state_id, block);
 
             if powered || auto {
-                let conditions_met = Self::conditions_met(&world, &pos, direction);
+                let conditions_met = Self::conditions_met(world, &pos, direction);
                 if conditions_met {
                     let command = command_entity
                         .command
@@ -190,7 +182,7 @@ impl CommandBlock {
                         warn!("Command block entity disappeared during execution");
                         break;
                     };
-                    Self::execute(server, world.clone(), entity, &command).await;
+                    Self::execute(server, world.clone(), entity, &command);
                 } else if props.conditional {
                     command_entity.success_count.store(0, Ordering::Release);
                 }
@@ -298,25 +290,20 @@ impl BlockBehaviour for CommandBlock {
         let entity_clone = block_entity.clone();
         let position = *args.position;
         let facing = props.facing;
-        tokio::spawn(async move {
-            let Some(command_entity) = entity_clone.as_any().downcast_ref::<CommandBlockEntity>()
-            else {
-                return;
-            };
+        if let Some(command_entity) = entity_clone.as_any().downcast_ref::<CommandBlockEntity>() {
             let command = command_entity
                 .command
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .clone();
-            Self::execute(&server, world.clone(), entity_clone, &command).await;
+            Self::execute(&server, world.clone(), entity_clone, &command);
             Self::chain_execute(
                 &server,
-                world,
+                &world,
                 position.offset(facing.to_block_direction().to_offset()),
                 facing,
-            )
-            .await;
-        });
+            );
+        }
 
         let block = args.world.get_block(args.position);
         let is_auto = command_entity.auto.load(Ordering::Relaxed);

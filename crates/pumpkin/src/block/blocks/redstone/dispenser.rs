@@ -294,13 +294,13 @@ impl DispenserBlock {
             Self::dispense_empty_bucket(ctx, dispenser, item).await;
         } else if FilledBucketItem::ids().contains(&item.item.id) {
             // Filled buckets place their fluid in front of the dispenser
-            Self::dispense_filled_bucket(ctx, item).await;
+            Self::dispense_filled_bucket(ctx, item);
         } else if item.item.id == Item::FLINT_AND_STEEL.id {
             // Flint and steel light fires and prime TNT
-            Self::dispense_flint_and_steel(ctx, item).await;
+            Self::dispense_flint_and_steel(ctx, item);
         } else if item.item.id == Item::HONEYCOMB.id {
             // Honeycombs wax copper blocks
-            Self::dispense_honeycomb(ctx, item).await;
+            Self::dispense_honeycomb(ctx, item);
         } else if entity_from_egg(item.item.id).is_some() {
             // Spawn eggs
             Self::dispense_spawn_egg(ctx, item);
@@ -703,7 +703,7 @@ impl DispenserBlock {
         Some(stack)
     }
 
-    async fn dispense_filled_bucket(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
+    fn dispense_filled_bucket(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
         let front = Self::target_position(ctx);
 
         // TODO: Spawn the stored entity for axolotl/fish/tadpole buckets, like the player path.
@@ -727,7 +727,7 @@ impl DispenserBlock {
         }
     }
 
-    async fn dispense_flint_and_steel(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
+    fn dispense_flint_and_steel(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
         let front = Self::target_position(ctx);
         let front_block = ctx.world.get_block(&front);
 
@@ -755,7 +755,7 @@ impl DispenserBlock {
         }
     }
 
-    async fn dispense_honeycomb(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
+    fn dispense_honeycomb(ctx: &DispenseContext<'_>, item: &mut ItemStack) {
         let front = Self::target_position(ctx);
         let front_block = ctx.world.get_block(&front);
 

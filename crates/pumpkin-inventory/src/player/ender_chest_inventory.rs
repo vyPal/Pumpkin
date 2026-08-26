@@ -211,7 +211,7 @@ mod tests {
         let ec = EnderChestInventory::new();
         assert_eq!(ec.size(), 27);
         assert!(ec.is_empty().await);
-        assert!(!ec.has_tracker().await);
+        assert!(!ec.has_tracker());
     }
 
     #[tokio::test]

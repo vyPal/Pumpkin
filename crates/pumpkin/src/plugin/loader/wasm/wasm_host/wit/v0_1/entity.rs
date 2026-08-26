@@ -330,7 +330,7 @@ impl HostEntity for PluginHostState {
         sneaking: bool,
     ) -> wasmtime::Result<()> {
         let entity = entity_from_resource(self, &entity)?;
-        entity.get_entity().set_sneaking(sneaking).await;
+        entity.get_entity().set_sneaking(sneaking);
         Ok(())
     }
 
@@ -340,7 +340,7 @@ impl HostEntity for PluginHostState {
         sprinting: bool,
     ) -> wasmtime::Result<()> {
         let entity = entity_from_resource(self, &entity)?;
-        entity.get_entity().set_sprinting(sprinting).await;
+        entity.get_entity().set_sprinting(sprinting);
         Ok(())
     }
 
@@ -396,7 +396,7 @@ impl HostEntity for PluginHostState {
         fall_flying: bool,
     ) -> wasmtime::Result<()> {
         let entity = entity_from_resource(self, &entity)?;
-        entity.get_entity().set_fall_flying(fall_flying).await;
+        entity.get_entity().set_fall_flying(fall_flying);
         Ok(())
     }
 
@@ -1168,7 +1168,7 @@ impl HostEntity for PluginHostState {
                     &Resource::new_own(message.rep()),
                 )
                 .map_err(|_| wasmtime::Error::msg("invalid text component resource handle"))?;
-            player.send_system_message(&text_res.provider).await;
+            player.send_system_message(&text_res.provider);
         }
         Ok(())
     }

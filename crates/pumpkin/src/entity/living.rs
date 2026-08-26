@@ -1518,7 +1518,7 @@ impl LivingEntity {
         }
     }
 
-    pub async fn on_death(
+    pub fn on_death(
         &self,
         damage_type: DamageType,
         source: Option<&dyn EntityBase>,
@@ -1603,8 +1603,7 @@ impl LivingEntity {
             self.drop_equipment(looting_level);
 
             // Broadcast death message if it's a player and the gamerule is enabled
-            self.broadcast_death_message(&*dyn_self, damage_type, source, cause)
-                .await;
+            self.broadcast_death_message(&*dyn_self, damage_type, source, cause);
 
             // Trigger on_mob_death for active status effects
             let active_effects_vec: Vec<_> = {
@@ -1677,7 +1676,7 @@ impl LivingEntity {
         }
     }
 
-    async fn broadcast_death_message(
+    fn broadcast_death_message(
         &self,
         dyn_self: &dyn EntityBase,
         damage_type: DamageType,
@@ -1691,7 +1690,7 @@ impl LivingEntity {
             let death_message = Self::get_death_message(dyn_self, damage_type, source, cause);
             if let Some(server) = world.server.upgrade() {
                 for player in server.get_all_players() {
-                    player.send_system_message(&death_message).await;
+                    player.send_system_message(&death_message);
                 }
             }
         }

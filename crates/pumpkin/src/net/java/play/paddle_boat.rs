@@ -2,7 +2,7 @@
 use super::*;
 
 impl JavaClient {
-    pub async fn handle_paddle_boat(&self, player: &Arc<Player>, packet: SPaddleBoat) {
+    pub fn handle_paddle_boat(&self, player: &Arc<Player>, packet: &SPaddleBoat) {
         let vehicle = player
             .get_entity()
             .vehicle

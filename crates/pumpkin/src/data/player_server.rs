@@ -69,9 +69,9 @@ impl ServerPlayerData {
 
     /// Performs periodic maintenance tasks.
     ///
-    /// This function should be called regularly to save player data and clean
-    /// expired cache entries.
-    pub async fn tick(&self, server: &Server) -> Result<(), PlayerDataError> {
+    /// This function is called synchronously on the server tick loop to check
+    /// if it is time to save player data.
+    pub fn tick(&self, server: &Server) {
         let now = Instant::now();
 
         // Only save players periodically based on save_interval
@@ -80,34 +80,30 @@ impl ServerPlayerData {
 
         if should_save && self.storage.is_save_enabled() {
             self.last_save.store(now);
-            // Save all online players periodically across all worlds
+            // Snapshot all online players periodically across all worlds
+            let mut snapshots = Vec::new();
             for world in server.worlds.load().iter() {
                 for player in world.players.load().iter() {
                     let mut nbt = NbtCompound::new();
                     player.write_nbt(&mut nbt);
-
-                    let storage = self.storage.clone();
-                    let uuid = player.gameprofile.id;
-                    // Save to disk periodically to prevent data loss on server crash
-                    if let Err(e) =
-                        tokio::task::spawn_blocking(move || storage.save_player_data(&uuid, nbt))
-                            .await
-                            .unwrap_or(Err(PlayerDataError::Io(std::io::Error::from(
-                                std::io::ErrorKind::Other,
-                            ))))
-                    {
-                        error!(
-                            "Failed to save player data for {}: {e}",
-                            player.gameprofile.id,
-                        );
-                    }
+                    snapshots.push((player.gameprofile.id, nbt));
                 }
             }
 
-            debug!("Periodic player data save completed");
-        }
+            if snapshots.is_empty() {
+                return;
+            }
 
-        Ok(())
+            let storage = self.storage.clone();
+            server.runtime.spawn(async move {
+                for (uuid, nbt) in snapshots {
+                    if let Err(e) = storage.save_player_data(&uuid, nbt) {
+                        error!("Failed to save player data for {uuid}: {e}");
+                    }
+                }
+                debug!("Periodic player data save completed");
+            });
+        }
     }
 
     /// Saves all players' data immediately.

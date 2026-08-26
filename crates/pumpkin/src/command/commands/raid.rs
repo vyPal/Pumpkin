@@ -33,318 +33,295 @@ struct StartExecutor {
 }
 
 impl CommandExecutor for StartExecutor {
-    fn execute<'a>(
-        &'a self,
-        sender: &'a CommandSender,
-        _server: &'a Server,
-        args: &'a ConsumedArgs<'a>,
-    ) -> CommandResult<'a> {
-        Box::pin(async move {
-            let player = sender.as_player().ok_or(CommandError::InvalidRequirement)?;
-            let entity = player.get_entity();
-            let pos = entity.block_pos.load();
-            let world = entity.world.load();
+    fn execute(
+        &self,
+        sender: &CommandSender,
+        _server: &Server,
+        args: &ConsumedArgs,
+    ) -> CommandResult {
+        let player = sender.as_player().ok_or(CommandError::InvalidRequirement)?;
+        let entity = player.get_entity();
+        let pos = entity.block_pos.load();
+        let world = entity.world.load();
 
-            let (is_already_started, raid_created) = {
-                let mut raids = world
-                    .raids
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
-                if raids.get_raid_at(&pos).is_some() {
-                    (true, None)
-                } else {
-                    let omen_lvl = if self.has_omen_lvl {
-                        BoundedNumArgumentConsumer::<i32>::find_arg(args, ARG_OMEN_LVL)
-                            .ok()
-                            .and_then(Result::ok)
-                            .unwrap_or(1)
-                    } else {
-                        1
-                    };
-                    let raid_id = raids.create_or_extend_raid(&player, pos, &world);
-                    if let Some(id) = raid_id
-                        && let Some(raid) = raids.get_mut(id)
-                    {
-                        raid.set_raid_omen_level(omen_lvl);
-                    }
-                    (false, raid_id)
-                }
-            };
-            if is_already_started {
-                sender
-                    .send_message(TextComponent::text("Raid already started close by"))
-                    .await;
-                return Ok(0);
-            }
-            if raid_created.is_some() {
-                sender
-                    .send_message(TextComponent::text("Created a raid in your local village"))
-                    .await;
-                Ok(1)
+        let (is_already_started, raid_created) = {
+            let mut raids = world
+                .raids
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if raids.get_raid_at(&pos).is_some() {
+                (true, None)
             } else {
-                sender
-                    .send_message(TextComponent::text(
-                        "Failed to create a raid in your local village",
-                    ))
-                    .await;
-                Ok(0)
+                let omen_lvl = if self.has_omen_lvl {
+                    BoundedNumArgumentConsumer::<i32>::find_arg(args, ARG_OMEN_LVL)
+                        .ok()
+                        .and_then(Result::ok)
+                        .unwrap_or(1)
+                } else {
+                    1
+                };
+                let raid_id = raids.create_or_extend_raid(&player, pos, &world);
+                if let Some(id) = raid_id
+                    && let Some(raid) = raids.get_mut(id)
+                {
+                    raid.set_raid_omen_level(omen_lvl);
+                }
+                (false, raid_id)
             }
-        })
+        };
+        if is_already_started {
+            sender.send_message(TextComponent::text("Raid already started close by"));
+            return Ok(0);
+        }
+        if raid_created.is_some() {
+            sender.send_message(TextComponent::text("Created a raid in your local village"));
+            Ok(1)
+        } else {
+            sender.send_message(TextComponent::text(
+                "Failed to create a raid in your local village",
+            ));
+            Ok(0)
+        }
     }
 }
 
 struct StopExecutor;
 
 impl CommandExecutor for StopExecutor {
-    fn execute<'a>(
-        &'a self,
-        sender: &'a CommandSender,
-        _server: &'a Server,
-        _args: &'a ConsumedArgs<'a>,
-    ) -> CommandResult<'a> {
-        Box::pin(async move {
-            let player = sender.as_player().ok_or(CommandError::InvalidRequirement)?;
-            let entity = player.get_entity();
-            let pos = entity.block_pos.load();
-            let world = entity.world.load();
+    fn execute(
+        &self,
+        sender: &CommandSender,
+        _server: &Server,
+        _args: &ConsumedArgs,
+    ) -> CommandResult {
+        let player = sender.as_player().ok_or(CommandError::InvalidRequirement)?;
+        let entity = player.get_entity();
+        let pos = entity.block_pos.load();
+        let world = entity.world.load();
 
-            let stopped = {
-                let mut raids = world
-                    .raids
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
-                if let Some(raid) = raids.get_raid_at_mut(&pos) {
-                    raid.active = false;
-                    raid.status = RaidStatus::Stopped;
-                    let players_to_remove: Vec<Arc<Player>> = world
-                        .players
-                        .load()
-                        .iter()
-                        .filter(|p| raid.players_in_raid.contains(&p.gameprofile.id))
-                        .cloned()
-                        .collect();
-                    let bossbar_uuid = raid.bossbar.uuid;
-                    raid.players_in_raid.clear();
-                    Some((players_to_remove, bossbar_uuid))
-                } else {
-                    None
-                }
-            };
-            if let Some((players, bossbar_uuid)) = stopped {
-                for p in players {
-                    p.remove_bossbar(bossbar_uuid);
-                }
-                sender
-                    .send_message(TextComponent::text("Stopped raid"))
-                    .await;
-                Ok(1)
+        let stopped = {
+            let mut raids = world
+                .raids
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if let Some(raid) = raids.get_raid_at_mut(&pos) {
+                raid.active = false;
+                raid.status = RaidStatus::Stopped;
+                let players_to_remove: Vec<Arc<Player>> = world
+                    .players
+                    .load()
+                    .iter()
+                    .filter(|p| raid.players_in_raid.contains(&p.gameprofile.id))
+                    .cloned()
+                    .collect();
+                let bossbar_uuid = raid.bossbar.uuid;
+                raid.players_in_raid.clear();
+                Some((players_to_remove, bossbar_uuid))
             } else {
-                sender
-                    .send_message(TextComponent::text("No raid here"))
-                    .await;
-                Ok(0)
+                None
             }
-        })
+        };
+        if let Some((players, bossbar_uuid)) = stopped {
+            for p in players {
+                p.remove_bossbar(bossbar_uuid);
+            }
+            sender.send_message(TextComponent::text("Stopped raid"));
+            Ok(1)
+        } else {
+            sender.send_message(TextComponent::text("No raid here"));
+            Ok(0)
+        }
     }
 }
 
 struct CheckExecutor;
 
 impl CommandExecutor for CheckExecutor {
-    fn execute<'a>(
-        &'a self,
-        sender: &'a CommandSender,
-        _server: &'a Server,
-        _args: &'a ConsumedArgs<'a>,
-    ) -> CommandResult<'a> {
-        Box::pin(async move {
-            let player = sender.as_player().ok_or(CommandError::InvalidRequirement)?;
-            let entity = player.get_entity();
-            let pos = entity.block_pos.load();
-            let world = entity.world.load();
+    fn execute(
+        &self,
+        sender: &CommandSender,
+        _server: &Server,
+        _args: &ConsumedArgs,
+    ) -> CommandResult {
+        let player = sender.as_player().ok_or(CommandError::InvalidRequirement)?;
+        let entity = player.get_entity();
+        let pos = entity.block_pos.load();
+        let world = entity.world.load();
 
-            let info = {
-                let raids = world
-                    .raids
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
-                raids.get_raid_at(&pos).map(|raid| {
-                    let alive = raid.get_total_raiders_alive();
-                    let living_health = raid.get_health_of_living_raiders(&world);
-                    format!(
-                        "Num groups spawned: {} Raid omen level: {} Num mobs: {} Raid health: {} / {}",
-                        raid.get_groups_spawned(),
-                        raid.get_raid_omen_level(),
-                        alive,
-                        living_health,
-                        raid.total_health
-                    )
-                })
-            };
-            if let Some(msg) = info {
-                sender
-                    .send_message(TextComponent::text("Found a started raid!"))
-                    .await;
-                sender.send_message(TextComponent::text(msg)).await;
-                Ok(1)
-            } else {
-                sender
-                    .send_message(TextComponent::text("Found no started raids"))
-                    .await;
+        let info = {
+            let raids = world
+                .raids
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            raids.get_raid_at(&pos).map(|raid| {
+                let alive = raid.get_total_raiders_alive();
+                let living_health = raid.get_health_of_living_raiders(&world);
+                format!(
+                    "Num groups spawned: {} Raid omen level: {} Num mobs: {} Raid health: {} / {}",
+                    raid.get_groups_spawned(),
+                    raid.get_raid_omen_level(),
+                    alive,
+                    living_health,
+                    raid.total_health
+                )
+            })
+        };
+        info.map_or_else(
+            || {
+                sender.send_message(TextComponent::text("Found no started raids"));
                 Ok(0)
-            }
-        })
+            },
+            |msg| {
+                sender.send_message(TextComponent::text("Found a started raid!"));
+                sender.send_message(TextComponent::text(msg));
+                Ok(1)
+            },
+        )
     }
 }
 
 struct SoundExecutor;
 
 impl CommandExecutor for SoundExecutor {
-    fn execute<'a>(
-        &'a self,
-        sender: &'a CommandSender,
-        _server: &'a Server,
-        _args: &'a ConsumedArgs<'a>,
-    ) -> CommandResult<'a> {
-        Box::pin(async move {
-            let player = sender.as_player().ok_or(CommandError::InvalidRequirement)?;
-            let entity = player.get_entity();
-            let pos = entity.pos.load();
-            let world = entity.world.load();
+    fn execute(
+        &self,
+        sender: &CommandSender,
+        _server: &Server,
+        _args: &ConsumedArgs,
+    ) -> CommandResult {
+        let player = sender.as_player().ok_or(CommandError::InvalidRequirement)?;
+        let entity = player.get_entity();
+        let pos = entity.pos.load();
+        let world = entity.world.load();
 
-            let sound_pos = pos.add_raw(5.0, 0.0, 0.0);
-            world.play_sound(
-                Sound::EventRaidHorn,
-                pumpkin_data::sound::SoundCategory::Neutral,
-                &sound_pos,
-            );
-            Ok(1)
-        })
+        let sound_pos = pos.add_raw(5.0, 0.0, 0.0);
+        world.play_sound(
+            Sound::EventRaidHorn,
+            pumpkin_data::sound::SoundCategory::Neutral,
+            &sound_pos,
+        );
+        Ok(1)
     }
 }
 
 struct SpawnLeaderExecutor;
 
 impl CommandExecutor for SpawnLeaderExecutor {
-    fn execute<'a>(
-        &'a self,
-        sender: &'a CommandSender,
-        _server: &'a Server,
-        _args: &'a ConsumedArgs<'a>,
-    ) -> CommandResult<'a> {
-        Box::pin(async move {
-            let player = sender.as_player().ok_or(CommandError::InvalidRequirement)?;
-            let entity = player.get_entity();
-            let pos = entity.pos.load();
-            let world = entity.world.load();
+    fn execute(
+        &self,
+        sender: &CommandSender,
+        _server: &Server,
+        _args: &ConsumedArgs,
+    ) -> CommandResult {
+        let player = sender.as_player().ok_or(CommandError::InvalidRequirement)?;
+        let entity = player.get_entity();
+        let pos = entity.pos.load();
+        let world = entity.world.load();
 
-            let raider_uuid = Uuid::new_v4();
-            let raider_entity = from_type(&EntityType::PILLAGER, pos, &world, raider_uuid);
+        let raider_uuid = Uuid::new_v4();
+        let raider_entity = from_type(&EntityType::PILLAGER, pos, &world, raider_uuid);
 
-            if let Some(mob) = raider_entity.get_mob()
-                && let Some(raider) = mob.as_raider()
-            {
-                raider.set_patrol_leader(true);
-                let banner = create_ominous_banner();
-                let living = &mob.get_mob_entity().living_entity;
-                let mut equipment = living
-                    .entity_equipment
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
-                equipment.put(&EquipmentSlot::HEAD, banner.clone());
-                drop(equipment);
-                living.send_equipment_changes(&[(EquipmentSlot::HEAD, banner)]);
-            }
+        if let Some(mob) = raider_entity.get_mob()
+            && let Some(raider) = mob.as_raider()
+        {
+            raider.set_patrol_leader(true);
+            let banner = create_ominous_banner();
+            let living = &mob.get_mob_entity().living_entity;
+            let mut equipment = living
+                .entity_equipment
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            equipment.put(&EquipmentSlot::HEAD, banner.clone());
+            drop(equipment);
+            living.send_equipment_changes(&[(EquipmentSlot::HEAD, banner)]);
+        }
 
-            world.spawn_entity(raider_entity);
-            sender
-                .send_message(TextComponent::text("Spawned a raid captain"))
-                .await;
-            Ok(1)
-        })
+        world.spawn_entity(raider_entity);
+        sender.send_message(TextComponent::text("Spawned a raid captain"));
+        Ok(1)
     }
 }
 
 struct SetOmenExecutor;
 
 impl CommandExecutor for SetOmenExecutor {
-    fn execute<'a>(
-        &'a self,
-        sender: &'a CommandSender,
-        _server: &'a Server,
-        args: &'a ConsumedArgs<'a>,
-    ) -> CommandResult<'a> {
-        Box::pin(async move {
-            let player = sender.as_player().ok_or(CommandError::InvalidRequirement)?;
-            let entity = player.get_entity();
-            let pos = entity.block_pos.load();
-            let world = entity.world.load();
+    fn execute(
+        &self,
+        sender: &CommandSender,
+        _server: &Server,
+        args: &ConsumedArgs,
+    ) -> CommandResult {
+        let player = sender.as_player().ok_or(CommandError::InvalidRequirement)?;
+        let entity = player.get_entity();
+        let pos = entity.block_pos.load();
+        let world = entity.world.load();
 
-            let level = BoundedNumArgumentConsumer::<i32>::find_arg(args, ARG_LEVEL)
-                .ok()
-                .and_then(Result::ok)
-                .unwrap_or(1);
+        let level = BoundedNumArgumentConsumer::<i32>::find_arg(args, ARG_LEVEL)
+            .ok()
+            .and_then(Result::ok)
+            .unwrap_or(1);
 
-            let res = {
-                let mut raids = world
-                    .raids
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
-                raids
-                    .get_raid_at_mut(&pos)
-                    .map_or(Err("No raid found here"), |raid| {
-                        if level > 5 {
-                            Err("Sorry, the max raid omen level you can set is 5")
-                        } else {
-                            let before = raid.get_raid_omen_level();
-                            raid.set_raid_omen_level(level);
-                            Ok(before)
-                        }
-                    })
-            };
-            match res {
-                Ok(before) => {
-                    sender
-                        .send_message(TextComponent::text(format!(
-                            "Changed village's raid omen level from {before} to {level}"
-                        )))
-                        .await;
-                    Ok(1)
-                }
-                Err(msg) => {
-                    sender.send_message(TextComponent::text(msg)).await;
-                    Ok(0)
-                }
+        let res = {
+            let mut raids = world
+                .raids
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            raids
+                .get_raid_at_mut(&pos)
+                .map_or(Err("No raid found here"), |raid| {
+                    if level > 5 {
+                        Err("Sorry, the max raid omen level you can set is 5")
+                    } else {
+                        let before = raid.get_raid_omen_level();
+                        raid.set_raid_omen_level(level);
+                        Ok(before)
+                    }
+                })
+        };
+        match res {
+            Ok(before) => {
+                sender.send_message(TextComponent::text(format!(
+                    "Changed village's raid omen level from {before} to {level}"
+                )));
+                Ok(1)
             }
-        })
+            Err(msg) => {
+                sender.send_message(TextComponent::text(msg));
+                Ok(0)
+            }
+        }
     }
 }
 
 struct GlowExecutor;
 
 impl CommandExecutor for GlowExecutor {
-    fn execute<'a>(
-        &'a self,
-        sender: &'a CommandSender,
-        _server: &'a Server,
-        _args: &'a ConsumedArgs<'a>,
-    ) -> CommandResult<'a> {
-        Box::pin(async move {
-            let player = sender.as_player().ok_or(CommandError::InvalidRequirement)?;
-            let entity = player.get_entity();
-            let pos = entity.block_pos.load();
-            let world = entity.world.load();
+    fn execute(
+        &self,
+        sender: &CommandSender,
+        _server: &Server,
+        _args: &ConsumedArgs,
+    ) -> CommandResult {
+        let player = sender.as_player().ok_or(CommandError::InvalidRequirement)?;
+        let entity = player.get_entity();
+        let pos = entity.block_pos.load();
+        let world = entity.world.load();
 
-            let raiders = {
-                let raids = world
-                    .raids
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
-                raids
-                    .get_raid_at(&pos)
-                    .map(crate::world::raid::Raid::get_all_raiders)
-            };
-            if let Some(raider_uuids) = raiders {
+        let raiders = {
+            let raids = world
+                .raids
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            raids
+                .get_raid_at(&pos)
+                .map(crate::world::raid::Raid::get_all_raiders)
+        };
+        raiders.map_or_else(
+            || {
+                sender.send_message(TextComponent::text("No raid found here"));
+                Ok(0)
+            },
+            |raider_uuids| {
                 let effect = Effect {
                     effect_type: &StatusEffect::GLOWING,
                     duration: 1000,
@@ -362,13 +339,8 @@ impl CommandExecutor for GlowExecutor {
                     }
                 }
                 Ok(1)
-            } else {
-                sender
-                    .send_message(TextComponent::text("No raid found here"))
-                    .await;
-                Ok(0)
-            }
-        })
+            },
+        )
     }
 }
 
