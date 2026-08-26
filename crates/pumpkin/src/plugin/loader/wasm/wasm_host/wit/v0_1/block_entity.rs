@@ -333,7 +333,7 @@ impl HostContainerBlockEntity for PluginHostState {
             .get::<ContainerBlockEntityResource>(&Resource::new_own(res.rep()))
             .map_err(|_| wasmtime::Error::msg("invalid container block entity resource handle"))?;
         let inventory = container.provider.inventory.clone();
-        Ok(inventory.is_empty().await)
+        Ok(inventory.is_empty())
     }
 
     async fn get_stack(
@@ -346,7 +346,7 @@ impl HostContainerBlockEntity for PluginHostState {
             .get::<ContainerBlockEntityResource>(&Resource::new_own(res.rep()))
             .map_err(|_| wasmtime::Error::msg("invalid container block entity resource handle"))?;
         let inventory = container.provider.inventory.clone();
-        let stack = inventory.get_stack(slot as usize).await;
+        let stack = inventory.get_stack(slot as usize);
         if stack.is_empty() {
             Ok(None)
         } else {
@@ -376,7 +376,7 @@ impl HostContainerBlockEntity for PluginHostState {
             None => pumpkin_data::item_stack::ItemStack::EMPTY.clone(),
         };
 
-        inventory.set_stack(slot as usize, stack).await;
+        inventory.set_stack(slot as usize, stack);
         Ok(())
     }
 
@@ -390,7 +390,7 @@ impl HostContainerBlockEntity for PluginHostState {
             .get::<ContainerBlockEntityResource>(&Resource::new_own(res.rep()))
             .map_err(|_| wasmtime::Error::msg("invalid container block entity resource handle"))?;
         let inventory = container.provider.inventory.clone();
-        let removed = inventory.remove_stack(slot as usize).await;
+        let removed = inventory.remove_stack(slot as usize);
         if removed.is_empty() {
             Ok(None)
         } else {
@@ -406,7 +406,7 @@ impl HostContainerBlockEntity for PluginHostState {
             .get::<ContainerBlockEntityResource>(&Resource::new_own(res.rep()))
             .map_err(|_| wasmtime::Error::msg("invalid container block entity resource handle"))?;
         let inventory = container.provider.inventory.clone();
-        inventory.clear().await;
+        inventory.clear();
         Ok(())
     }
 

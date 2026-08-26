@@ -24,7 +24,7 @@ impl ChestMinecart {
         &self.inventory
     }
 
-    pub(super) async fn interact(
+    pub(super) fn interact(
         &self,
         custom_name: Option<TextComponent>,
         player: &Arc<Player>,
@@ -40,7 +40,6 @@ impl ChestMinecart {
             ),
             false,
         )
-        .await
     }
 
     pub(super) fn write_nbt(&self, nbt: &mut NbtCompound) {

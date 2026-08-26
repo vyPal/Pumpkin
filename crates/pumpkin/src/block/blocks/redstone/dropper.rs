@@ -1,6 +1,6 @@
 use rand::{Rng, RngExt, rng};
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::sync::Mutex;
 
 use crate::block::blocks::redstone::block_receives_redstone_power;
 use crate::block::registry::BlockActionResult;
@@ -21,7 +21,7 @@ use pumpkin_data::{FacingExt, translation};
 use pumpkin_inventory::generic_container_screen_handler::create_generic_3x3;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
 use pumpkin_inventory::screen_handler::{
-    BoxFuture, InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
+    InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
 };
 use pumpkin_macros::pumpkin_block;
 use pumpkin_util::math::vector3::Vector3;
@@ -33,18 +33,16 @@ use pumpkin_world::world::BlockFlags;
 struct DropperScreenFactory(Arc<dyn Inventory>);
 
 impl ScreenHandlerFactory for DropperScreenFactory {
-    fn create_screen_handler<'a>(
-        &'a self,
+    fn create_screen_handler(
+        &self,
         sync_id: u8,
-        player_inventory: &'a Arc<PlayerInventory>,
-        _player: &'a dyn InventoryPlayer,
-    ) -> BoxFuture<'a, Option<SharedScreenHandler>> {
-        Box::pin(async move {
-            let handler = create_generic_3x3(sync_id, player_inventory, self.0.clone()).await;
-            let screen_handler_arc = Arc::new(Mutex::new(handler));
+        player_inventory: &Arc<PlayerInventory>,
+        _player: &dyn InventoryPlayer,
+    ) -> Option<SharedScreenHandler> {
+        let handler = create_generic_3x3(sync_id, player_inventory, self.0.clone());
+        let screen_handler_arc = Arc::new(Mutex::new(handler));
 
-            Some(screen_handler_arc as SharedScreenHandler)
-        })
+        Some(screen_handler_arc as SharedScreenHandler)
     }
 
     fn get_display_name(&self) -> TextComponent {
@@ -91,13 +89,8 @@ impl BlockBehaviour for DropperBlock {
         if let Some(block_entity) = args.world.get_block_entity(args.position)
             && let Some(inventory) = block_entity.get_inventory()
         {
-            let player = Arc::clone(args.player);
-            let pos = *args.position;
-            tokio::spawn(async move {
-                player
-                    .open_handled_screen(&DropperScreenFactory(inventory), Some(pos))
-                    .await;
-            });
+            args.player
+                .open_handled_screen(&DropperScreenFactory(inventory), Some(*args.position));
         }
         BlockActionResult::Success
     }
@@ -152,7 +145,7 @@ impl BlockBehaviour for DropperBlock {
                     return;
                 };
 
-                if let Some((slot_index, mut item)) = dropper.get_random_slot().await {
+                if let Some((slot_index, mut item)) = dropper.get_random_slot() {
                     let props = DispenserLikeProperties::from_state_id(state.id, block);
 
                     let target_pos = position.offset(props.facing.to_block_direction().to_offset());
@@ -163,20 +156,18 @@ impl BlockBehaviour for DropperBlock {
                         let backup = item.clone();
                         let one_item = item.split(1);
 
-                        if HopperBlockEntity::add_one_item(dropper, container.as_ref(), one_item)
-                            .await
-                        {
-                            dropper.set_stack(slot_index, item).await;
+                        if HopperBlockEntity::add_one_item(dropper, container.as_ref(), &one_item) {
+                            dropper.set_stack(slot_index, item);
                             return;
                         }
 
-                        dropper.set_stack(slot_index, backup).await;
+                        dropper.set_stack(slot_index, backup);
                         return;
                     }
 
                     // No container found, dispense item into the world
                     let drop_item = item.split(1);
-                    dropper.set_stack(slot_index, item).await;
+                    dropper.set_stack(slot_index, item);
                     let facing = to_normal(props.facing);
                     let mut pos = position.to_centered_f64().add(&(facing * 0.7));
 

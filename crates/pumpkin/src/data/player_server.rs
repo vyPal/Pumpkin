@@ -48,10 +48,9 @@ impl ServerPlayerData {
         player
             .player_screen_handler
             .lock()
-            .await
-            .on_closed(player.as_ref())
-            .await;
-        player.on_handled_screen_closed().await;
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .on_closed(player.as_ref());
+        player.on_handled_screen_closed();
 
         let mut nbt = NbtCompound::new();
         player.write_nbt(&mut nbt);

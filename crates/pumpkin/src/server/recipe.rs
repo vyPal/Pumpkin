@@ -1,7 +1,6 @@
 use std::sync::RwLock;
 
 use pumpkin_inventory::crafting::recipe_provider::RecipeProvider;
-use pumpkin_inventory::slot::BoxFuture;
 pub use pumpkin_protocol::codec::recipe::DynamicRecipe;
 
 pub struct RecipeManager {
@@ -63,12 +62,10 @@ impl RecipeManager {
 }
 
 impl RecipeProvider for RecipeManager {
-    fn get_dynamic_recipes(&self) -> BoxFuture<'_, Vec<DynamicRecipe>> {
-        Box::pin(async move {
-            self.dynamic_recipes
-                .read()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .clone()
-        })
+    fn get_dynamic_recipes(&self) -> Vec<DynamicRecipe> {
+        self.dynamic_recipes
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
     }
 }

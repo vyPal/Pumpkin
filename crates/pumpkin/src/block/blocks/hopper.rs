@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use crate::block::blocks::redstone::block_receives_redstone_power;
 use crate::block::{GetComparatorOutputArgs, OnNeighborUpdateArgs, OnPlaceArgs, PlacedArgs};
@@ -15,31 +16,27 @@ use pumpkin_data::{Block, BlockDirection, translation};
 use pumpkin_inventory::generic_container_screen_handler::create_hopper;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
 use pumpkin_inventory::screen_handler::{
-    BoxFuture, InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
+    InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
 };
 use pumpkin_macros::pumpkin_block;
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_util::text::TextComponent;
 use pumpkin_world::inventory::Inventory;
 use pumpkin_world::world::BlockFlags;
-use tokio::sync::Mutex;
 
 struct HopperBlockScreenFactory(Arc<dyn Inventory>);
 
 impl ScreenHandlerFactory for HopperBlockScreenFactory {
-    fn create_screen_handler<'a>(
-        &'a self,
+    fn create_screen_handler(
+        &self,
         sync_id: u8,
-        player_inventory: &'a Arc<PlayerInventory>,
-        _player: &'a dyn InventoryPlayer,
-    ) -> BoxFuture<'a, Option<SharedScreenHandler>> {
-        Box::pin(async move {
-            let concrete_handler = create_hopper(sync_id, player_inventory, self.0.clone()).await;
+        player_inventory: &Arc<PlayerInventory>,
+        _player: &dyn InventoryPlayer,
+    ) -> Option<SharedScreenHandler> {
+        let concrete_handler = create_hopper(sync_id, player_inventory, self.0.clone());
+        let concrete_arc = Arc::new(Mutex::new(concrete_handler));
 
-            let concrete_arc = Arc::new(Mutex::new(concrete_handler));
-
-            Some(concrete_arc as SharedScreenHandler)
-        })
+        Some(concrete_arc as SharedScreenHandler)
     }
 
     fn get_display_name(&self) -> TextComponent {
@@ -65,13 +62,8 @@ impl BlockBehaviour for HopperBlock {
                 pumpkin_data::statistic::CustomStatistic::InspectHopper as i32,
                 1,
             );
-            let player = Arc::clone(args.player);
-            let pos = *args.position;
-            tokio::spawn(async move {
-                player
-                    .open_handled_screen(&HopperBlockScreenFactory(inventory), Some(pos))
-                    .await;
-            });
+            args.player
+                .open_handled_screen(&HopperBlockScreenFactory(inventory), Some(*args.position));
         }
 
         BlockActionResult::Success

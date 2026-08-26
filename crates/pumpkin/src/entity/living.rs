@@ -1906,7 +1906,7 @@ impl LivingEntity {
     }
 
     #[allow(dead_code)]
-    async fn damage_armor_items(&self, caller: &dyn EntityBase, damage_amount: f32) {
+    fn damage_armor_items(&self, caller: &dyn EntityBase, damage_amount: f32) {
         // Formula: armor loses floor(incoming_damage / 4) durability, minimum 1.
         let armor_damage = (damage_amount / 4.0).floor().max(1.0) as i32;
         let mut equipment_updates = Vec::new();
@@ -1954,12 +1954,10 @@ impl LivingEntity {
                     }
                     equipment_updates.push((slot.clone(), stack.clone()));
                     if let Some(player) = caller.get_player() {
-                        player
-                            .enqueue_slot_set_packet(&CSetPlayerInventory::new(
-                                (slot_index as i32).into(),
-                                &ItemStackSerializer::from(stack),
-                            ))
-                            .await;
+                        player.enqueue_slot_set_packet(&CSetPlayerInventory::new(
+                            (slot_index as i32).into(),
+                            &ItemStackSerializer::from(stack),
+                        ));
                     }
                 }
             }

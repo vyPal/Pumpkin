@@ -732,10 +732,10 @@ impl EntityBase for MinecartEntity {
                 {
                     let container_clone = container.clone();
                     let world_clone = self.vehicle.entity.world.load_full();
+                    container_clone.unpack_loot();
                     tokio::spawn(async move {
-                        container_clone.unpack_loot().await;
                         let inventory: Arc<dyn Inventory> = container_clone;
-                        world_clone.scatter_inventory(&position, &inventory).await;
+                        world_clone.scatter_inventory(&position, &inventory);
                     });
                 }
                 if let Some(item) = self.drop_item() {
@@ -750,24 +750,16 @@ impl EntityBase for MinecartEntity {
     fn interact(&self, player: &Arc<Player>, item_stack: &mut ItemStack) -> bool {
         match &self.kind {
             MinecartKind::Chest(minecart) => {
-                let minecart = minecart.clone();
                 let custom_name = self.vehicle.entity.custom_name.load().as_ref().clone();
-                let player = player.clone();
-                tokio::spawn(async move {
-                    minecart.interact(custom_name, &player).await;
-                });
+                minecart.interact(custom_name, player);
                 true
             }
             MinecartKind::Furnace(minecart) => {
                 minecart.interact(&self.vehicle.entity, player, item_stack)
             }
             MinecartKind::Hopper(minecart) => {
-                let minecart = minecart.clone();
                 let custom_name = self.vehicle.entity.custom_name.load().as_ref().clone();
-                let player = player.clone();
-                tokio::spawn(async move {
-                    minecart.interact(custom_name, &player).await;
-                });
+                minecart.interact(custom_name, player);
                 true
             }
             MinecartKind::Rideable(_) => RideableMinecart::interact(&self.vehicle.entity, player),

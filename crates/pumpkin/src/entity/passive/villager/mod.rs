@@ -18,7 +18,7 @@ use pumpkin_data::tag::{Enchantment as EnchantmentTag, Taggable};
 use pumpkin_data::tracked_data;
 use pumpkin_inventory::merchant::merchant_screen_handler::MerchantScreenHandler;
 use pumpkin_inventory::screen_handler::{
-    BoxFuture, InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
+    InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
 };
 use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_nbt::tag::NbtTag;
@@ -32,7 +32,6 @@ use pumpkin_util::math::{boundingbox::BoundingBox, position::BlockPos, vector3::
 use pumpkin_util::text::TextComponent;
 use pumpkin_util::version::JavaMinecraftVersion;
 use pumpkin_world::inventory::SimpleInventory;
-use tokio::sync::Mutex;
 
 use crate::entity::player::Player;
 use crate::entity::{
@@ -881,18 +880,30 @@ impl VillagerEntity {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
 
-        let screen = player.current_screen_handler.lock().await.clone();
-        let mut screen = screen.lock().await;
-        if screen.sync_id() != sync_id {
+        let ok = {
+            let screen = player
+                .current_screen_handler
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
+            let mut screen = screen
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if screen.sync_id() != sync_id {
+                false
+            } else if let Some(handler) =
+                screen.as_any_mut().downcast_mut::<MerchantScreenHandler>()
+            {
+                handler.offers.clone_from(&offers);
+                handler.update_result_slot();
+                true
+            } else {
+                false
+            }
+        };
+        if !ok {
             return;
         }
-        if let Some(handler) = screen.as_any_mut().downcast_mut::<MerchantScreenHandler>() {
-            handler.offers.clone_from(&offers);
-            handler.update_result_slot().await;
-        } else {
-            return;
-        }
-        drop(screen);
         self.send_trade_offers(player, sync_id, offers, villager_data)
             .await;
     }
@@ -919,18 +930,30 @@ impl VillagerEntity {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
 
-        let screen = player.current_screen_handler.lock().await.clone();
-        let mut screen = screen.lock().await;
-        if screen.sync_id() != sync_id {
+        let ok = {
+            let screen = player
+                .current_screen_handler
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
+            let mut screen = screen
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if screen.sync_id() != sync_id {
+                false
+            } else if let Some(handler) =
+                screen.as_any_mut().downcast_mut::<MerchantScreenHandler>()
+            {
+                handler.offers.clone_from(&offers);
+                handler.update_result_slot();
+                true
+            } else {
+                false
+            }
+        };
+        if !ok {
             return;
         }
-        if let Some(handler) = screen.as_any_mut().downcast_mut::<MerchantScreenHandler>() {
-            handler.offers.clone_from(&offers);
-            handler.update_result_slot().await;
-        } else {
-            return;
-        }
-        drop(screen);
         self.send_trade_offers(&player, sync_id, offers, villager_data)
             .await;
     }
@@ -1277,7 +1300,7 @@ impl VillagerEntity {
 
     pub async fn open_trading_screen(&self, player: &Arc<Player>) {
         // Open the merchant screen and then send the current offers packet
-        if let Some(sync_id) = player.open_handled_screen(self, None).await {
+        if let Some(sync_id) = player.open_handled_screen(self, None) {
             let offers = self
                 .offers
                 .lock()
@@ -1435,96 +1458,89 @@ impl VillagerEntity {
 }
 
 impl ScreenHandlerFactory for VillagerEntity {
-    fn create_screen_handler<'a>(
-        &'a self,
+    fn create_screen_handler(
+        &self,
         sync_id: u8,
-        player_inventory: &'a Arc<pumpkin_inventory::player::player_inventory::PlayerInventory>,
-        player: &'a dyn InventoryPlayer,
-    ) -> BoxFuture<'a, Option<SharedScreenHandler>> {
-        Box::pin(async move {
-            let self_weak = self
-                .self_weak
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .clone()?;
-            let server_player = player.as_any().downcast_ref::<Player>();
-            let player_uuid =
-                server_player.map_or_else(uuid::Uuid::nil, |p| p.get_entity().entity_uuid);
-            if let Some(player) = server_player {
-                self.update_special_prices(player);
+        player_inventory: &Arc<pumpkin_inventory::player::player_inventory::PlayerInventory>,
+        player: &dyn InventoryPlayer,
+    ) -> Option<SharedScreenHandler> {
+        let self_weak = self
+            .self_weak
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()?;
+        let server_player = player.as_any().downcast_ref::<Player>();
+        let player_uuid =
+            server_player.map_or_else(uuid::Uuid::nil, |p| p.get_entity().entity_uuid);
+        if let Some(player) = server_player {
+            self.update_special_prices(player);
+        }
+        let offers = self
+            .offers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        let world = self.get_entity().world.load().clone();
+
+        let mut handler = MerchantScreenHandler::new(
+            sync_id,
+            player_inventory,
+            self.merchant_inventory.clone(),
+            offers,
+        );
+
+        self.is_trading.store(true, Ordering::Relaxed);
+        *self
+            .trading_player
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some((player_uuid, sync_id));
+        let validity_weak = self_weak.clone();
+        handler.validity_check = Some(Box::new(move |inventory_player| {
+            validity_weak.upgrade().is_some_and(|villager| {
+                villager.can_continue_trading(inventory_player, player_uuid, sync_id)
+            })
+        }));
+        let update_weak = self_weak.clone();
+        handler.on_trade_updated = Some(Box::new(move |has_result| {
+            let Some(villager) = update_weak.upgrade() else {
+                return;
+            };
+            if villager
+                .trade_sound_cooldown
+                .compare_exchange(0, 20, Ordering::Relaxed, Ordering::Relaxed)
+                .is_ok()
+            {
+                villager.get_entity().play_sound(if has_result {
+                    pumpkin_data::sound::Sound::EntityVillagerYes
+                } else {
+                    pumpkin_data::sound::Sound::EntityVillagerNo
+                });
             }
-            let offers = self
-                .offers
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .clone();
-            let world = self.get_entity().world.load().clone();
+        }));
+        let close_weak = self_weak.clone();
+        handler.on_close = Some(Box::new(move || {
+            if let Some(villager) = close_weak.upgrade() {
+                villager.is_trading.store(false, Ordering::Relaxed);
+                *villager
+                    .trading_player
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+                villager.reset_special_prices();
+            }
+        }));
 
-            let mut handler = MerchantScreenHandler::new(
-                sync_id,
-                player_inventory,
-                self.merchant_inventory.clone(),
-                offers,
-            )
-            .await;
-
-            self.is_trading.store(true, Ordering::Relaxed);
-            *self
-                .trading_player
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some((player_uuid, sync_id));
-            let validity_weak = self_weak.clone();
-            handler.validity_check = Some(Box::new(move |inventory_player| {
-                validity_weak.upgrade().is_some_and(|villager| {
-                    villager.can_continue_trading(inventory_player, player_uuid, sync_id)
-                })
-            }));
-            let update_weak = self_weak.clone();
-            handler.on_trade_updated = Some(Box::new(move |has_result| {
-                let Some(villager) = update_weak.upgrade() else {
-                    return;
-                };
-                if villager
-                    .trade_sound_cooldown
-                    .compare_exchange(0, 20, Ordering::Relaxed, Ordering::Relaxed)
-                    .is_ok()
-                {
-                    villager.get_entity().play_sound(if has_result {
-                        pumpkin_data::sound::Sound::EntityVillagerYes
-                    } else {
-                        pumpkin_data::sound::Sound::EntityVillagerNo
-                    });
-                }
-            }));
-            let close_weak = self_weak.clone();
-            handler.on_close = Some(Box::new(move || {
-                let close_weak = close_weak.clone();
-                Box::pin(async move {
-                    if let Some(villager) = close_weak.upgrade() {
-                        villager.is_trading.store(false, Ordering::Relaxed);
-                        *villager
-                            .trading_player
-                            .lock()
-                            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
-                        villager.reset_special_prices();
-                    }
-                })
-            }));
-
-            handler.on_trade = Some(Box::new(move |offer_index| {
-                let self_weak = self_weak.clone();
+        handler.on_trade = Some(Box::new(move |offer_index| {
+            if let Some(villager) = self_weak.upgrade() {
                 let world = world.clone();
-                Box::pin(async move {
-                    if let Some(villager) = self_weak.upgrade() {
-                        villager
-                            .complete_trade(offer_index, &world, player_uuid)
-                            .await;
-                    }
-                })
-            }));
+                tokio::spawn(async move {
+                    villager
+                        .complete_trade(offer_index, &world, player_uuid)
+                        .await;
+                });
+            }
+        }));
 
-            Some(Arc::new(Mutex::new(handler)) as SharedScreenHandler)
-        })
+        Some(Arc::new(std::sync::Mutex::new(handler)) as SharedScreenHandler)
     }
 
     fn get_display_name(&self) -> TextComponent {

@@ -958,9 +958,10 @@ impl JavaClient {
                     .await;
             }
             id if id == SContainerButtonClick::to_id(version) => {
-                player
-                    .on_container_button_click(SContainerButtonClick::read(&mut payload, &version)?)
-                    .await;
+                player.on_container_button_click(&SContainerButtonClick::read(
+                    &mut payload,
+                    &version,
+                )?);
             }
             id if id == SSetHeldItem::to_id(version) => {
                 self.handle_set_held_item(
@@ -1012,8 +1013,7 @@ impl JavaClient {
                     player,
                     server,
                     SCloseContainer::read(&mut payload, &version)?,
-                )
-                .await;
+                );
             }
             id if id == SChunkBatch::to_id(version) => {
                 self.handle_chunk_batch(player, SChunkBatch::read(&mut payload, &version)?)

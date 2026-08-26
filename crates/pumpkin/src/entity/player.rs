@@ -244,8 +244,8 @@ use pumpkin_inventory::player::{
     player_inventory::PlayerInventory, player_screen_handler::PlayerScreenHandler,
 };
 use pumpkin_inventory::screen_handler::{
-    BoxFuture, ClickType, InventoryPlayer, PlayerFuture, ScreenHandler, ScreenHandlerBehaviour,
-    ScreenHandlerFactory, ScreenHandlerListener,
+    ClickType, InventoryPlayer, ScreenHandler, ScreenHandlerBehaviour, ScreenHandlerFactory,
+    ScreenHandlerListener,
 };
 use pumpkin_inventory::sync_handler::SyncHandler;
 use pumpkin_macros::send_cancellable;
@@ -803,8 +803,8 @@ pub struct Player {
     root_vehicle_uuid: AtomicCell<Option<Uuid>>,
     pub chat_session: Arc<Mutex<ChatSession>>,
     pub signature_cache: Mutex<MessageCache>,
-    pub player_screen_handler: Arc<Mutex<PlayerScreenHandler>>,
-    pub current_screen_handler: Mutex<Arc<Mutex<dyn ScreenHandler>>>,
+    pub player_screen_handler: Arc<std::sync::Mutex<PlayerScreenHandler>>,
+    pub current_screen_handler: std::sync::Mutex<Arc<std::sync::Mutex<dyn ScreenHandler>>>,
     pub screen_handler_sync_id: AtomicU8,
     pub screen_handler_listener: Arc<dyn ScreenHandlerListener>,
     pub inventory_changed: Arc<AtomicBool>,
@@ -931,14 +931,13 @@ impl Player {
         struct ScreenListener(Arc<AtomicBool>);
 
         impl ScreenHandlerListener for ScreenListener {
-            fn on_slot_update<'a>(
-                &'a self,
-                _screen_handler: &'a ScreenHandlerBehaviour,
+            fn on_slot_update(
+                &self,
+                _screen_handler: &ScreenHandlerBehaviour,
                 _slot: u8,
                 _stack: ItemStack,
-            ) -> BoxFuture<'a, ()> {
+            ) {
                 self.0.store(true, Ordering::Relaxed);
-                Box::pin(async {})
             }
         }
 
@@ -977,10 +976,12 @@ impl Player {
 
         let ender_chest_inventory = Arc::new(EnderChestInventory::new());
 
-        let player_screen_handler = Arc::new(Mutex::new(
-            PlayerScreenHandler::new(&inventory, None, 0, Some(server.recipe_manager.clone()))
-                .await,
-        ));
+        let player_screen_handler = Arc::new(std::sync::Mutex::new(PlayerScreenHandler::new(
+            &inventory,
+            None,
+            0,
+            Some(server.recipe_manager.clone()),
+        )));
 
         // Initialize abilities based on gamemode (like vanilla's GameMode.setAbilities())
         let mut abilities = Abilities::default();
@@ -1098,7 +1099,7 @@ impl Player {
             chat_session: Arc::new(Mutex::new(ChatSession::default())), // Placeholder value until the player actually sets their session id
             signature_cache: Mutex::new(MessageCache::default()),
             player_screen_handler: player_screen_handler.clone(),
-            current_screen_handler: Mutex::new(player_screen_handler),
+            current_screen_handler: std::sync::Mutex::new(player_screen_handler),
             screen_handler_sync_id: AtomicU8::new(0),
             screen_handler_listener: Arc::new(ScreenListener(inventory_changed.clone())),
             inventory_changed,
@@ -1277,7 +1278,7 @@ impl Player {
     }
 
     /// Opens the player's ender chest screen.
-    pub async fn open_ender_chest(self: &Arc<Self>) -> Option<u8> {
+    pub fn open_ender_chest(self: &Arc<Self>) -> Option<u8> {
         self.increment_stat(
             pumpkin_data::statistic::StatisticCategory::Custom,
             pumpkin_data::statistic::CustomStatistic::OpenEnderchest as i32,
@@ -1291,7 +1292,6 @@ impl Player {
             },
             None,
         )
-        .await
     }
 
     /// Removes the [`Player`] out of the current [`World`].
@@ -1299,13 +1299,13 @@ impl Player {
         if !self
             .current_screen_handler
             .lock()
-            .await
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .lock()
-            .await
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .as_any()
             .is::<PlayerScreenHandler>()
         {
-            self.on_handled_screen_closed().await;
+            self.on_handled_screen_closed();
         }
 
         let vehicle = self
@@ -2466,18 +2466,10 @@ impl Player {
 
             if is_invalid {
                 if let Some(p) = self.world().get_player_by_uuid(self.gameprofile.id) {
-                    tokio::spawn(async move {
-                        p.close_handled_screen().await;
-                    });
+                    p.close_handled_screen();
                 }
-            } else {
-                tokio::spawn(async move {
-                    current_screen_handler
-                        .lock()
-                        .await
-                        .send_content_updates()
-                        .await;
-                });
+            } else if let Ok(mut screen_handler) = current_screen_handler.try_lock() {
+                screen_handler.send_content_updates();
             }
         }
 
@@ -3617,10 +3609,10 @@ impl Player {
                 self.send_abilities_update();
 
                 self.enqueue_set_held_item_packet(&CSetSelectedSlot::new(
-                   self.get_inventory().get_selected_slot() as i8,
-                )).await;
+                    self.get_inventory().get_selected_slot() as i8,
+                ));
 
-                self.on_screen_handler_opened(self.player_screen_handler.clone()).await;
+                self.on_screen_handler_opened(&self.player_screen_handler);
 
                 self.send_health();
 
@@ -4540,15 +4532,17 @@ impl Player {
         self.drop_item(dropped_stack);
 
         let inv: Arc<dyn Inventory> = self.inventory.clone();
-        let screen_binding = self.current_screen_handler.lock().await;
-        let mut screen_handler = screen_binding.lock().await;
+        let screen_binding = self
+            .current_screen_handler
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut screen_handler = screen_binding
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let selected_slot = self.inventory.get_selected_slot();
-        if let Some(slot_index) = screen_handler
-            .get_slot_index(&inv, selected_slot as usize)
-            .await
-        {
+        if let Some(slot_index) = screen_handler.get_slot_index(&inv, selected_slot as usize) {
             screen_handler.set_received_stack(slot_index, updated_stack);
-            screen_handler.send_content_updates().await;
+            screen_handler.send_content_updates();
         }
     }
 
@@ -4983,10 +4977,15 @@ impl Player {
             .store(current_id % 100 + 1, Ordering::Relaxed);
     }
 
-    pub async fn close_handled_screen(self: &Arc<Self>) {
+    pub fn close_handled_screen(&self) {
         let (sync_id, bedrock_window_type) = {
-            let current_handler_guard = self.current_screen_handler.lock().await;
-            let handler = current_handler_guard.lock().await;
+            let current_handler_guard = self
+                .current_screen_handler
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let handler = current_handler_guard
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let sync_id = handler.sync_id();
             let window_type = handler.window_type();
             let bedrock_window_type = match window_type {
@@ -5009,65 +5008,74 @@ impl Player {
             (sync_id, bedrock_window_type)
         };
 
-        self.client
-            .enqueue_packet_editioned(
-                &CCloseContainer::new(sync_id.into()),
-                &pumpkin_protocol::bedrock::server::container_close::SContainerClose {
-                    container_id: sync_id,
-                    container_type: bedrock_window_type,
-                    server_initiated_close: true,
-                },
-            )
-            .await;
-        self.on_handled_screen_closed().await;
+        self.try_enqueue_packet_editioned(
+            &CCloseContainer::new(sync_id.into()),
+            &pumpkin_protocol::bedrock::server::container_close::SContainerClose {
+                container_id: sync_id,
+                container_type: bedrock_window_type,
+                server_initiated_close: true,
+            },
+        );
+        self.on_handled_screen_closed();
     }
 
-    pub async fn on_handled_screen_closed(self: &Arc<Self>) {
-        let current_screen_handler: Arc<Mutex<dyn ScreenHandler>> =
-            self.current_screen_handler.lock().await.clone();
+    pub fn on_handled_screen_closed(&self) {
+        let current_screen_handler: Arc<std::sync::Mutex<dyn ScreenHandler>> = self
+            .current_screen_handler
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
 
         let window_type = {
-            let mut handler = current_screen_handler.lock().await;
+            let mut handler = current_screen_handler
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let wt = handler.window_type();
-            handler.on_closed(self.as_ref()).await;
+            handler.on_closed(self);
             wt
         };
 
-        let server = self.living_entity.entity.world.load().server.upgrade();
-        if let Some(server) = server {
+        let world = self.living_entity.entity.world.load();
+        let server = world.server.upgrade();
+        if let Some(server) = server
+            && let Some(player_arc) = world.get_player_by_uuid(self.gameprofile.id)
+        {
             let mut event =
                 crate::plugin::api::events::player::inventory_close::InventoryCloseEvent::new(
-                    self,
+                    &player_arc,
                     window_type,
                 );
-            server.plugin_manager.fire(&server, &mut event).await;
+            server.plugin_manager.fire_blocking(&server, &mut event);
         }
 
-        let player_screen_handler: Arc<Mutex<dyn ScreenHandler>> =
+        let player_screen_handler: Arc<std::sync::Mutex<dyn ScreenHandler>> =
             self.player_screen_handler.clone();
 
         if !Arc::ptr_eq(&player_screen_handler, &current_screen_handler) {
             player_screen_handler
                 .lock()
-                .await
-                .copy_shared_slots(current_screen_handler)
-                .await;
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .copy_shared_slots(current_screen_handler);
         }
 
-        *self.current_screen_handler.lock().await = self.player_screen_handler.clone();
+        *self
+            .current_screen_handler
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) =
+            self.player_screen_handler.clone();
         self.open_container_pos.store(None);
     }
 
-    pub async fn on_screen_handler_opened(&self, screen_handler: Arc<Mutex<dyn ScreenHandler>>) {
-        let mut screen_handler = screen_handler.lock().await;
+    pub fn on_screen_handler_opened<T: ScreenHandler + ?Sized>(
+        &self,
+        screen_handler: &std::sync::Mutex<T>,
+    ) {
+        let mut screen_handler = screen_handler
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
 
-        screen_handler
-            .add_listener(self.screen_handler_listener.clone())
-            .await;
-
-        screen_handler
-            .update_sync_handler(self.screen_handler_sync_handler.clone())
-            .await;
+        screen_handler.add_listener(self.screen_handler_listener.clone());
+        screen_handler.update_sync_handler(self.screen_handler_sync_handler.clone());
     }
 
     pub async fn on_rename_item(self: &Arc<Self>, packet: SRenameItem<'_>) {
@@ -5086,43 +5094,49 @@ impl Player {
                 .await;
         }
 
-        let screen_handler_arc = self.current_screen_handler.lock().await.clone();
-        let mut screen_handler = screen_handler_arc.lock().await;
+        let screen_handler_arc = self
+            .current_screen_handler
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        let mut screen_handler = screen_handler_arc
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
 
         if let Some(anvil_handler) = screen_handler
             .as_any_mut()
             .downcast_mut::<pumpkin_inventory::anvil::AnvilScreenHandler>()
         {
-            anvil_handler
-                .update_item_name(packet.item_name.to_string())
-                .await;
+            anvil_handler.update_item_name(packet.item_name.to_string());
         }
     }
 
-    pub async fn open_handled_screen(
-        self: &Arc<Self>,
+    pub fn open_handled_screen(
+        &self,
         screen_handler_factory: &dyn ScreenHandlerFactory,
         block_pos: Option<BlockPos>,
     ) -> Option<u8> {
         if !self
             .current_screen_handler
             .lock()
-            .await
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .lock()
-            .await
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .as_any()
             .is::<PlayerScreenHandler>()
         {
-            self.close_handled_screen().await;
+            self.close_handled_screen();
         }
 
         let server = self.world().server.upgrade();
-        if let Some(server) = server {
+        if let Some(server) = server
+            && let Some(player_arc) = self.world().get_player_by_uuid(self.gameprofile.id)
+        {
             let mut event =
                 crate::plugin::api::events::inventory::inventory_open::InventoryOpenEvent::new(
-                    self.clone(),
+                    player_arc,
                 );
-            server.plugin_manager.fire(&server, &mut event).await;
+            server.plugin_manager.fire_blocking(&server, &mut event);
             if event.cancelled {
                 return None;
             }
@@ -5130,15 +5144,14 @@ impl Player {
 
         self.increment_screen_handler_sync_id();
 
-        if let Some(screen_handler) = screen_handler_factory
-            .create_screen_handler(
-                self.screen_handler_sync_id.load(Ordering::Relaxed),
-                &self.inventory,
-                self.as_ref(),
-            )
-            .await
-        {
-            let screen_handler_temp = screen_handler.lock().await;
+        if let Some(screen_handler) = screen_handler_factory.create_screen_handler(
+            self.screen_handler_sync_id.load(Ordering::Relaxed),
+            &self.inventory,
+            self,
+        ) {
+            let screen_handler_temp = screen_handler
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let sync_id = screen_handler_temp.sync_id();
             let window_type = screen_handler_temp.window_type()?;
 
@@ -5172,13 +5185,14 @@ impl Player {
                 target_entity_id: VarLong(-1),
             };
 
-            self.client
-                .enqueue_packet_editioned(&java_packet, &bedrock_packet)
-                .await;
+            self.try_enqueue_packet_editioned(&java_packet, &bedrock_packet);
 
             drop(screen_handler_temp);
-            self.on_screen_handler_opened(screen_handler.clone()).await;
-            *self.current_screen_handler.lock().await = screen_handler;
+            self.on_screen_handler_opened(&screen_handler);
+            *self
+                .current_screen_handler
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = screen_handler;
             self.open_container_pos.store(block_pos);
             Some(self.screen_handler_sync_id.load(Ordering::Relaxed))
         } else {
@@ -5188,30 +5202,32 @@ impl Player {
         }
     }
 
-    pub async fn open_handled_screen_direct(
-        self: &Arc<Self>,
-        screen_handler: Arc<Mutex<dyn ScreenHandler>>,
-        title: TextComponent,
+    pub fn open_handled_screen_direct(
+        &self,
+        screen_handler: Arc<std::sync::Mutex<dyn ScreenHandler>>,
+        title: &TextComponent,
     ) {
         if !self
             .current_screen_handler
             .lock()
-            .await
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .lock()
-            .await
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .as_any()
             .is::<PlayerScreenHandler>()
         {
-            self.close_handled_screen().await;
+            self.close_handled_screen();
         }
 
-        let screen_handler_temp = screen_handler.lock().await;
+        let screen_handler_temp = screen_handler
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let sync_id = screen_handler_temp.sync_id();
         let Some(window_type) = screen_handler_temp.window_type() else {
             return;
         };
 
-        let java_packet = COpenScreen::new(sync_id.into(), (window_type as i32).into(), &title);
+        let java_packet = COpenScreen::new(sync_id.into(), (window_type as i32).into(), title);
 
         let bedrock_window_type = match window_type {
             WindowType::Crafting => 1,
@@ -5238,29 +5254,74 @@ impl Player {
             target_entity_id: VarLong(-1),
         };
 
-        self.client
-            .enqueue_packet_editioned(&java_packet, &bedrock_packet)
-            .await;
+        self.try_enqueue_packet_editioned(&java_packet, &bedrock_packet);
 
         drop(screen_handler_temp);
-        self.on_screen_handler_opened(screen_handler.clone()).await;
-        *self.current_screen_handler.lock().await = screen_handler;
+        self.on_screen_handler_opened(&screen_handler);
+        *self
+            .current_screen_handler
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = screen_handler;
         self.open_container_pos.store(None);
     }
 
     #[allow(clippy::too_many_lines)]
     pub async fn on_slot_click(self: &Arc<Self>, packet: SClickSlot, server: &Arc<Server>) {
         self.update_last_action_time();
-        let screen_handler_arc = self.current_screen_handler.lock().await.clone();
-        let mut screen_handler = screen_handler_arc.lock().await;
 
-        let (sync_id, container_slots, allow_grab_items, allow_put_items) = {
+        let (
+            sync_id,
+            container_slots,
+            allow_grab_items,
+            allow_put_items,
+            can_use,
+            is_slot_valid,
+            available_slots,
+            clicked_item,
+            cursor_item,
+            window_type,
+        ) = {
+            let screen_handler_arc = self
+                .current_screen_handler
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
+            let screen_handler = screen_handler_arc
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+
             let b = screen_handler.get_behaviour();
+            let sync_id = b.sync_id;
+            let container_slots = b.container_slots;
+            let allow_grab_items = b.allow_grab_items;
+            let allow_put_items = b.allow_put_items;
+            let can_use = screen_handler.can_use(self.as_ref());
+            let is_slot_valid = screen_handler.is_slot_valid(i32::from(packet.slot));
+            let available_slots = b.slots.len();
+
+            let clicked_item = (packet.slot >= 0 && (packet.slot as usize) < b.slots.len())
+                .then(|| b.slots[packet.slot as usize].get_cloned_stack());
+
+            let cursor_item = Some(
+                b.cursor_stack
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .clone(),
+            );
+
+            let window_type = screen_handler.window_type();
+
             (
-                b.sync_id,
-                b.container_slots,
-                b.allow_grab_items,
-                b.allow_put_items,
+                sync_id,
+                container_slots,
+                allow_grab_items,
+                allow_put_items,
+                can_use,
+                is_slot_valid,
+                available_slots,
+                clicked_item,
+                cursor_item,
+                window_type,
             )
         };
 
@@ -5269,47 +5330,48 @@ impl Player {
         }
 
         if self.gamemode.load() == GameMode::Spectator {
-            screen_handler.sync_state().await;
+            let screen_handler_arc = self
+                .current_screen_handler
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
+            screen_handler_arc
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .sync_state();
             return;
         }
 
-        if !screen_handler.can_use(self.as_ref()) {
+        if !can_use {
             warn!(
                 "Player {} interacted with invalid menu {:?}",
-                self.gameprofile.name,
-                screen_handler.window_type()
+                self.gameprofile.name, window_type
             );
             return;
         }
 
         let slot = packet.slot;
 
-        if !screen_handler.is_slot_valid(i32::from(slot)).await {
+        if !is_slot_valid {
             warn!(
                 "Player {} clicked invalid slot index: {}, available slots: {}",
-                self.gameprofile.name,
-                slot,
-                screen_handler.get_behaviour().slots.len()
+                self.gameprofile.name, slot, available_slots
             );
             return;
         }
 
-        // Fire InventoryClickEvent
-        let clicked_item = if slot >= 0 {
-            let slot_obj = &screen_handler.get_behaviour().slots[slot as usize];
-            Some(slot_obj.get_cloned_stack().await)
-        } else {
-            None
+        let cancel_screen = || {
+            let screen_handler_arc = self
+                .current_screen_handler
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
+            screen_handler_arc
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .cancel();
         };
 
-        let cursor_item = Some(
-            screen_handler
-                .get_behaviour()
-                .cursor_stack
-                .lock()
-                .await
-                .clone(),
-        );
         let raw_slot = slot; // For now raw_slot == slot, as we don't have separate view/inventory indexing yet
         let hotbar_button = if matches!(packet.mode, SlotActionType::Swap) {
             packet.button
@@ -5357,7 +5419,7 @@ impl Player {
             server;
             InventoryClickEvent::new(
                 self,
-                screen_handler.window_type(),
+                window_type,
                 click_type,
                 slot,
                 raw_slot,
@@ -5367,7 +5429,7 @@ impl Player {
             );
             'after: {}
             'cancelled: {
-                screen_handler.cancel().await;
+                cancel_screen();
                 return;
             }
         }}
@@ -5383,7 +5445,7 @@ impl Player {
                 .await;
         }
         if interact_event.cancelled {
-            screen_handler.cancel().await;
+            cancel_screen();
             return;
         }
 
@@ -5406,12 +5468,12 @@ impl Player {
                 server.plugin_manager.fire(&server, &mut prep_craft).await;
             }
             if craft_event.cancelled || prep_craft.cancelled {
-                screen_handler.cancel().await;
+                cancel_screen();
                 return;
             }
         }
 
-        if screen_handler.window_type() == Some(WindowType::Smithing)
+        if window_type == Some(WindowType::Smithing)
             && slot == 3
             && let Some(ref stack) = clicked_item
             && !stack.is_empty()
@@ -5431,14 +5493,14 @@ impl Player {
                 server.plugin_manager.fire(&server, &mut prep_smith).await;
             }
             if smith_event.cancelled {
-                screen_handler.cancel().await;
+                cancel_screen();
                 return;
             }
         }
 
-        if (screen_handler.window_type() == Some(WindowType::Furnace)
-            || screen_handler.window_type() == Some(WindowType::BlastFurnace)
-            || screen_handler.window_type() == Some(WindowType::Smoker))
+        if (window_type == Some(WindowType::Furnace)
+            || window_type == Some(WindowType::BlastFurnace)
+            || window_type == Some(WindowType::Smoker))
             && slot == 2
             && let Some(ref stack) = clicked_item
             && !stack.is_empty()
@@ -5459,7 +5521,7 @@ impl Player {
             }
         }
 
-        if screen_handler.window_type() == Some(WindowType::Grindstone)
+        if window_type == Some(WindowType::Grindstone)
             && let Some(ref stack) = clicked_item
         {
             let mut prep_grindstone =
@@ -5495,62 +5557,75 @@ impl Player {
                 server.plugin_manager.fire(&server, &mut drag_event).await;
             }
             if drag_event.cancelled {
-                screen_handler.cancel().await;
+                cancel_screen();
                 return;
             }
         }
+
+        let screen_handler_arc = self
+            .current_screen_handler
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        let mut screen_handler = screen_handler_arc
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
 
         // Enforce flags
         let is_container_slot = slot >= 0 && i32::from(slot) < container_slots as i32;
 
         match packet.mode {
             SlotActionType::Pickup => {
-                let cursor_stack = screen_handler.get_behaviour().cursor_stack.lock().await;
+                let cursor_stack = screen_handler
+                    .get_behaviour()
+                    .cursor_stack
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 if is_container_slot {
                     if !cursor_stack.is_empty() && !allow_put_items {
                         drop(cursor_stack);
-                        screen_handler.cancel().await;
+                        screen_handler.cancel();
                         return;
                     }
                     if cursor_stack.is_empty() && !allow_grab_items {
                         drop(cursor_stack);
-                        screen_handler.cancel().await;
+                        screen_handler.cancel();
                         return;
                     }
                 }
             }
             SlotActionType::QuickMove => {
                 if is_container_slot && !allow_grab_items {
-                    screen_handler.cancel().await;
+                    screen_handler.cancel();
                     return;
                 }
                 if !is_container_slot && !allow_put_items {
-                    screen_handler.cancel().await;
+                    screen_handler.cancel();
                     return;
                 }
             }
             SlotActionType::Swap => {
                 if is_container_slot && (!allow_grab_items || !allow_put_items) {
-                    screen_handler.cancel().await;
+                    screen_handler.cancel();
                     return;
                 }
             }
             SlotActionType::Throw => {
                 if is_container_slot && !allow_grab_items {
-                    screen_handler.cancel().await;
+                    screen_handler.cancel();
                     return;
                 }
             }
             SlotActionType::QuickCraft => {
                 if !allow_put_items {
                     // Dragging items into slots
-                    screen_handler.cancel().await;
+                    screen_handler.cancel();
                     return;
                 }
             }
             SlotActionType::PickupAll => {
                 if !allow_grab_items {
-                    screen_handler.cancel().await;
+                    screen_handler.cancel();
                     return;
                 }
             }
@@ -5564,14 +5639,12 @@ impl Player {
                 .load(Ordering::Relaxed) as i32);
 
         screen_handler.disable_sync();
-        screen_handler
-            .on_slot_click(
-                i32::from(slot),
-                i32::from(packet.button),
-                packet.mode.clone(),
-                self.as_ref(),
-            )
-            .await;
+        screen_handler.on_slot_click(
+            i32::from(slot),
+            i32::from(packet.button),
+            packet.mode.clone(),
+            self.as_ref(),
+        );
 
         for (key, value) in packet.array_of_changed_slots {
             screen_handler.set_received_hash(key as usize, value);
@@ -5581,24 +5654,28 @@ impl Player {
         screen_handler.enable_sync();
 
         if not_in_sync {
-            screen_handler.update_to_client().await;
+            screen_handler.update_to_client();
         } else {
-            screen_handler.send_content_updates().await;
+            screen_handler.send_content_updates();
         }
     }
 
     /// Handles when the player clicks a button in a container (e.g. Enchantment Table)
-    pub async fn on_container_button_click(self: &Arc<Self>, packet: SContainerButtonClick) {
-        let screen_handler = self.current_screen_handler.lock().await.clone();
-        let mut screen_handler = screen_handler.lock().await;
+    pub fn on_container_button_click(&self, packet: &SContainerButtonClick) {
+        let screen_handler = self
+            .current_screen_handler
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        let mut screen_handler = screen_handler
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
 
         if i32::from(screen_handler.sync_id()) != packet.window_id.0 {
             return;
         }
 
-        screen_handler
-            .on_button_click(self.as_ref(), packet.button_id.0)
-            .await;
+        screen_handler.on_button_click(self, packet.button_id.0);
     }
 
     pub fn has_permission(self: &Arc<Self>, server: &Server, node: &str) -> bool {
@@ -6861,13 +6938,10 @@ impl InventoryPlayer for Player {
         self
     }
 
-    fn drop_item(&self, item: ItemStack, _retain_ownership: bool) -> PlayerFuture<'_, ()> {
-        Box::pin(async move {
-            self.drop_item(item);
-        })
+    fn drop_item(&self, item: ItemStack, _retain_ownership: bool) {
+        self.drop_item(item);
     }
 
-    // Synchronous methods remain unchanged
     fn has_infinite_materials(&self) -> bool {
         self.gamemode.load() == GameMode::Creative
     }
@@ -6881,419 +6955,364 @@ impl InventoryPlayer for Player {
             .load(std::sync::atomic::Ordering::Relaxed)
     }
 
-    fn add_experience_levels(&self, levels: i32) -> PlayerFuture<'_, ()> {
-        Box::pin(async move {
-            self.add_experience_levels(levels);
-        })
+    fn add_experience_levels(&self, levels: i32) {
+        self.add_experience_levels(levels);
     }
 
     fn enchantment_seed(&self) -> i32 {
         self.enchantment_seed.load(Ordering::Relaxed)
     }
 
-    fn set_enchantment_seed(&self, seed: i32) -> PlayerFuture<'_, ()> {
-        Box::pin(async move {
-            self.enchantment_seed.store(seed, Ordering::Relaxed);
-        })
+    fn set_enchantment_seed(&self, seed: i32) {
+        self.enchantment_seed.store(seed, Ordering::Relaxed);
     }
 
     fn get_inventory(&self) -> Arc<PlayerInventory> {
         self.inventory.clone()
     }
 
-    fn enqueue_inventory_packet<'a>(
-        &'a self,
-        packet: &'a CSetContainerContent,
+    fn enqueue_inventory_packet(
+        &self,
+        packet: &CSetContainerContent,
         window_type: Option<WindowType>,
-    ) -> PlayerFuture<'a, ()> {
-        Box::pin(async move {
-            match self.client.as_ref() {
-                ClientPlatform::Java(java) => {
-                    if let Ok(data) = java.serialize_packet(packet) {
-                        java.enqueue_packet(data).await;
-                    }
-                }
-                ClientPlatform::Bedrock(bedrock) => {
-                    use pumpkin_protocol::bedrock::{
-                        client::inventory_content::CInventoryContent,
-                        network_item::{
-                            ContainerName, FullContainerName, NetworkItemStackDescriptor,
-                        },
-                    };
-                    use pumpkin_protocol::codec::var_uint::VarUInt;
-
-                    let window_id = packet.window_id.0 as u32;
-                    if window_id == 0 {
-                        // Java's player screen also contains crafting, armor, and off-hand
-                        // slots. Bedrock container 0 contains only the 36-slot player
-                        // inventory in hotbar-first order.
-                        let slots = self
-                            .inventory
-                            .main_inventory
-                            .read()
-                            .unwrap_or_else(std::sync::PoisonError::into_inner)
-                            .iter()
-                            .map(NetworkItemStackDescriptor::from)
-                            .collect();
-                        let bedrock_packet = CInventoryContent {
-                            container_id: VarUInt(0),
-                            slots,
-                            full_container_name: FullContainerName {
-                                container_name: ContainerName::Inventory,
-                                dynamic_id: None,
-                            },
-                            storage_item: NetworkItemStackDescriptor::default(),
-                        };
-                        if let Ok(data) = bedrock.serialize_packet(&bedrock_packet) {
-                            bedrock.enqueue_packet(data).await;
-                        }
-                    } else if matches!(
-                        window_type,
-                        Some(
-                            WindowType::Generic9x1
-                                | WindowType::Generic9x2
-                                | WindowType::Generic9x3
-                                | WindowType::Generic9x4
-                                | WindowType::Generic9x5
-                                | WindowType::Generic9x6
-                                | WindowType::Generic3x3
-                        )
-                    ) {
-                        // Java container screens append the player's 36 inventory slots to
-                        // the container slots. Bedrock synchronizes those two inventories
-                        // separately and addresses generic block containers as LevelEntity.
-                        let container_slot_count = packet
-                            .slot_data
-                            .len()
-                            .saturating_sub(PlayerInventory::MAIN_SIZE);
-                        let slots = packet.slot_data[..container_slot_count]
-                            .iter()
-                            .map(|stack| NetworkItemStackDescriptor::from(&*stack.0))
-                            .collect();
-                        let bedrock_packet = CInventoryContent {
-                            container_id: VarUInt(window_id),
-                            slots,
-                            full_container_name: FullContainerName {
-                                container_name: ContainerName::LevelEntity,
-                                dynamic_id: None,
-                            },
-                            storage_item: NetworkItemStackDescriptor::default(),
-                        };
-                        if let Ok(data) = bedrock.serialize_packet(&bedrock_packet) {
-                            bedrock.enqueue_packet(data).await;
-                        }
-                    }
+    ) {
+        match self.client.as_ref() {
+            ClientPlatform::Java(java) => {
+                if let Ok(data) = java.serialize_packet(packet) {
+                    java.try_enqueue_packet(data);
                 }
             }
-        })
-    }
+            ClientPlatform::Bedrock(bedrock) => {
+                use pumpkin_protocol::bedrock::{
+                    client::inventory_content::CInventoryContent,
+                    network_item::{ContainerName, FullContainerName, NetworkItemStackDescriptor},
+                };
+                use pumpkin_protocol::codec::var_uint::VarUInt;
 
-    fn enqueue_slot_packet<'a>(
-        &'a self,
-        packet: &'a CSetContainerSlot,
-        window_type: Option<WindowType>,
-        total_slots: usize,
-    ) -> PlayerFuture<'a, ()> {
-        Box::pin(async move {
-            match self.client.as_ref() {
-                ClientPlatform::Java(java) => {
-                    if let Ok(data) = java.serialize_packet(packet) {
-                        java.enqueue_packet(data).await;
-                    }
-                }
-                ClientPlatform::Bedrock(bedrock) => {
-                    use pumpkin_protocol::bedrock::{
-                        client::inventory_slot::CInventorySlot,
-                        network_item::{
-                            ContainerName, FullContainerName, NetworkItemStackDescriptor,
-                        },
-                    };
-                    use pumpkin_protocol::codec::var_uint::VarUInt;
-
-                    let window_id = packet.window_id;
-                    if window_id == 0 {
-                        if let Some(slot_idx) = bedrock_inventory_slot(packet.slot) {
-                            let item_desc = NetworkItemStackDescriptor::from(&*packet.slot_data.0);
-                            let bedrock_packet = CInventorySlot {
-                                container_id: VarUInt(0),
-                                slot: VarUInt(slot_idx),
-                                full_container_name: Some(FullContainerName {
-                                    container_name: ContainerName::Inventory,
-                                    dynamic_id: None,
-                                }),
-                                storage_item: None,
-                                item: item_desc,
-                            };
-                            if let Ok(data) = bedrock.serialize_packet(&bedrock_packet) {
-                                bedrock.enqueue_packet(data).await;
-                            }
-                        }
-                    } else {
-                        let slot_idx = packet.slot as usize;
-                        let item_desc = NetworkItemStackDescriptor::from(&*packet.slot_data.0);
-
-                        let bedrock_info = if total_slots >= 36 {
-                            let container_slots = total_slots - 36;
-                            if slot_idx < container_slots {
-                                if window_type == Some(WindowType::Crafting) {
-                                    if slot_idx == 0 {
-                                        Some((ContainerName::CreatedOutput, 0))
-                                    } else {
-                                        Some((
-                                            ContainerName::CraftingInput,
-                                            (32 + slot_idx - 1) as u8,
-                                        ))
-                                    }
-                                } else {
-                                    Some((ContainerName::LevelEntity, slot_idx as u8))
-                                }
-                            } else {
-                                let inv_slot = slot_idx - container_slots;
-                                if inv_slot < 27 {
-                                    Some((ContainerName::Inventory, (inv_slot + 9) as u8))
-                                } else {
-                                    Some((ContainerName::Inventory, (inv_slot - 27) as u8))
-                                }
-                            }
-                        } else {
-                            None
-                        };
-
-                        if let Some((container_name, slot_id)) = bedrock_info {
-                            let bedrock_packet = CInventorySlot {
-                                container_id: VarUInt(window_id as u32),
-                                slot: VarUInt(slot_id as u32),
-                                full_container_name: Some(FullContainerName {
-                                    container_name,
-                                    dynamic_id: None,
-                                }),
-                                storage_item: None,
-                                item: item_desc,
-                            };
-                            if let Ok(data) = bedrock.serialize_packet(&bedrock_packet) {
-                                bedrock.enqueue_packet(data).await;
-                            }
-                        }
-                    }
-                }
-            }
-        })
-    }
-
-    fn enqueue_cursor_packet<'a>(&'a self, packet: &'a CSetCursorItem) -> PlayerFuture<'a, ()> {
-        Box::pin(async move {
-            match self.client.as_ref() {
-                ClientPlatform::Java(java) => {
-                    if let Ok(data) = java.serialize_packet(packet) {
-                        java.enqueue_packet(data).await;
-                    }
-                }
-                ClientPlatform::Bedrock(bedrock) => {
-                    use pumpkin_protocol::bedrock::{
-                        client::inventory_content::CInventoryContent,
-                        network_item::{
-                            ContainerName, FullContainerName, NetworkItemStackDescriptor,
-                        },
-                    };
-                    use pumpkin_protocol::codec::var_uint::VarUInt;
-
-                    let item_desc = NetworkItemStackDescriptor::from(&*packet.stack.0);
+                let window_id = packet.window_id.0 as u32;
+                if window_id == 0 {
+                    // Java's player screen also contains crafting, armor, and off-hand
+                    // slots. Bedrock container 0 contains only the 36-slot player
+                    // inventory in hotbar-first order.
+                    let slots = self
+                        .inventory
+                        .main_inventory
+                        .read()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .iter()
+                        .map(NetworkItemStackDescriptor::from)
+                        .collect();
                     let bedrock_packet = CInventoryContent {
-                        container_id: VarUInt(59),
-                        slots: vec![item_desc],
+                        container_id: VarUInt(0),
+                        slots,
                         full_container_name: FullContainerName {
-                            container_name: ContainerName::Cursor,
+                            container_name: ContainerName::Inventory,
                             dynamic_id: None,
                         },
                         storage_item: NetworkItemStackDescriptor::default(),
                     };
                     if let Ok(data) = bedrock.serialize_packet(&bedrock_packet) {
-                        bedrock.enqueue_packet(data).await;
+                        bedrock.try_enqueue_packet(data);
                     }
-                }
-            }
-        })
-    }
-
-    fn enqueue_property_packet<'a>(
-        &'a self,
-        packet: &'a CSetContainerProperty,
-    ) -> PlayerFuture<'a, ()> {
-        Box::pin(async move {
-            self.send_client_packet(packet).await;
-        })
-    }
-
-    fn enqueue_slot_set_packet<'a>(
-        &'a self,
-        packet: &'a CSetPlayerInventory,
-    ) -> PlayerFuture<'a, ()> {
-        Box::pin(async move {
-            match self.client.as_ref() {
-                ClientPlatform::Java(java) => {
-                    if let Ok(data) = java.serialize_packet(packet) {
-                        java.enqueue_packet(data).await;
-                    }
-                }
-                ClientPlatform::Bedrock(bedrock) => {
-                    use pumpkin_protocol::bedrock::{
-                        client::inventory_slot::CInventorySlot,
-                        network_item::{
-                            ContainerName, FullContainerName, NetworkItemStackDescriptor,
-                        },
-                    };
-                    use pumpkin_protocol::codec::var_uint::VarUInt;
-
-                    tracing::info!(
-                        "enqueue_slot_set_packet: slot={}, sending CInventorySlot to Bedrock client",
-                        packet.slot.0
-                    );
-
-                    let item_stack = &*packet.item.0;
-                    let item_desc = NetworkItemStackDescriptor::from(item_stack);
-                    let bedrock_packet = CInventorySlot {
-                        container_id: VarUInt(0),
-                        slot: VarUInt(packet.slot.0 as u32),
-                        full_container_name: Some(FullContainerName {
-                            container_name: ContainerName::Inventory,
+                } else if matches!(
+                    window_type,
+                    Some(
+                        WindowType::Generic9x1
+                            | WindowType::Generic9x2
+                            | WindowType::Generic9x3
+                            | WindowType::Generic9x4
+                            | WindowType::Generic9x5
+                            | WindowType::Generic9x6
+                            | WindowType::Generic3x3
+                    )
+                ) {
+                    // Java container screens append the player's 36 inventory slots to
+                    // the container slots. Bedrock synchronizes those two inventories
+                    // separately and addresses generic block containers as LevelEntity.
+                    let container_slot_count = packet
+                        .slot_data
+                        .len()
+                        .saturating_sub(PlayerInventory::MAIN_SIZE);
+                    let slots = packet.slot_data[..container_slot_count]
+                        .iter()
+                        .map(|stack| NetworkItemStackDescriptor::from(&*stack.0))
+                        .collect();
+                    let bedrock_packet = CInventoryContent {
+                        container_id: VarUInt(window_id),
+                        slots,
+                        full_container_name: FullContainerName {
+                            container_name: ContainerName::LevelEntity,
                             dynamic_id: None,
-                        }),
-                        storage_item: None,
-                        item: item_desc,
+                        },
+                        storage_item: NetworkItemStackDescriptor::default(),
                     };
                     if let Ok(data) = bedrock.serialize_packet(&bedrock_packet) {
-                        bedrock.enqueue_packet(data).await;
+                        bedrock.try_enqueue_packet(data);
                     }
                 }
             }
-        })
+        }
     }
 
-    fn enqueue_set_held_item_packet<'a>(
-        &'a self,
-        packet: &'a CSetSelectedSlot,
-    ) -> PlayerFuture<'a, ()> {
-        Box::pin(async move {
-            self.client
-                .enqueue_packet_editioned(
-                    packet,
-                    &pumpkin_protocol::bedrock::client::CPlayerHotbar {
-                        selected_slot: pumpkin_protocol::codec::var_uint::VarUInt(
-                            packet.slot as u32,
-                        ),
-                        container_id: 0,
-                        should_select_slot: true,
-                    },
-                )
-                .await;
-        })
-    }
-
-    fn enqueue_equipment_change<'a>(
-        &'a self,
-        slot: &'a EquipmentSlot,
-        stack: &'a ItemStack,
-    ) -> PlayerFuture<'a, ()> {
-        Box::pin(async move {
-            self.living_entity
-                .send_equipment_changes(&[(slot.clone(), stack.clone())]);
-
-            if let Some(equippable) = stack.get_data_component::<EquippableImpl>() {
-                self.world().play_sound_event(
-                    &equippable.equip_sound,
-                    SoundCategory::Players,
-                    &self.position(),
-                );
-            }
-        })
-    }
-
-    fn award_experience(&self, amount: i32) -> PlayerFuture<'_, ()> {
-        Box::pin(async move {
-            debug!("Player::award_experience called with amount={amount}");
-            if amount > 0 {
-                debug!("Player: adding {amount} experience points");
-                let player = self.world().get_player_by_uuid(self.gameprofile.id);
-                if let Some(player) = player {
-                    player.add_experience_points(amount);
+    fn enqueue_slot_packet(
+        &self,
+        packet: &CSetContainerSlot,
+        window_type: Option<WindowType>,
+        total_slots: usize,
+    ) {
+        match self.client.as_ref() {
+            ClientPlatform::Java(java) => {
+                if let Ok(data) = java.serialize_packet(packet) {
+                    java.try_enqueue_packet(data);
                 }
             }
-        })
-    }
+            ClientPlatform::Bedrock(bedrock) => {
+                use pumpkin_protocol::bedrock::{
+                    client::inventory_slot::CInventorySlot,
+                    network_item::{ContainerName, FullContainerName, NetworkItemStackDescriptor},
+                };
+                use pumpkin_protocol::codec::var_uint::VarUInt;
 
-    fn increment_stat(
-        &self,
-        category: StatisticCategory,
-        stat_id: i32,
-        amount: i32,
-    ) -> PlayerFuture<'_, ()> {
-        Box::pin(async move {
-            self.increment_stat(category, stat_id, amount);
-        })
-    }
+                let window_id = packet.window_id;
+                if window_id == 0 {
+                    if let Some(slot_idx) = bedrock_inventory_slot(packet.slot) {
+                        let item_desc = NetworkItemStackDescriptor::from(&*packet.slot_data.0);
+                        let bedrock_packet = CInventorySlot {
+                            container_id: VarUInt(0),
+                            slot: VarUInt(slot_idx),
+                            full_container_name: Some(FullContainerName {
+                                container_name: ContainerName::Inventory,
+                                dynamic_id: None,
+                            }),
+                            storage_item: None,
+                            item: item_desc,
+                        };
+                        if let Ok(data) = bedrock.serialize_packet(&bedrock_packet) {
+                            bedrock.try_enqueue_packet(data);
+                        }
+                    }
+                } else {
+                    let slot_idx = packet.slot as usize;
+                    let item_desc = NetworkItemStackDescriptor::from(&*packet.slot_data.0);
 
-    fn fire_prepare_item_enchant_event<'a>(
-        &'a self,
-        item: &'a ItemStack,
-        level_requirements: &'a mut [i32; 3],
-        enchantment_id: &'a mut [i32; 3],
-        enchantment_level: &'a mut [i32; 3],
-        bookshelf_count: i32,
-    ) -> PlayerFuture<'a, bool> {
-        Box::pin(async move {
-            let Some(player_arc) = self.world().get_player_by_uuid(self.gameprofile.id) else {
-                return false;
-            };
-            let Some(server) = self.world().server.upgrade() else {
-                return false;
-            };
-            let mut event = PrepareItemEnchantEvent::new(
-                player_arc,
-                item.clone(),
-                *level_requirements,
-                *enchantment_id,
-                *enchantment_level,
-                bookshelf_count,
-            );
-            server.plugin_manager.fire(&server, &mut event).await;
-            if event.cancelled {
-                return true;
+                    let bedrock_info = if total_slots >= 36 {
+                        let container_slots = total_slots - 36;
+                        if slot_idx < container_slots {
+                            if window_type == Some(WindowType::Crafting) {
+                                if slot_idx == 0 {
+                                    Some((ContainerName::CreatedOutput, 0))
+                                } else {
+                                    Some((ContainerName::CraftingInput, (32 + slot_idx - 1) as u8))
+                                }
+                            } else {
+                                Some((ContainerName::LevelEntity, slot_idx as u8))
+                            }
+                        } else {
+                            let inv_slot = slot_idx - container_slots;
+                            if inv_slot < 27 {
+                                Some((ContainerName::Inventory, (inv_slot + 9) as u8))
+                            } else {
+                                Some((ContainerName::Inventory, (inv_slot - 27) as u8))
+                            }
+                        }
+                    } else {
+                        None
+                    };
+
+                    if let Some((container_name, slot_id)) = bedrock_info {
+                        let bedrock_packet = CInventorySlot {
+                            container_id: VarUInt(window_id as u32),
+                            slot: VarUInt(slot_id as u32),
+                            full_container_name: Some(FullContainerName {
+                                container_name,
+                                dynamic_id: None,
+                            }),
+                            storage_item: None,
+                            item: item_desc,
+                        };
+                        if let Ok(data) = bedrock.serialize_packet(&bedrock_packet) {
+                            bedrock.try_enqueue_packet(data);
+                        }
+                    }
+                }
             }
-            *level_requirements = event.level_requirements;
-            *enchantment_id = event.enchantment_id;
-            *enchantment_level = event.enchantment_level;
-            false
-        })
+        }
     }
 
-    fn fire_enchant_item_event<'a>(
-        &'a self,
-        item: &'a ItemStack,
+    fn enqueue_cursor_packet(&self, packet: &CSetCursorItem) {
+        match self.client.as_ref() {
+            ClientPlatform::Java(java) => {
+                if let Ok(data) = java.serialize_packet(packet) {
+                    java.try_enqueue_packet(data);
+                }
+            }
+            ClientPlatform::Bedrock(bedrock) => {
+                use pumpkin_protocol::bedrock::{
+                    client::inventory_content::CInventoryContent,
+                    network_item::{ContainerName, FullContainerName, NetworkItemStackDescriptor},
+                };
+                use pumpkin_protocol::codec::var_uint::VarUInt;
+
+                let item_desc = NetworkItemStackDescriptor::from(&*packet.stack.0);
+                let bedrock_packet = CInventoryContent {
+                    container_id: VarUInt(59),
+                    slots: vec![item_desc],
+                    full_container_name: FullContainerName {
+                        container_name: ContainerName::Cursor,
+                        dynamic_id: None,
+                    },
+                    storage_item: NetworkItemStackDescriptor::default(),
+                };
+                if let Ok(data) = bedrock.serialize_packet(&bedrock_packet) {
+                    bedrock.try_enqueue_packet(data);
+                }
+            }
+        }
+    }
+
+    fn enqueue_property_packet(&self, packet: &CSetContainerProperty) {
+        self.try_send_client_packet(packet);
+    }
+
+    fn enqueue_slot_set_packet(&self, packet: &CSetPlayerInventory) {
+        match self.client.as_ref() {
+            ClientPlatform::Java(java) => {
+                if let Ok(data) = java.serialize_packet(packet) {
+                    java.try_enqueue_packet(data);
+                }
+            }
+            ClientPlatform::Bedrock(bedrock) => {
+                use pumpkin_protocol::bedrock::{
+                    client::inventory_slot::CInventorySlot,
+                    network_item::{ContainerName, FullContainerName, NetworkItemStackDescriptor},
+                };
+                use pumpkin_protocol::codec::var_uint::VarUInt;
+
+                tracing::info!(
+                    "enqueue_slot_set_packet: slot={}, sending CInventorySlot to Bedrock client",
+                    packet.slot.0
+                );
+
+                let item_stack = &*packet.item.0;
+                let item_desc = NetworkItemStackDescriptor::from(item_stack);
+                let bedrock_packet = CInventorySlot {
+                    container_id: VarUInt(0),
+                    slot: VarUInt(packet.slot.0 as u32),
+                    full_container_name: Some(FullContainerName {
+                        container_name: ContainerName::Inventory,
+                        dynamic_id: None,
+                    }),
+                    storage_item: None,
+                    item: item_desc,
+                };
+                if let Ok(data) = bedrock.serialize_packet(&bedrock_packet) {
+                    bedrock.try_enqueue_packet(data);
+                }
+            }
+        }
+    }
+
+    fn enqueue_set_held_item_packet(&self, packet: &CSetSelectedSlot) {
+        self.try_enqueue_packet_editioned(
+            packet,
+            &pumpkin_protocol::bedrock::client::CPlayerHotbar {
+                selected_slot: pumpkin_protocol::codec::var_uint::VarUInt(packet.slot as u32),
+                container_id: 0,
+                should_select_slot: true,
+            },
+        );
+    }
+
+    fn enqueue_equipment_change(&self, slot: &EquipmentSlot, stack: &ItemStack) {
+        self.living_entity
+            .send_equipment_changes(&[(slot.clone(), stack.clone())]);
+
+        if let Some(equippable) = stack.get_data_component::<EquippableImpl>() {
+            self.world().play_sound_event(
+                &equippable.equip_sound,
+                SoundCategory::Players,
+                &self.position(),
+            );
+        }
+    }
+
+    fn award_experience(&self, amount: i32) {
+        debug!("Player::award_experience called with amount={amount}");
+        if amount > 0 {
+            debug!("Player: adding {amount} experience points");
+            let player = self.world().get_player_by_uuid(self.gameprofile.id);
+            if let Some(player) = player {
+                player.add_experience_points(amount);
+            }
+        }
+    }
+
+    fn increment_stat(&self, category: StatisticCategory, stat_id: i32, amount: i32) {
+        self.increment_stat(category, stat_id, amount);
+    }
+
+    fn fire_prepare_item_enchant_event(
+        &self,
+        item: &ItemStack,
+        level_requirements: &mut [i32; 3],
+        enchantment_id: &mut [i32; 3],
+        enchantment_level: &mut [i32; 3],
+        bookshelf_count: i32,
+    ) -> bool {
+        let Some(player_arc) = self.world().get_player_by_uuid(self.gameprofile.id) else {
+            return false;
+        };
+        let Some(server) = self.world().server.upgrade() else {
+            return false;
+        };
+        let mut event = PrepareItemEnchantEvent::new(
+            player_arc,
+            item.clone(),
+            *level_requirements,
+            *enchantment_id,
+            *enchantment_level,
+            bookshelf_count,
+        );
+        server.plugin_manager.fire_blocking(&server, &mut event);
+        if event.cancelled {
+            return true;
+        }
+        *level_requirements = event.level_requirements;
+        *enchantment_id = event.enchantment_id;
+        *enchantment_level = event.enchantment_level;
+        false
+    }
+
+    fn fire_enchant_item_event(
+        &self,
+        item: &ItemStack,
         option: i32,
         exp_level_cost: i32,
-        enchantments_to_add: &'a mut Vec<(&'static pumpkin_data::Enchantment, i32)>,
-    ) -> PlayerFuture<'a, bool> {
-        Box::pin(async move {
-            let Some(player_arc) = self.world().get_player_by_uuid(self.gameprofile.id) else {
-                return false;
-            };
-            let Some(server) = self.world().server.upgrade() else {
-                return false;
-            };
-            let mut event = EnchantItemEvent::new(
-                player_arc,
-                item.clone(),
-                option,
-                exp_level_cost,
-                enchantments_to_add.clone(),
-            );
-            server.plugin_manager.fire(&server, &mut event).await;
-            if event.cancelled {
-                return true;
-            }
-            *enchantments_to_add = event.enchantments_to_add;
-            false
-        })
+        enchantments_to_add: &mut Vec<(&'static pumpkin_data::Enchantment, i32)>,
+    ) -> bool {
+        let Some(player_arc) = self.world().get_player_by_uuid(self.gameprofile.id) else {
+            return false;
+        };
+        let Some(server) = self.world().server.upgrade() else {
+            return false;
+        };
+        let mut event = EnchantItemEvent::new(
+            player_arc,
+            item.clone(),
+            option,
+            exp_level_cost,
+            enchantments_to_add.clone(),
+        );
+        server.plugin_manager.fire_blocking(&server, &mut event);
+        if event.cancelled {
+            return true;
+        }
+        *enchantments_to_add = event.enchantments_to_add;
+        false
+    }
+
+    fn close_screen_handler(&self) {
+        self.close_handled_screen();
     }
 }
 

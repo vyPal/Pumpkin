@@ -20,7 +20,7 @@ use pumpkin_data::{Block, BlockDirection, BlockStateId, tag, translation};
 use pumpkin_inventory::lectern_screen_handler::{LecternController, LecternScreenHandler};
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
 use pumpkin_inventory::screen_handler::{
-    BoxFuture, InventoryPlayer, ScreenHandlerFactory, ScreenHandlerFuture, SharedScreenHandler,
+    InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
 };
 use pumpkin_macros::pumpkin_block;
 use pumpkin_util::math::position::BlockPos;
@@ -29,7 +29,7 @@ use pumpkin_util::text::TextComponent;
 use pumpkin_world::inventory::Inventory;
 use pumpkin_world::tick::TickPriority;
 use pumpkin_world::world::BlockFlags;
-use tokio::sync::Mutex;
+use std::sync::Mutex;
 
 /// Bridges the screen handler back into the world: page changes emit the
 /// vanilla redstone pulse and taking the book clears `has_book`.
@@ -51,29 +51,25 @@ impl LecternController for LecternPageController {
             .map_or(0, |entity| entity.page.load(Ordering::Relaxed) as i32)
     }
 
-    fn set_page(&self, page: i32) -> ScreenHandlerFuture<'_, ()> {
-        Box::pin(async move {
-            let Some(entity) = self.entity() else {
-                return;
-            };
-            let page_count = entity.page_count().await;
-            let page = page.clamp(0, (page_count - 1).max(0));
-            if page == entity.page.load(Ordering::Relaxed) as i32 {
-                return;
-            }
-            entity.page.store(page as usize, Ordering::Relaxed);
-            entity.mark_dirty();
-            LecternBlock::pulse(&self.world, &self.position);
-        })
+    fn set_page(&self, page: i32) {
+        let Some(entity) = self.entity() else {
+            return;
+        };
+        let page_count = entity.page_count();
+        let page = page.clamp(0, (page_count - 1).max(0));
+        if page == entity.page.load(Ordering::Relaxed) as i32 {
+            return;
+        }
+        entity.page.store(page as usize, Ordering::Relaxed);
+        entity.mark_dirty();
+        LecternBlock::pulse(&self.world, &self.position);
     }
 
-    fn on_book_taken(&self) -> ScreenHandlerFuture<'_, ()> {
-        Box::pin(async move {
-            if let Some(entity) = self.entity() {
-                entity.page.store(0, Ordering::Relaxed);
-            }
-            LecternBlock::set_has_book(&self.world, &self.position, false);
-        })
+    fn on_book_taken(&self) {
+        if let Some(entity) = self.entity() {
+            entity.page.store(0, Ordering::Relaxed);
+        }
+        LecternBlock::set_has_book(&self.world, &self.position, false);
     }
 }
 
@@ -83,17 +79,15 @@ struct LecternScreenFactory {
 }
 
 impl ScreenHandlerFactory for LecternScreenFactory {
-    fn create_screen_handler<'a>(
-        &'a self,
+    fn create_screen_handler(
+        &self,
         sync_id: u8,
-        _player_inventory: &'a Arc<PlayerInventory>,
-        _player: &'a dyn InventoryPlayer,
-    ) -> BoxFuture<'a, Option<SharedScreenHandler>> {
-        Box::pin(async move {
-            let handler =
-                LecternScreenHandler::new(sync_id, self.inventory.clone(), self.controller.clone());
-            Some(Arc::new(Mutex::new(handler)) as SharedScreenHandler)
-        })
+        _player_inventory: &Arc<PlayerInventory>,
+        _player: &dyn InventoryPlayer,
+    ) -> Option<SharedScreenHandler> {
+        let handler =
+            LecternScreenHandler::new(sync_id, self.inventory.clone(), self.controller.clone());
+        Some(Arc::new(Mutex::new(handler)) as SharedScreenHandler)
     }
 
     fn get_display_name(&self) -> TextComponent {
@@ -194,19 +188,13 @@ impl BlockBehaviour for LecternBlock {
             position: *args.position,
             inventory: inventory.clone(),
         });
-        let player = args.player.clone();
-        let pos = *args.position;
-        tokio::spawn(async move {
-            player
-                .open_handled_screen(
-                    &LecternScreenFactory {
-                        inventory,
-                        controller,
-                    },
-                    Some(pos),
-                )
-                .await;
-        });
+        args.player.open_handled_screen(
+            &LecternScreenFactory {
+                inventory,
+                controller,
+            },
+            Some(*args.position),
+        );
 
         BlockActionResult::Success
     }
@@ -234,7 +222,7 @@ impl BlockBehaviour for LecternBlock {
         };
 
         let book = item_stack.split_unless_creative(args.player.gamemode.load(), 1);
-        futures::executor::block_on(lectern.set_stack(0, book));
+        lectern.set_stack(0, book);
 
         Self::set_has_book(args.world, args.position, true);
         args.world
@@ -287,7 +275,7 @@ impl BlockBehaviour for LecternBlock {
         if let Some(block_entity) = args.world.get_block_entity(args.position)
             && let Some(lectern_entity) = block_entity.as_any().downcast_ref::<LecternBlockEntity>()
         {
-            let book = futures::executor::block_on(lectern_entity.remove_stack(0));
+            let book = lectern_entity.remove_stack(0);
             if !book.is_empty() {
                 // Drop the book item
                 let entity = Entity::new(
@@ -309,9 +297,7 @@ impl BlockBehaviour for LecternBlock {
         if let Some(block_entity) = args.world.get_block_entity(args.position)
             && let Some(lectern_entity) = block_entity.as_any().downcast_ref::<LecternBlockEntity>()
         {
-            Some(futures::executor::block_on(
-                lectern_entity.comparator_output(),
-            ))
+            Some(lectern_entity.comparator_output())
         } else {
             Some(0)
         }

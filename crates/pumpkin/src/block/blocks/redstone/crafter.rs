@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::sync::Mutex;
 
 use crate::block::blocks::redstone::block_receives_redstone_power;
 use crate::block::entities::crafter::CrafterBlockEntity;
@@ -17,7 +17,7 @@ use pumpkin_data::{BlockDirection, BlockStateId};
 use pumpkin_inventory::generic_container_screen_handler::create_crafter_3x3;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
 use pumpkin_inventory::screen_handler::{
-    BoxFuture, InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
+    InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
 };
 use pumpkin_macros::pumpkin_block;
 use pumpkin_util::text::TextComponent;
@@ -28,18 +28,16 @@ use pumpkin_world::world::BlockFlags;
 struct CrafterScreenFactory(Arc<dyn Inventory>);
 
 impl ScreenHandlerFactory for CrafterScreenFactory {
-    fn create_screen_handler<'a>(
-        &'a self,
+    fn create_screen_handler(
+        &self,
         sync_id: u8,
-        player_inventory: &'a Arc<PlayerInventory>,
-        _player: &'a dyn InventoryPlayer,
-    ) -> BoxFuture<'a, Option<SharedScreenHandler>> {
-        Box::pin(async move {
-            let handler = create_crafter_3x3(sync_id, player_inventory, self.0.clone()).await;
-            let screen_handler_arc = Arc::new(Mutex::new(handler));
+        player_inventory: &Arc<PlayerInventory>,
+        _player: &dyn InventoryPlayer,
+    ) -> Option<SharedScreenHandler> {
+        let handler = create_crafter_3x3(sync_id, player_inventory, self.0.clone());
+        let screen_handler_arc = Arc::new(Mutex::new(handler));
 
-            Some(screen_handler_arc as SharedScreenHandler)
-        })
+        Some(screen_handler_arc as SharedScreenHandler)
     }
 
     fn get_display_name(&self) -> TextComponent {
@@ -58,13 +56,8 @@ impl BlockBehaviour for CrafterBlock {
         if let Some(block_entity) = args.world.get_block_entity(args.position)
             && let Some(inventory) = block_entity.get_inventory()
         {
-            let player = Arc::clone(args.player);
-            let pos = *args.position;
-            tokio::spawn(async move {
-                player
-                    .open_handled_screen(&CrafterScreenFactory(inventory), Some(pos))
-                    .await;
-            });
+            args.player
+                .open_handled_screen(&CrafterScreenFactory(inventory), Some(*args.position));
         }
         BlockActionResult::Success
     }
@@ -171,7 +164,10 @@ impl BlockBehaviour for CrafterBlock {
         if let Some(block_entity) = args.world.get_block_entity(args.position) {
             let crafter = block_entity.as_any().downcast_ref::<CrafterBlockEntity>()?;
 
-            let items = crafter.items.blocking_read();
+            let items = crafter
+                .items
+                .read()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let occupied = items.iter().filter(|s| !s.is_empty()).count() as u8;
             Some(occupied)
         } else {

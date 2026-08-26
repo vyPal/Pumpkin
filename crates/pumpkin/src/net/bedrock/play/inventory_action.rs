@@ -14,7 +14,10 @@ impl BedrockClient {
         let result = 0u8;
 
         if packet.actions.is_empty() && packet.legacy_request_id.0 != 0 {
-            let mut player_screen_handler = player.player_screen_handler.lock().await;
+            let mut player_screen_handler = player
+                .player_screen_handler
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             for legacy_slot in &packet.legacy_set_item_slots {
                 let mapped_window_id = match legacy_slot.container_id {
                     28 | 29 => 0,    // HotBar or Inventory
@@ -28,15 +31,13 @@ impl BedrockClient {
                     {
                         let current_stack = player_screen_handler
                             .get_slot(screen_slot)
-                            .get_cloned_stack()
-                            .await;
+                            .get_cloned_stack();
                         if !current_stack.is_empty() {
                             player.drop_item(current_stack.clone());
 
                             player_screen_handler
                                 .get_slot(screen_slot)
-                                .set_stack(ItemStack::EMPTY.clone())
-                                .await;
+                                .set_stack(ItemStack::EMPTY.clone());
                             player_screen_handler
                                 .set_received_stack(screen_slot, ItemStack::EMPTY.clone());
 
@@ -57,7 +58,8 @@ impl BedrockClient {
                     }
                 }
             }
-            player_screen_handler.send_content_updates().await;
+            player_screen_handler.send_content_updates();
+            drop(player_screen_handler);
         }
 
         for action in &packet.actions {
@@ -75,28 +77,28 @@ impl BedrockClient {
                 {
                     let item_stack = descriptor_to_stack(&action.new_item);
 
-                    let mut player_screen_handler = player.player_screen_handler.lock().await;
+                    let mut player_screen_handler = player
+                        .player_screen_handler
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
 
                     let is_armor_equipped = player_screen_handler
                         .get_slot(screen_slot)
                         .get_stack()
-                        .await
                         .are_equal(&item_stack);
 
                     if !is_armor_equipped {
                         if (5..9).contains(&screen_slot) {
-                            player
-                                .enqueue_equipment_change(
-                                    &match screen_slot {
-                                        5 => EquipmentSlot::HEAD,
-                                        6 => EquipmentSlot::CHEST,
-                                        7 => EquipmentSlot::LEGS,
-                                        8 => EquipmentSlot::FEET,
-                                        _ => unreachable!(),
-                                    },
-                                    &item_stack,
-                                )
-                                .await;
+                            player.enqueue_equipment_change(
+                                &match screen_slot {
+                                    5 => EquipmentSlot::HEAD,
+                                    6 => EquipmentSlot::CHEST,
+                                    7 => EquipmentSlot::LEGS,
+                                    8 => EquipmentSlot::FEET,
+                                    _ => unreachable!(),
+                                },
+                                &item_stack,
+                            );
                         } else if (36..45).contains(&screen_slot) {
                             let hotbar_slot = screen_slot - 36;
                             if player.inventory().get_selected_slot() == hotbar_slot as u8 {
@@ -108,10 +110,10 @@ impl BedrockClient {
 
                     player_screen_handler
                         .get_slot(screen_slot)
-                        .set_stack(item_stack.clone())
-                        .await;
+                        .set_stack(item_stack.clone());
                     player_screen_handler.set_received_stack(screen_slot, item_stack);
-                    player_screen_handler.send_content_updates().await;
+                    player_screen_handler.send_content_updates();
+                    drop(player_screen_handler);
 
                     inventory_updated = true;
                 }
@@ -324,9 +326,7 @@ impl BedrockClient {
                                     !current_equipped.are_items_and_components_equal(&held)
                                 };
                                 if should_change {
-                                    player
-                                        .enqueue_equipment_change(equippable.slot, &held)
-                                        .await;
+                                    player.enqueue_equipment_change(equippable.slot, &held);
 
                                     let inventory = player.inventory();
                                     let mut equipment_guard = inventory

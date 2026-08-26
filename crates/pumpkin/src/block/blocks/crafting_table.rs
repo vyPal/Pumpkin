@@ -5,12 +5,12 @@ use pumpkin_data::translation;
 use pumpkin_inventory::crafting::crafting_screen_handler::CraftingTableScreenHandler;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
 use pumpkin_inventory::screen_handler::{
-    BoxFuture, InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
+    InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
 };
 use pumpkin_macros::pumpkin_block;
 use pumpkin_util::text::TextComponent;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::sync::Mutex;
 
 #[pumpkin_block("minecraft:crafting_table")]
 pub struct CraftingTableBlock;
@@ -22,14 +22,11 @@ impl BlockBehaviour for CraftingTableBlock {
             pumpkin_data::statistic::CustomStatistic::InteractWithCraftingTable as i32,
             1,
         );
-        let player = Arc::clone(args.player);
         let recipe_manager = args.server.recipe_manager.clone();
-        let pos = *args.position;
-        tokio::spawn(async move {
-            player
-                .open_handled_screen(&CraftingTableScreenFactory(recipe_manager), Some(pos))
-                .await;
-        });
+        args.player.open_handled_screen(
+            &CraftingTableScreenFactory(recipe_manager),
+            Some(*args.position),
+        );
 
         BlockActionResult::Success
     }
@@ -38,20 +35,17 @@ impl BlockBehaviour for CraftingTableBlock {
 struct CraftingTableScreenFactory(Arc<crate::server::RecipeManager>);
 
 impl ScreenHandlerFactory for CraftingTableScreenFactory {
-    fn create_screen_handler<'a>(
-        &'a self,
+    fn create_screen_handler(
+        &self,
         sync_id: u8,
-        player_inventory: &'a Arc<PlayerInventory>,
-        _player: &'a dyn InventoryPlayer,
-    ) -> BoxFuture<'a, Option<SharedScreenHandler>> {
-        Box::pin(async move {
-            let handler =
-                CraftingTableScreenHandler::new(sync_id, player_inventory, Some(self.0.clone()))
-                    .await;
-            let concrete_arc = Arc::new(Mutex::new(handler));
+        player_inventory: &Arc<PlayerInventory>,
+        _player: &dyn InventoryPlayer,
+    ) -> Option<SharedScreenHandler> {
+        let handler =
+            CraftingTableScreenHandler::new(sync_id, player_inventory, Some(self.0.clone()));
+        let concrete_arc = Arc::new(Mutex::new(handler));
 
-            Some(concrete_arc as SharedScreenHandler)
-        })
+        Some(concrete_arc as SharedScreenHandler)
     }
 
     fn get_display_name(&self) -> TextComponent {

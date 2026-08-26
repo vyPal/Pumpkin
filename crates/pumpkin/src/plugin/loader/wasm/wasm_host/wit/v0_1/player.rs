@@ -1,7 +1,6 @@
 use pumpkin_protocol::bedrock::client::PackIdVersion;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
-use tokio::sync::Mutex;
 use wasmtime::component::Resource;
 
 use crate::plugin::api::gui::PluginScreenHandler;
@@ -1104,7 +1103,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
             pumpkin_util::Hand::Left => PlayerInventory::OFF_HAND_SLOT,
         };
 
-        player.inventory().set_stack(slot, stack.clone()).await;
+        player.inventory().set_stack(slot, stack.clone());
 
         // Sync to client
         let stack_serializer = ItemStackSerializer::from(stack);
@@ -1127,10 +1126,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
             pumpkin_data::item_stack::ItemStack::EMPTY.clone()
         };
 
-        player
-            .inventory()
-            .set_stack(slot as usize, stack.clone())
-            .await;
+        player.inventory().set_stack(slot as usize, stack.clone());
 
         // Sync to client
         let stack_serializer = ItemStackSerializer::from(stack);
@@ -1146,7 +1142,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         slot: u8,
     ) -> wasmtime::Result<Option<Resource<WitHostItemStack>>> {
         let player = player_from_resource(self, &player)?;
-        let stack = player.inventory().get_stack(slot as usize).await;
+        let stack = player.inventory().get_stack(slot as usize);
         if stack.is_empty() {
             Ok(None)
         } else {
@@ -1163,7 +1159,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     ) -> wasmtime::Result<Option<Resource<WitHostItemStack>>> {
         let player = player_from_resource(self, &player)?;
         let ec = player.ender_chest_inventory();
-        let stack = ec.get_stack(slot as usize).await;
+        let stack = ec.get_stack(slot as usize);
         if stack.is_empty() {
             Ok(None)
         } else {
@@ -1187,17 +1183,29 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         };
 
         let ec = player.ender_chest_inventory();
-        ec.set_stack(slot as usize, stack.clone()).await;
+        ec.set_stack(slot as usize, stack.clone());
 
         // If the player currently has their ender chest screen open, sync slot
-        let screen_handler_arc = player.current_screen_handler.lock().await.clone();
-        let handler = screen_handler_arc.lock().await;
-        if let Some(generic) = handler
-            .as_any()
-            .downcast_ref::<GenericContainerScreenHandler>()
-            && generic.inventory.as_any().is::<EnderChestInventory>()
-        {
-            let sync_id = handler.sync_id();
+        let sync_id = {
+            let screen_handler_arc = player
+                .current_screen_handler
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
+            let handler = screen_handler_arc
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if let Some(generic) = handler
+                .as_any()
+                .downcast_ref::<GenericContainerScreenHandler>()
+                && generic.inventory.as_any().is::<EnderChestInventory>()
+            {
+                Some(handler.sync_id())
+            } else {
+                None
+            }
+        };
+        if let Some(sync_id) = sync_id {
             let stack_serializer = ItemStackSerializer::from(stack);
             let packet = CSetContainerSlot::new(sync_id as i8, 0, slot as i16, &stack_serializer);
             player.send_client_packet(&packet).await;
@@ -1209,17 +1217,29 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
     async fn clear_ender_chest(&mut self, player: Resource<Player>) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
         let ec = player.ender_chest_inventory();
-        ec.clear().await;
+        ec.clear();
 
         // If the player currently has their ender chest screen open, sync all slots
-        let screen_handler_arc = player.current_screen_handler.lock().await.clone();
-        let handler = screen_handler_arc.lock().await;
-        if let Some(generic) = handler
-            .as_any()
-            .downcast_ref::<GenericContainerScreenHandler>()
-            && generic.inventory.as_any().is::<EnderChestInventory>()
-        {
-            let sync_id = handler.sync_id();
+        let sync_id = {
+            let screen_handler_arc = player
+                .current_screen_handler
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
+            let handler = screen_handler_arc
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if let Some(generic) = handler
+                .as_any()
+                .downcast_ref::<GenericContainerScreenHandler>()
+                && generic.inventory.as_any().is::<EnderChestInventory>()
+            {
+                Some(handler.sync_id())
+            } else {
+                None
+            }
+        };
+        if let Some(sync_id) = sync_id {
             let empty_serializer =
                 ItemStackSerializer::from(pumpkin_data::item_stack::ItemStack::EMPTY.clone());
             for slot in 0..27 {
@@ -1234,7 +1254,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
 
     async fn open_ender_chest(&mut self, player: Resource<Player>) -> wasmtime::Result<()> {
         let player = player_from_resource(self, &player)?;
-        player.open_ender_chest().await;
+        player.open_ender_chest();
         Ok(())
     }
 
@@ -2184,7 +2204,9 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
 
         player.increment_screen_handler_sync_id();
         let sync_id = player.screen_handler_sync_id.load(Ordering::Relaxed);
-        let screen_handler = Arc::new(Mutex::new(PluginScreenHandler::new(
+        let screen_handler: Arc<
+            std::sync::Mutex<dyn pumpkin_inventory::screen_handler::ScreenHandler>,
+        > = Arc::new(std::sync::Mutex::new(PluginScreenHandler::new(
             sync_id,
             gui.window_type,
             &gui.inventory,
@@ -2192,9 +2214,7 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
             gui.allow_put_items,
         )));
 
-        player
-            .open_handled_screen_direct(screen_handler, gui.title.clone())
-            .await;
+        player.open_handled_screen_direct(screen_handler, &gui.title);
         Ok(())
     }
 

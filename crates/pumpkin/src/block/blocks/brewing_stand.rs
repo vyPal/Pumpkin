@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use crate::block::{GetComparatorOutputArgs, PlacedArgs};
 use crate::block::{
@@ -9,7 +10,9 @@ use crate::block::{
 use crate::block::entities::brewing_stand::BrewingStandBlockEntity;
 use pumpkin_data::translation;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
-use pumpkin_inventory::screen_handler::{BoxFuture, ScreenHandlerFactory, SharedScreenHandler};
+use pumpkin_inventory::screen_handler::{
+    InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
+};
 use pumpkin_macros::pumpkin_block;
 use pumpkin_util::text::TextComponent;
 use pumpkin_world::inventory::Inventory;
@@ -20,21 +23,15 @@ struct BrewingScreenFactory(
 );
 
 impl ScreenHandlerFactory for BrewingScreenFactory {
-    fn create_screen_handler<'a>(
-        &'a self,
+    fn create_screen_handler(
+        &self,
         sync_id: u8,
-        player_inventory: &'a Arc<PlayerInventory>,
-        _player: &'a dyn pumpkin_inventory::screen_handler::InventoryPlayer,
-    ) -> BoxFuture<'a, Option<SharedScreenHandler>> {
+        player_inventory: &Arc<PlayerInventory>,
+        _player: &dyn InventoryPlayer,
+    ) -> Option<SharedScreenHandler> {
         let inventory = self.0.clone();
-        let property_delegate = self.1.clone();
-        let pi = player_inventory.clone();
-        Box::pin(async move {
-            // Delegate to pumpkin-inventory brewing creator
-            pumpkin_inventory::brewing::create_brewing(sync_id, pi, inventory, property_delegate)
-                .await
-                .map(|handler| Arc::new(tokio::sync::Mutex::new(handler)) as SharedScreenHandler)
-        })
+        pumpkin_inventory::brewing::create_brewing(sync_id, player_inventory, inventory, &self.1)
+            .map(|handler| Arc::new(Mutex::new(handler)) as SharedScreenHandler)
     }
 
     fn get_display_name(&self) -> TextComponent {
@@ -59,13 +56,8 @@ impl BlockBehaviour for BrewingStandBlock {
                 pumpkin_data::statistic::CustomStatistic::InteractWithBrewingstand as i32,
                 1,
             );
-            let player = Arc::clone(args.player);
-            let pos = *args.position;
-            tokio::spawn(async move {
-                player
-                    .open_handled_screen(&BrewingScreenFactory(inventory, pd), Some(pos))
-                    .await;
-            });
+            args.player
+                .open_handled_screen(&BrewingScreenFactory(inventory, pd), Some(*args.position));
         }
 
         BlockActionResult::Success
@@ -83,7 +75,7 @@ impl BlockBehaviour for BrewingStandBlock {
             let mut bottles = 0u8;
             // Bottle slots are 0, 1, 2 in brewing stands
             for slot in 0..3 {
-                let stack = futures::executor::block_on(inventory.get_stack(slot));
+                let stack = inventory.get_stack(slot);
                 if !stack.is_empty() {
                     bottles += 1;
                 }

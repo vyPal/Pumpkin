@@ -8,12 +8,12 @@ use pumpkin_data::{BlockStateId, FacingExt};
 use pumpkin_inventory::loom_screen_handler::LoomScreenHandler;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
 use pumpkin_inventory::screen_handler::{
-    BoxFuture, InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
+    InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
 };
 use pumpkin_macros::pumpkin_block;
 use pumpkin_util::text::TextComponent;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::sync::Mutex;
 
 #[pumpkin_block("minecraft:loom")]
 pub struct LoomBlock;
@@ -39,13 +39,8 @@ impl BlockBehaviour for LoomBlock {
             pumpkin_data::statistic::CustomStatistic::InteractWithLoom as i32,
             1,
         );
-        let player = Arc::clone(args.player);
-        let pos = *args.position;
-        tokio::spawn(async move {
-            player
-                .open_handled_screen(&LoomScreenFactory, Some(pos))
-                .await;
-        });
+        args.player
+            .open_handled_screen(&LoomScreenFactory, Some(*args.position));
 
         BlockActionResult::Success
     }
@@ -54,19 +49,17 @@ impl BlockBehaviour for LoomBlock {
 struct LoomScreenFactory;
 
 impl ScreenHandlerFactory for LoomScreenFactory {
-    fn create_screen_handler<'a>(
-        &'a self,
+    fn create_screen_handler(
+        &self,
         sync_id: u8,
-        player_inventory: &'a Arc<PlayerInventory>,
-        _player: &'a dyn InventoryPlayer,
-    ) -> BoxFuture<'a, Option<SharedScreenHandler>> {
-        Box::pin(async move {
-            let handler: SharedScreenHandler = Arc::new(Mutex::new(LoomScreenHandler::new(
-                sync_id,
-                player_inventory,
-            )));
-            Some(handler)
-        })
+        player_inventory: &Arc<PlayerInventory>,
+        _player: &dyn InventoryPlayer,
+    ) -> Option<SharedScreenHandler> {
+        let handler: SharedScreenHandler = Arc::new(Mutex::new(LoomScreenHandler::new(
+            sync_id,
+            player_inventory,
+        )));
+        Some(handler)
     }
 
     fn get_display_name(&self) -> TextComponent {

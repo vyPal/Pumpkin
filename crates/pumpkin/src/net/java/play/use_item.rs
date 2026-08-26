@@ -58,8 +58,7 @@ impl JavaClient {
             PlayerInteractEvent::new(player, InteractAction::RightClickAir, &Block::AIR, None)
         };
         let (item_for_use, stack_for_use) = (item_in_hand.item, item_in_hand.clone());
-        self.prepare_hand_item_for_use(player, hand, &mut item_in_hand)
-            .await;
+        Self::prepare_hand_item_for_use(player, hand, &mut item_in_hand);
 
         if !self
             .should_continue_use_after_fish_event(server, player, hand, item_for_use)
@@ -77,12 +76,7 @@ impl JavaClient {
         }}
     }
 
-    async fn prepare_hand_item_for_use(
-        &self,
-        player: &Arc<Player>,
-        hand: Hand,
-        held: &mut ItemStack,
-    ) {
+    fn prepare_hand_item_for_use(player: &Arc<Player>, hand: Hand, held: &mut ItemStack) {
         let inventory = player.inventory();
 
         if let Some(cooldown) = held.get_use_cooldown() {
@@ -135,7 +129,7 @@ impl JavaClient {
                 return;
             }
 
-            player.enqueue_equipment_change(&slot, held).await;
+            player.enqueue_equipment_change(&slot, held);
 
             let equipped = if current_equipped.is_empty() {
                 let equipped = held.clone();

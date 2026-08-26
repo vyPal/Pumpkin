@@ -1,18 +1,17 @@
 use std::any::Any;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
 use pumpkin_data::item_stack::ItemStack;
 use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_nbt::tag::NbtTag;
 use pumpkin_util::math::position::BlockPos;
-use tokio::sync::Mutex;
 
 use crate::block::entities::BlockEntity;
 use crate::world::World;
-use pumpkin_world::inventory::{Clearable, Inventory, InventoryFuture};
+use pumpkin_world::inventory::{Clearable, Inventory};
 
 /// Matches vanilla's `JukeboxBlockEntity`
 pub struct JukeboxBlockEntity {
@@ -64,7 +63,10 @@ impl BlockEntity for JukeboxBlockEntity {
         nbt: &'a mut NbtCompound,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
         Box::pin(async move {
-            let record = self.record_stack.lock().await;
+            let record = self
+                .record_stack
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             if !record.is_empty() {
                 let mut record_nbt = NbtCompound::new();
                 record.write_item_stack(&mut record_nbt);
@@ -139,20 +141,29 @@ impl JukeboxBlockEntity {
 
     /// Get the current record stack
     pub fn get_record(&self) -> ItemStack {
-        self.record_stack.blocking_lock().clone()
+        self.record_stack
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
     }
 
     /// Set the record stack - matches vanilla's `setStack()`
     /// Note: The caller is responsible for updating block state and playing music
     pub fn set_record(&self, stack: ItemStack) {
-        *self.record_stack.blocking_lock() = stack;
+        *self
+            .record_stack
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = stack;
         self.mark_dirty();
     }
 
     /// Clear the stack and return what was there - used for dropping
     pub fn clear_record(&self) -> ItemStack {
         self.stop_playing();
-        let mut record = self.record_stack.blocking_lock();
+        let mut record = self
+            .record_stack
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let taken = record.clone();
         *record = ItemStack::EMPTY.clone();
         self.mark_dirty();
@@ -195,35 +206,43 @@ impl Inventory for JukeboxBlockEntity {
         1
     }
 
-    fn is_empty(&self) -> InventoryFuture<'_, bool> {
-        Box::pin(async move { self.record_stack.lock().await.is_empty() })
+    fn is_empty(&self) -> bool {
+        self.record_stack
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_empty()
     }
 
-    fn get_stack(&self, _slot: usize) -> InventoryFuture<'_, ItemStack> {
-        Box::pin(async move { self.record_stack.lock().await.clone() })
+    fn get_stack(&self, _slot: usize) -> ItemStack {
+        self.record_stack
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
     }
 
-    fn remove_stack(&self, _slot: usize) -> InventoryFuture<'_, ItemStack> {
-        Box::pin(async move {
-            self.stop_playing();
-            let mut record = self.record_stack.lock().await;
-            let taken = record.clone();
-            *record = ItemStack::EMPTY.clone();
-            self.mark_dirty();
-            taken
-        })
+    fn remove_stack(&self, _slot: usize) -> ItemStack {
+        self.stop_playing();
+        let mut record = self
+            .record_stack
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let taken = record.clone();
+        *record = ItemStack::EMPTY.clone();
+        self.mark_dirty();
+        taken
     }
 
-    fn remove_stack_specific(&self, _slot: usize, _amount: u8) -> InventoryFuture<'_, ItemStack> {
+    fn remove_stack_specific(&self, _slot: usize, _amount: u8) -> ItemStack {
         // Jukebox only holds one item, so remove the whole stack
         self.remove_stack(0)
     }
 
-    fn set_stack(&self, _slot: usize, stack: ItemStack) -> InventoryFuture<'_, ()> {
-        Box::pin(async move {
-            *self.record_stack.lock().await = stack;
-            self.mark_dirty();
-        })
+    fn set_stack(&self, _slot: usize, stack: ItemStack) {
+        *self
+            .record_stack
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = stack;
+        self.mark_dirty();
     }
 
     fn mark_dirty(&self) {
@@ -236,11 +255,12 @@ impl Inventory for JukeboxBlockEntity {
 }
 
 impl Clearable for JukeboxBlockEntity {
-    fn clear(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
-        Box::pin(async move {
-            self.stop_playing();
-            *self.record_stack.lock().await = ItemStack::EMPTY.clone();
-            self.mark_dirty();
-        })
+    fn clear(&self) {
+        self.stop_playing();
+        *self
+            .record_stack
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = ItemStack::EMPTY.clone();
+        self.mark_dirty();
     }
 }

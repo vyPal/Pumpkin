@@ -20,7 +20,7 @@ impl GenericIngredient<'_> {
     }
 }
 
-pub async fn take_n_ingredient(
+pub fn take_n_ingredient(
     inventory: &PlayerInventory,
     ingredient: &GenericIngredient<'_>,
     count: u8,
@@ -51,7 +51,7 @@ pub async fn take_n_ingredient(
     result.unwrap_or_else(|| ItemStack::EMPTY.clone())
 }
 
-pub async fn compute_biggest_craftable(
+pub fn compute_biggest_craftable(
     ingredients: &[GenericIngredient<'_>],
     inventory: &PlayerInventory,
 ) -> u8 {

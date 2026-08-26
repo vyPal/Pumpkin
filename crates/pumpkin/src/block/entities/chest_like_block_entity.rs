@@ -24,7 +24,7 @@ macro_rules! impl_block_entity_for_chest {
 
                 let mut chest = Self {
                     position,
-                    items: tokio::sync::RwLock::new(std::array::from_fn(|_| {
+                    items: std::sync::RwLock::new(std::array::from_fn(|_| {
                         ItemStack::EMPTY.clone()
                     })),
                     dirty: std::sync::atomic::AtomicBool::new(false),
@@ -40,7 +40,13 @@ macro_rules! impl_block_entity_for_chest {
                     .unwrap_or_else(std::sync::PoisonError::into_inner)
                     .is_some();
                 if !has_loot_table {
-                    pumpkin_world::inventory::sync_read_items_from_nbt(nbt, chest.items.get_mut());
+                    pumpkin_world::inventory::sync_read_items_from_nbt(
+                        nbt,
+                        chest
+                            .items
+                            .get_mut()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner),
+                    );
                 }
 
                 chest
@@ -70,7 +76,7 @@ macro_rules! impl_block_entity_for_chest {
                         }
                     } else {
                         // Loot has already been generated, so persist the actual items.
-                        self.write_inventory_nbt(nbt, true).await;
+                        self.write_inventory_nbt(nbt, true);
                     }
                 })
             }
@@ -145,74 +151,61 @@ macro_rules! impl_inventory_for_chest {
                 Self::INVENTORY_SIZE
             }
 
-            fn is_empty(&self) -> pumpkin_world::inventory::InventoryFuture<'_, bool> {
-                Box::pin(async move {
-                    let items = self.items.read().await;
-                    items.iter().all(|s| s.is_empty())
-                })
+            fn is_empty(&self) -> bool {
+                let items = self
+                    .items
+                    .read()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                items.iter().all(|s| s.is_empty())
             }
 
-            fn get_stack(
-                &self,
-                slot: usize,
-            ) -> pumpkin_world::inventory::InventoryFuture<'_, ItemStack> {
-                Box::pin(async move {
-                    let items = self.items.read().await;
-                    items[slot].clone()
-                })
+            fn get_stack(&self, slot: usize) -> ItemStack {
+                let items = self
+                    .items
+                    .read()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                items[slot].clone()
             }
 
-            fn remove_stack(
-                &self,
-                slot: usize,
-            ) -> pumpkin_world::inventory::InventoryFuture<'_, ItemStack> {
-                Box::pin(async move {
-                    let mut items = self.items.write().await;
-                    let removed = std::mem::replace(&mut items[slot], ItemStack::EMPTY.clone());
-                    self.mark_dirty();
-                    removed
-                })
+            fn remove_stack(&self, slot: usize) -> ItemStack {
+                let mut items = self
+                    .items
+                    .write()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                let removed = std::mem::replace(&mut items[slot], ItemStack::EMPTY.clone());
+                self.mark_dirty();
+                removed
             }
 
-            fn remove_stack_specific(
-                &self,
-                slot: usize,
-                amount: u8,
-            ) -> pumpkin_world::inventory::InventoryFuture<'_, ItemStack> {
-                Box::pin(async move {
-                    let mut items = self.items.write().await;
-                    let res = if !items[slot].is_empty() && amount > 0 {
-                        items[slot].split(amount)
-                    } else {
-                        ItemStack::EMPTY.clone()
-                    };
-                    self.mark_dirty();
-                    res
-                })
+            fn remove_stack_specific(&self, slot: usize, amount: u8) -> ItemStack {
+                let mut items = self
+                    .items
+                    .write()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                let res = if !items[slot].is_empty() && amount > 0 {
+                    items[slot].split(amount)
+                } else {
+                    ItemStack::EMPTY.clone()
+                };
+                self.mark_dirty();
+                res
             }
 
-            fn set_stack(
-                &self,
-                slot: usize,
-                stack: ItemStack,
-            ) -> pumpkin_world::inventory::InventoryFuture<'_, ()> {
-                Box::pin(async move {
-                    let mut items = self.items.write().await;
-                    items[slot] = stack;
-                    self.mark_dirty();
-                })
+            fn set_stack(&self, slot: usize, stack: ItemStack) {
+                let mut items = self
+                    .items
+                    .write()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                items[slot] = stack;
+                self.mark_dirty();
             }
 
-            fn on_open(&self) -> pumpkin_world::inventory::InventoryFuture<'_, ()> {
-                Box::pin(async move {
-                    self.viewers.open_container();
-                })
+            fn on_open(&self) {
+                self.viewers.open_container();
             }
 
-            fn on_close(&self) -> pumpkin_world::inventory::InventoryFuture<'_, ()> {
-                Box::pin(async move {
-                    self.viewers.close_container();
-                })
+            fn on_close(&self) {
+                self.viewers.close_container();
             }
 
             fn mark_dirty(&self) {
@@ -231,14 +224,13 @@ macro_rules! impl_inventory_for_chest {
 macro_rules! impl_clearable_for_chest {
     ($struct_name:ty) => {
         impl pumpkin_world::inventory::Clearable for $struct_name {
-            fn clear(
-                &self,
-            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
-                Box::pin(async move {
-                    let mut items = self.items.write().await;
-                    items.fill_with(|| ItemStack::EMPTY.clone());
-                    <$struct_name as pumpkin_world::inventory::Inventory>::mark_dirty(self);
-                })
+            fn clear(&self) {
+                let mut items = self
+                    .items
+                    .write()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                items.fill_with(|| ItemStack::EMPTY.clone());
+                <$struct_name as pumpkin_world::inventory::Inventory>::mark_dirty(self);
             }
         }
     };
@@ -311,11 +303,12 @@ macro_rules! impl_chest_helper_methods {
             pub fn new(position: pumpkin_util::math::position::BlockPos) -> Self {
                 use std::array::from_fn;
                 use std::sync::Mutex as StdMutex;
+                use std::sync::RwLock;
                 use std::sync::atomic::AtomicBool;
 
                 Self {
                     position,
-                    items: tokio::sync::RwLock::new(from_fn(|_| ItemStack::EMPTY.clone())),
+                    items: RwLock::new(from_fn(|_| ItemStack::EMPTY.clone())),
                     dirty: AtomicBool::new(false),
                     viewers: $crate::block::viewer::ViewerCountTracker::new(),
                     loot_table: StdMutex::new(None),

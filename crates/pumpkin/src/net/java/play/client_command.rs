@@ -15,9 +15,14 @@ impl JavaClient {
                 player.world().clone().respawn_player(player, false).await;
 
                 {
-                    let screen_handler = player.current_screen_handler.lock().await;
-                    let mut screen_handler = screen_handler.lock().await;
-                    screen_handler.sync_state().await;
+                    let screen_handler = player
+                        .current_screen_handler
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    let mut screen_handler = screen_handler
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    screen_handler.sync_state();
                 };
 
                 // Restore abilities based on gamemode after respawn

@@ -1,7 +1,7 @@
 use rand::{Rng, RngExt, rng};
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;
-use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::block::blocks::redstone::block_receives_redstone_power;
@@ -50,7 +50,7 @@ use pumpkin_data::{Block, BlockStateId, FacingExt};
 use pumpkin_inventory::generic_container_screen_handler::create_generic_3x3;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
 use pumpkin_inventory::screen_handler::{
-    BoxFuture, InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
+    InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
 };
 use pumpkin_macros::pumpkin_block;
 use pumpkin_util::math::boundingbox::{BoundingBox, EntityDimensions};
@@ -65,18 +65,16 @@ use pumpkin_world::world::BlockFlags;
 struct DispenserScreenFactory(Arc<dyn Inventory>);
 
 impl ScreenHandlerFactory for DispenserScreenFactory {
-    fn create_screen_handler<'a>(
-        &'a self,
+    fn create_screen_handler(
+        &self,
         sync_id: u8,
-        player_inventory: &'a Arc<PlayerInventory>,
-        _player: &'a dyn InventoryPlayer,
-    ) -> BoxFuture<'a, Option<SharedScreenHandler>> {
-        Box::pin(async move {
-            let handler = create_generic_3x3(sync_id, player_inventory, self.0.clone()).await;
-            let screen_handler_arc = Arc::new(Mutex::new(handler));
+        player_inventory: &Arc<PlayerInventory>,
+        _player: &dyn InventoryPlayer,
+    ) -> Option<SharedScreenHandler> {
+        let handler = create_generic_3x3(sync_id, player_inventory, self.0.clone());
+        let screen_handler_arc = Arc::new(Mutex::new(handler));
 
-            Some(screen_handler_arc as SharedScreenHandler)
-        })
+        Some(screen_handler_arc as SharedScreenHandler)
     }
 
     fn get_display_name(&self) -> TextComponent {
@@ -129,13 +127,8 @@ impl BlockBehaviour for DispenserBlock {
         if let Some(block_entity) = args.world.get_block_entity(args.position)
             && let Some(inventory) = block_entity.get_inventory()
         {
-            let player = Arc::clone(args.player);
-            let pos = *args.position;
-            tokio::spawn(async move {
-                player
-                    .open_handled_screen(&DispenserScreenFactory(inventory), Some(pos))
-                    .await;
-            });
+            args.player
+                .open_handled_screen(&DispenserScreenFactory(inventory), Some(*args.position));
         }
         BlockActionResult::Success
     }
@@ -191,7 +184,7 @@ impl BlockBehaviour for DispenserBlock {
                     return;
                 };
 
-                if let Some((slot_index, mut item)) = dispenser.get_random_slot().await {
+                if let Some((slot_index, mut item)) = dispenser.get_random_slot() {
                     let props = DispenserLikeProperties::from_state_id(state.id, block);
                     let ctx = DispenseContext {
                         world: &world,
@@ -199,7 +192,7 @@ impl BlockBehaviour for DispenserBlock {
                         facing: props.facing,
                     };
                     Self::dispense(&ctx, dispenser, &mut item).await;
-                    dispenser.set_stack(slot_index, item).await;
+                    dispenser.set_stack(slot_index, item);
                 } else {
                     world.sync_world_event(WorldEvent::SoundDispenserFail, position, 0);
                 }
@@ -291,7 +284,7 @@ impl DispenserBlock {
             Self::dispense_firework_rocket(ctx, item);
         } else if item.item.id == Item::BUCKET.id {
             // Empty buckets pick up the fluid in front of the dispenser
-            Self::dispense_empty_bucket(ctx, dispenser, item).await;
+            Self::dispense_empty_bucket(ctx, dispenser, item);
         } else if FilledBucketItem::ids().contains(&item.item.id) {
             // Filled buckets place their fluid in front of the dispenser
             Self::dispense_filled_bucket(ctx, item);
@@ -663,7 +656,7 @@ impl DispenserBlock {
         Self::finish_projectile_launch(ctx, Arc::new(rocket), WorldEvent::SoundFireworkShoot);
     }
 
-    async fn dispense_empty_bucket(
+    fn dispense_empty_bucket(
         ctx: &DispenseContext<'_>,
         dispenser: &DispenserBlockEntity,
         item: &mut ItemStack,
@@ -678,7 +671,7 @@ impl DispenserBlock {
         let filled_stack = ItemStack::new(1, filled);
         if item.is_empty() {
             *item = filled_stack;
-        } else if let Some(rest) = Self::add_to_first_free_slot(dispenser, filled_stack).await {
+        } else if let Some(rest) = Self::add_to_first_free_slot(dispenser, filled_stack) {
             Self::eject_item(ctx, rest);
         }
 
@@ -688,11 +681,14 @@ impl DispenserBlock {
     /// Places `stack` into the first empty slot, returning it back if every slot is occupied.
     /// The slot currently being dispensed from still holds its pre-dispense stack, so it is
     /// never considered free.
-    async fn add_to_first_free_slot(
+    fn add_to_first_free_slot(
         dispenser: &DispenserBlockEntity,
         stack: ItemStack,
     ) -> Option<ItemStack> {
-        let mut items = dispenser.items.write().await;
+        let mut items = dispenser
+            .items
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         for slot in items.iter_mut() {
             if slot.is_empty() {
                 *slot = stack;

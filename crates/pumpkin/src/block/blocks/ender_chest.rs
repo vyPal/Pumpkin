@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use crate::block::entities::ender_chest::EnderChestBlockEntity;
 use crate::block::{
@@ -13,13 +14,12 @@ use pumpkin_inventory::{
     generic_container_screen_handler::create_generic_9x3,
     player::ender_chest_inventory::EnderChestInventory,
     player::player_inventory::PlayerInventory,
-    screen_handler::{BoxFuture, InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler},
+    screen_handler::{InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler},
 };
 use pumpkin_macros::pumpkin_block;
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_util::text::TextComponent;
 use pumpkin_world::block::viewer::ViewerCountTracker;
-use tokio::sync::Mutex;
 
 pub struct EnderChestScreenFactory {
     pub inventory: Arc<EnderChestInventory>,
@@ -27,22 +27,19 @@ pub struct EnderChestScreenFactory {
 }
 
 impl ScreenHandlerFactory for EnderChestScreenFactory {
-    fn create_screen_handler<'a>(
-        &'a self,
+    fn create_screen_handler(
+        &self,
         sync_id: u8,
-        player_inventory: &'a Arc<PlayerInventory>,
-        _player: &'a dyn InventoryPlayer,
-    ) -> BoxFuture<'a, Option<SharedScreenHandler>> {
-        Box::pin(async move {
-            if let Some(tracker) = &self.tracker {
-                self.inventory.set_tracker(tracker.clone());
-            }
-            let handler =
-                create_generic_9x3(sync_id, player_inventory, self.inventory.clone()).await;
-            let concrete_arc = Arc::new(Mutex::new(handler));
+        player_inventory: &Arc<PlayerInventory>,
+        _player: &dyn InventoryPlayer,
+    ) -> Option<SharedScreenHandler> {
+        if let Some(tracker) = &self.tracker {
+            self.inventory.set_tracker(tracker.clone());
+        }
+        let handler = create_generic_9x3(sync_id, player_inventory, self.inventory.clone());
+        let concrete_arc = Arc::new(Mutex::new(handler));
 
-            Some(concrete_arc as SharedScreenHandler)
-        })
+        Some(concrete_arc as SharedScreenHandler)
     }
 
     fn get_display_name(&self) -> TextComponent {
@@ -96,21 +93,15 @@ impl BlockBehaviour for EnderChestBlock {
                 pumpkin_data::statistic::CustomStatistic::OpenEnderchest as i32,
                 1,
             );
-            let player = Arc::clone(args.player);
-            let pos = *args.position;
             let tracker = block_entity.get_tracker();
-            tokio::spawn(async move {
-                let inventory = player.ender_chest_inventory();
-                player
-                    .open_handled_screen(
-                        &EnderChestScreenFactory {
-                            inventory: inventory.clone(),
-                            tracker: Some(tracker),
-                        },
-                        Some(pos),
-                    )
-                    .await;
-            });
+            let inventory = args.player.ender_chest_inventory();
+            args.player.open_handled_screen(
+                &EnderChestScreenFactory {
+                    inventory: inventory.clone(),
+                    tracker: Some(tracker),
+                },
+                Some(*args.position),
+            );
             // TODO: PiglinBrain.onGuardedBlockInteracted(serverWorld, player, true);
         }
 

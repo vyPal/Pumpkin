@@ -567,17 +567,13 @@ impl EntityBase for ItemEntity {
                 .living_entity
                 .pickup(&self.entity, amount_picked_up.into());
 
-            let player_clone = player.clone();
-            tokio::spawn(async move {
-                player_clone
-                    .current_screen_handler
-                    .lock()
-                    .await
-                    .lock()
-                    .await
-                    .send_content_updates()
-                    .await;
-            });
+            player
+                .current_screen_handler
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .send_content_updates();
 
             if is_empty {
                 self.entity.remove();

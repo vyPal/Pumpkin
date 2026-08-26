@@ -32,31 +32,27 @@ impl BedrockClient {
                 slot_with_stack as usize,
             ) {
                 if slot_with_stack as usize != target_hotbar_slot {
-                    let target_stack = player.inventory().get_stack(target_hotbar_slot).await;
-                    let source_stack = player.inventory().get_stack(slot_with_stack as usize).await;
+                    let target_stack = player.inventory().get_stack(target_hotbar_slot);
+                    let source_stack = player.inventory().get_stack(slot_with_stack as usize);
                     player
                         .inventory()
-                        .set_stack(target_hotbar_slot, source_stack)
-                        .await;
+                        .set_stack(target_hotbar_slot, source_stack);
                     player
                         .inventory()
-                        .set_stack(slot_with_stack as usize, target_stack)
-                        .await;
+                        .set_stack(slot_with_stack as usize, target_stack);
                 }
             } else {
-                let target_stack = player.inventory().get_stack(target_hotbar_slot).await;
-                let source_stack = player.inventory().get_stack(slot_with_stack as usize).await;
+                let target_stack = player.inventory().get_stack(target_hotbar_slot);
+                let source_stack = player.inventory().get_stack(slot_with_stack as usize);
                 player
                     .inventory()
-                    .set_stack(target_hotbar_slot, source_stack)
-                    .await;
+                    .set_stack(target_hotbar_slot, source_stack);
                 player
                     .inventory
-                    .set_stack(slot_with_stack as usize, target_stack)
-                    .await;
+                    .set_stack(slot_with_stack as usize, target_stack);
             }
         } else if player.gamemode.load() == GameMode::Creative {
-            player.inventory.set_stack(target_hotbar_slot, stack).await;
+            player.inventory.set_stack(target_hotbar_slot, stack);
         } else {
             return;
         }
@@ -80,9 +76,8 @@ impl BedrockClient {
         player
             .player_screen_handler
             .lock()
-            .await
-            .send_content_updates()
-            .await;
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .send_content_updates();
 
         // Sync main hand equipment to other players
         let stack_in_hand = player.inventory().held_item();

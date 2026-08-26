@@ -46,9 +46,8 @@ impl JavaClient {
         player
             .player_screen_handler
             .lock()
-            .await
-            .send_content_updates()
-            .await;
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .send_content_updates();
     }
 
     pub async fn handle_pick_item_from_entity(
@@ -108,9 +107,8 @@ impl JavaClient {
             player
                 .player_screen_handler
                 .lock()
-                .await
-                .send_content_updates()
-                .await;
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .send_content_updates();
         }
     }
 }

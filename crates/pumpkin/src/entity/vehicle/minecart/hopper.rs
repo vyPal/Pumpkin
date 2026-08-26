@@ -51,19 +51,17 @@ impl HopperMinecart {
                 && let Some(source) = block_entity.get_inventory()
             {
                 for slot in 0..source.size() {
-                    let stack = source.get_stack(slot).await;
+                    let stack = source.get_stack(slot);
                     if stack.is_empty() || !source.can_transfer_to(inventory.as_ref(), slot, &stack)
                     {
                         continue;
                     }
                     let backup = stack.clone();
-                    let one = source.remove_stack_specific(slot, 1).await;
-                    if HopperBlockEntity::add_one_item(source.as_ref(), inventory.as_ref(), one)
-                        .await
-                    {
+                    let one = source.remove_stack_specific(slot, 1);
+                    if HopperBlockEntity::add_one_item(source.as_ref(), inventory.as_ref(), &one) {
                         return;
                     }
-                    source.set_stack(slot, backup).await;
+                    source.set_stack(slot, backup);
                 }
                 return;
             }
@@ -72,14 +70,14 @@ impl HopperMinecart {
                 Vector3::new(pos.x - 0.5, pos.y + 0.6875, pos.z - 0.5),
                 Vector3::new(pos.x + 0.5, pos.y + 2.0, pos.z + 0.5),
             );
-            if Self::pick_up_item_internal(&world_clone, &inventory, &suction_box).await {
+            if Self::pick_up_item_internal(&world_clone, &inventory, &suction_box) {
                 return;
             }
-            Self::pick_up_item_internal(&world_clone, &inventory, &cart_box).await;
+            Self::pick_up_item_internal(&world_clone, &inventory, &cart_box);
         });
     }
 
-    async fn pick_up_item_internal(
+    fn pick_up_item_internal(
         world: &Arc<crate::world::World>,
         inventory: &Arc<MinecartInventory>,
         search_box: &BoundingBox,
@@ -98,7 +96,7 @@ impl HopperMinecart {
                 }
                 (stack.clone(), stack.split(1))
             };
-            if HopperBlockEntity::add_one_item(inventory.as_ref(), inventory.as_ref(), one).await {
+            if HopperBlockEntity::add_one_item(inventory.as_ref(), inventory.as_ref(), &one) {
                 let is_empty = {
                     let stack = item
                         .get_item_stack()
@@ -120,7 +118,7 @@ impl HopperMinecart {
         false
     }
 
-    pub(super) async fn interact(
+    pub(super) fn interact(
         &self,
         custom_name: Option<TextComponent>,
         player: &Arc<Player>,
@@ -136,7 +134,6 @@ impl HopperMinecart {
             ),
             true,
         )
-        .await
     }
 
     pub(super) fn write_nbt(&self, nbt: &mut NbtCompound) {

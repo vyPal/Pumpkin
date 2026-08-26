@@ -6,7 +6,7 @@ impl BedrockClient {
         if packet.container_id == 0 || packet.container_id == 0xff {
             self.inventory_opened.store(false, Ordering::Relaxed);
         }
-        player.on_handled_screen_closed().await;
+        player.on_handled_screen_closed();
 
         self.enqueue_client_packet(&SContainerClose {
             container_id: packet.container_id,

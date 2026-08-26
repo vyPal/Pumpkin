@@ -98,7 +98,7 @@ impl CommandExecutor for BlockReplaceExecutor {
         let mut item_stack = parsed_stack.clone();
         item_stack.item_count = count as u8;
 
-        futures::executor::block_on(inventory.set_stack(slot, item_stack));
+        inventory.set_stack(slot, item_stack);
 
         let msg = TextComponent::translate_cross(
             translation::java::COMMANDS_ITEM_BLOCK_SET_SUCCESS,
@@ -151,11 +151,9 @@ impl CommandExecutor for EntityReplaceExecutor {
                     if (200..=226).contains(&mojang_slot) {
                         let ender_slot = mojang_slot - 200;
                         if ender_slot < player.ender_chest_inventory.size() {
-                            futures::executor::block_on(
-                                player_arc
-                                    .ender_chest_inventory
-                                    .set_stack(ender_slot, item_stack.clone()),
-                            );
+                            player_arc
+                                .ender_chest_inventory
+                                .set_stack(ender_slot, item_stack.clone());
                             modified_count += 1;
                         }
                     } else {
@@ -181,16 +179,12 @@ impl CommandExecutor for EntityReplaceExecutor {
                         if let Some(slot) = mapped_slot
                             && slot < inventory.size()
                         {
-                            futures::executor::block_on(
-                                player_arc.inventory().set_stack(slot, item_stack.clone()),
-                            );
+                            player_arc.inventory().set_stack(slot, item_stack.clone());
 
                             let stack_serializer = ItemStackSerializer::from(item_stack.clone());
                             let packet =
                                 CSetContainerSlot::new(0, 0, slot as i16, &stack_serializer);
-                            futures::executor::block_on(
-                                player_arc.enqueue_slot_packet(&packet, None, 0),
-                            );
+                            player_arc.enqueue_slot_packet(&packet, None, 0);
 
                             let eq_slot = if slot == 36 {
                                 Some(EquipmentSlot::FEET)

@@ -144,8 +144,7 @@ pub trait BlockEntity: Any + Send + Sync {
     {
         Box::pin(async move {
             if let Some(inventory) = self.get_inventory() {
-                // Assuming scatter_inventory is an async method on World
-                world.scatter_inventory(&position, &inventory).await;
+                world.scatter_inventory(&position, &inventory);
             }
         })
     }
@@ -460,9 +459,7 @@ mod test {
     async fn furnace_contents_survive_a_chunk_round_trip() {
         let position = BlockPos::new(0, 100, 0);
         let furnace = Arc::new(FurnaceBlockEntity::new(position));
-        furnace
-            .set_stack(0, ItemStack::new(5, &Item::DIAMOND))
-            .await;
+        furnace.set_stack(0, ItemStack::new(5, &Item::DIAMOND));
 
         let mut nbt = NbtCompound::new();
         furnace.write_internal(&mut nbt).await;
@@ -474,7 +471,7 @@ mod test {
         );
 
         if let Some(inventory) = inventory {
-            let stack = inventory.get_stack(0).await;
+            let stack = inventory.get_stack(0);
             assert_eq!(stack.get_item().id, Item::DIAMOND.id);
             assert_eq!(stack.item_count, 5);
         }

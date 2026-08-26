@@ -11,13 +11,13 @@ use pumpkin_data::translation;
 use pumpkin_inventory::anvil::AnvilScreenHandler;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
 use pumpkin_inventory::screen_handler::{
-    BoxFuture, InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
+    InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
 };
 use pumpkin_macros::pumpkin_block_from_tag;
 use pumpkin_util::text::TextComponent;
 use pumpkin_world::inventory::SimpleInventory;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::sync::Mutex;
 
 #[pumpkin_block_from_tag("minecraft:anvil")]
 pub struct AnvilBlock;
@@ -29,13 +29,8 @@ impl BlockBehaviour for AnvilBlock {
             pumpkin_data::statistic::CustomStatistic::InteractWithAnvil as i32,
             1,
         );
-        let player = Arc::clone(args.player);
-        let pos = *args.position;
-        tokio::spawn(async move {
-            player
-                .open_handled_screen(&AnvilScreenFactory, Some(pos))
-                .await;
-        });
+        args.player
+            .open_handled_screen(&AnvilScreenFactory, Some(*args.position));
 
         BlockActionResult::Success
     }
@@ -73,19 +68,17 @@ impl BlockBehaviour for AnvilBlock {
 struct AnvilScreenFactory;
 
 impl ScreenHandlerFactory for AnvilScreenFactory {
-    fn create_screen_handler<'a>(
-        &'a self,
+    fn create_screen_handler(
+        &self,
         sync_id: u8,
-        player_inventory: &'a Arc<PlayerInventory>,
-        _player: &'a dyn InventoryPlayer,
-    ) -> BoxFuture<'a, Option<SharedScreenHandler>> {
-        Box::pin(async move {
-            let inventory = Arc::new(SimpleInventory::new(3));
-            let handler = AnvilScreenHandler::new(sync_id, player_inventory, inventory);
-            let concrete_arc = Arc::new(Mutex::new(handler));
+        player_inventory: &Arc<PlayerInventory>,
+        _player: &dyn InventoryPlayer,
+    ) -> Option<SharedScreenHandler> {
+        let inventory = Arc::new(SimpleInventory::new(3));
+        let handler = AnvilScreenHandler::new(sync_id, player_inventory, inventory);
+        let concrete_arc = Arc::new(Mutex::new(handler));
 
-            Some(concrete_arc as SharedScreenHandler)
-        })
+        Some(concrete_arc as SharedScreenHandler)
     }
 
     fn get_display_name(&self) -> TextComponent {

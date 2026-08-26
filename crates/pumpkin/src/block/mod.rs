@@ -493,7 +493,7 @@ pub fn calculate_comparator_output(inventory: &dyn pumpkin_world::inventory::Inv
     let mut fill_sum = 0.0;
     let mut non_empty_count = 0;
     for i in 0..size {
-        let stack = futures::executor::block_on(inventory.get_stack(i));
+        let stack = inventory.get_stack(i);
         if !stack.is_empty() {
             let max_stack = stack.get_max_stack_size() as f32;
             let count = stack.item_count as f32;

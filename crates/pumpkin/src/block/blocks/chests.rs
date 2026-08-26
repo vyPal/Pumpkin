@@ -13,7 +13,7 @@ use pumpkin_inventory::double::DoubleInventory;
 use pumpkin_inventory::generic_container_screen_handler::{create_generic_9x3, create_generic_9x6};
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
 use pumpkin_inventory::screen_handler::{
-    BoxFuture, InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
+    InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
 };
 use pumpkin_macros::{pumpkin_block, pumpkin_block_from_tag};
 use pumpkin_util::GameMode;
@@ -21,7 +21,7 @@ use pumpkin_util::math::position::BlockPos;
 use pumpkin_util::text::TextComponent;
 use pumpkin_world::inventory::Inventory;
 use pumpkin_world::world::BlockFlags;
-use tokio::sync::Mutex;
+use std::sync::Mutex;
 
 use crate::block::{
     BrokenArgs, EmitsRedstonePowerArgs, GetComparatorOutputArgs, GetRedstonePowerArgs,
@@ -39,23 +39,21 @@ use crate::{
 struct ChestScreenFactory(Arc<dyn Inventory>);
 
 impl ScreenHandlerFactory for ChestScreenFactory {
-    fn create_screen_handler<'a>(
-        &'a self,
+    fn create_screen_handler(
+        &self,
         sync_id: u8,
-        player_inventory: &'a Arc<PlayerInventory>,
-        _player: &'a dyn InventoryPlayer,
-    ) -> BoxFuture<'a, Option<SharedScreenHandler>> {
-        Box::pin(async move {
-            let concrete_handler = if self.0.size() > 27 {
-                create_generic_9x6(sync_id, player_inventory, self.0.clone()).await
-            } else {
-                create_generic_9x3(sync_id, player_inventory, self.0.clone()).await
-            };
+        player_inventory: &Arc<PlayerInventory>,
+        _player: &dyn InventoryPlayer,
+    ) -> Option<SharedScreenHandler> {
+        let concrete_handler = if self.0.size() > 27 {
+            create_generic_9x6(sync_id, player_inventory, self.0.clone())
+        } else {
+            create_generic_9x3(sync_id, player_inventory, self.0.clone())
+        };
 
-            let concrete_arc = Arc::new(Mutex::new(concrete_handler));
+        let concrete_arc = Arc::new(Mutex::new(concrete_handler));
 
-            Some(concrete_arc as SharedScreenHandler)
-        })
+        Some(concrete_arc as SharedScreenHandler)
     }
 
     fn get_display_name(&self) -> TextComponent {
@@ -196,10 +194,8 @@ fn normal_use_chest_impl(args: &NormalUseArgs<'_>) -> BlockActionResult {
         && let Some(table) = get_chest_loot_table(&loot_key)
         && let Some(inv) = entity.clone().get_inventory()
     {
-        tokio::spawn(async move {
-            fill_chest_inventory(&inv, table, seed).await;
-            inv.mark_dirty();
-        });
+        fill_chest_inventory(&inv, table, seed);
+        inv.mark_dirty();
     }
 
     let Some(first_inventory) = first_chest.and_then(BlockEntity::get_inventory) else {
@@ -240,13 +236,8 @@ fn normal_use_chest_impl(args: &NormalUseArgs<'_>) -> BlockActionResult {
         first_inventory
     };
 
-    let player = args.player.clone();
-    let pos = *args.position;
-    tokio::spawn(async move {
-        player
-            .open_handled_screen(&ChestScreenFactory(inventory), Some(pos))
-            .await;
-    });
+    args.player
+        .open_handled_screen(&ChestScreenFactory(inventory), Some(*args.position));
 
     BlockActionResult::Success
 }

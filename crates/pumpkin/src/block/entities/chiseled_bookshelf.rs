@@ -6,6 +6,7 @@ use pumpkin_util::math::position::BlockPos;
 use std::any::Any;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::RwLock;
 use std::{
     array::from_fn,
     sync::{
@@ -19,12 +20,11 @@ use crate::{
     block::entities::BlockEntity,
     world::{BlockFlags, World},
 };
-use pumpkin_world::inventory::InventoryFuture;
 use pumpkin_world::inventory::{Clearable, Inventory, sync_write_items_to_nbt};
 
 pub struct ChiseledBookshelfBlockEntity {
     pub position: BlockPos,
-    pub items: tokio::sync::RwLock<[ItemStack; Self::INVENTORY_SIZE]>,
+    pub items: RwLock<[ItemStack; Self::INVENTORY_SIZE]>,
     pub last_interacted_slot: AtomicI8,
     pub dirty: AtomicBool,
 }
@@ -46,11 +46,17 @@ impl BlockEntity for ChiseledBookshelfBlockEntity {
     {
         let mut bookshelf = Self {
             position,
-            items: tokio::sync::RwLock::new(from_fn(|_| ItemStack::EMPTY.clone())),
+            items: RwLock::new(from_fn(|_| ItemStack::EMPTY.clone())),
             last_interacted_slot: AtomicI8::new(-1),
             dirty: AtomicBool::new(false),
         };
-        pumpkin_world::inventory::sync_read_items_from_nbt(nbt, bookshelf.items.get_mut());
+        pumpkin_world::inventory::sync_read_items_from_nbt(
+            nbt,
+            bookshelf
+                .items
+                .get_mut()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
         if let Some(slot) = nbt.get_int(LAST_INTERACTED_SLOT) {
             bookshelf
                 .last_interacted_slot
@@ -65,7 +71,10 @@ impl BlockEntity for ChiseledBookshelfBlockEntity {
         nbt: &'a mut NbtCompound,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
         Box::pin(async move {
-            let items = self.items.read().await;
+            let items = self
+                .items
+                .read()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             sync_write_items_to_nbt(items.as_slice(), nbt);
             nbt.put_int(
                 LAST_INTERACTED_SLOT,
@@ -99,7 +108,7 @@ impl ChiseledBookshelfBlockEntity {
     pub fn new(position: BlockPos) -> Self {
         Self {
             position,
-            items: tokio::sync::RwLock::new(from_fn(|_| ItemStack::EMPTY.clone())),
+            items: RwLock::new(from_fn(|_| ItemStack::EMPTY.clone())),
             last_interacted_slot: AtomicI8::new(-1),
             dirty: AtomicBool::new(false),
         }
@@ -116,7 +125,11 @@ impl ChiseledBookshelfBlockEntity {
                 .store(slot as i8, Ordering::Relaxed);
             self.mark_dirty();
 
-            let occupied = !self.items.blocking_read()[slot].is_empty();
+            let occupied = !self
+                .items
+                .read()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)[slot]
+                .is_empty();
             match slot {
                 0 => properties.slot_0_occupied = occupied,
                 1 => properties.slot_1_occupied = occupied,
@@ -141,13 +154,19 @@ impl ChiseledBookshelfBlockEntity {
     }
 
     pub fn set_book(&self, slot: usize, stack: ItemStack) {
-        let mut items = self.items.blocking_write();
+        let mut items = self
+            .items
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         items[slot] = stack;
         self.mark_dirty();
     }
 
     pub fn remove_book(&self, slot: usize, amount: u8) -> ItemStack {
-        let mut items = self.items.blocking_write();
+        let mut items = self
+            .items
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let res = if !items[slot].is_empty() && amount > 0 {
             items[slot].split(amount)
         } else {
@@ -163,48 +182,53 @@ impl Inventory for ChiseledBookshelfBlockEntity {
         Self::INVENTORY_SIZE
     }
 
-    fn is_empty(&self) -> InventoryFuture<'_, bool> {
-        Box::pin(async move {
-            let items = self.items.read().await;
-            items.iter().all(ItemStack::is_empty)
-        })
+    fn is_empty(&self) -> bool {
+        let items = self
+            .items
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        items.iter().all(ItemStack::is_empty)
     }
 
-    fn get_stack(&self, slot: usize) -> InventoryFuture<'_, ItemStack> {
-        Box::pin(async move {
-            let items = self.items.read().await;
-            items[slot].clone()
-        })
+    fn get_stack(&self, slot: usize) -> ItemStack {
+        let items = self
+            .items
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        items[slot].clone()
     }
 
-    fn remove_stack(&self, slot: usize) -> InventoryFuture<'_, ItemStack> {
-        Box::pin(async move {
-            let mut items = self.items.write().await;
-            let removed = std::mem::replace(&mut items[slot], ItemStack::EMPTY.clone());
-            self.mark_dirty();
-            removed
-        })
+    fn remove_stack(&self, slot: usize) -> ItemStack {
+        let mut items = self
+            .items
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let removed = std::mem::replace(&mut items[slot], ItemStack::EMPTY.clone());
+        self.mark_dirty();
+        removed
     }
 
-    fn remove_stack_specific(&self, slot: usize, amount: u8) -> InventoryFuture<'_, ItemStack> {
-        Box::pin(async move {
-            let mut items = self.items.write().await;
-            let res = if !items[slot].is_empty() && amount > 0 {
-                items[slot].split(amount)
-            } else {
-                ItemStack::EMPTY.clone()
-            };
-            self.mark_dirty();
-            res
-        })
+    fn remove_stack_specific(&self, slot: usize, amount: u8) -> ItemStack {
+        let mut items = self
+            .items
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let res = if !items[slot].is_empty() && amount > 0 {
+            items[slot].split(amount)
+        } else {
+            ItemStack::EMPTY.clone()
+        };
+        self.mark_dirty();
+        res
     }
 
-    fn set_stack(&self, slot: usize, stack: ItemStack) -> InventoryFuture<'_, ()> {
-        Box::pin(async move {
-            let mut items = self.items.write().await;
-            items[slot] = stack;
-            self.mark_dirty();
-        })
+    fn set_stack(&self, slot: usize, stack: ItemStack) {
+        let mut items = self
+            .items
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        items[slot] = stack;
+        self.mark_dirty();
     }
 
     fn mark_dirty(&self) {
@@ -217,11 +241,12 @@ impl Inventory for ChiseledBookshelfBlockEntity {
 }
 
 impl Clearable for ChiseledBookshelfBlockEntity {
-    fn clear(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
-        Box::pin(async move {
-            let mut items = self.items.write().await;
-            items.fill_with(|| ItemStack::EMPTY.clone());
-            self.mark_dirty();
-        })
+    fn clear(&self) {
+        let mut items = self
+            .items
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        items.fill_with(|| ItemStack::EMPTY.clone());
+        self.mark_dirty();
     }
 }

@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use crate::block::entities::{
     PropertyDelegate, blasting_furnace::BlastingFurnaceBlockEntity,
@@ -13,11 +14,10 @@ use pumpkin_data::{
 use pumpkin_inventory::{
     furnace_like::furnace_like_screen_handler::FurnaceLikeScreenHandler,
     player::player_inventory::PlayerInventory,
-    screen_handler::{BoxFuture, InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler},
+    screen_handler::{InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler},
 };
 use pumpkin_macros::pumpkin_block;
 use pumpkin_world::inventory::Inventory;
-use tokio::sync::Mutex;
 
 use crate::{
     block::{
@@ -48,27 +48,24 @@ impl BlastingFurnaceScreenFactory {
 }
 
 impl ScreenHandlerFactory for BlastingFurnaceScreenFactory {
-    fn create_screen_handler<'a>(
-        &'a self,
+    fn create_screen_handler(
+        &self,
         sync_id: u8,
-        player_inventory: &'a Arc<PlayerInventory>,
-        _player: &'a dyn InventoryPlayer,
-    ) -> BoxFuture<'a, Option<SharedScreenHandler>> {
-        Box::pin(async move {
-            let concrete_handler = FurnaceLikeScreenHandler::new(
-                sync_id,
-                player_inventory,
-                self.inventory.clone(),
-                self.property_delegate.clone(),
-                self.experience_container.clone(),
-                WindowType::BlastFurnace,
-            )
-            .await;
+        player_inventory: &Arc<PlayerInventory>,
+        _player: &dyn InventoryPlayer,
+    ) -> Option<SharedScreenHandler> {
+        let concrete_handler = FurnaceLikeScreenHandler::new(
+            sync_id,
+            player_inventory,
+            self.inventory.clone(),
+            &self.property_delegate,
+            self.experience_container.clone(),
+            WindowType::BlastFurnace,
+        );
 
-            let concrete_arc = Arc::new(Mutex::new(concrete_handler));
+        let concrete_arc = Arc::new(Mutex::new(concrete_handler));
 
-            Some(concrete_arc as SharedScreenHandler)
-        })
+        Some(concrete_arc as SharedScreenHandler)
     }
 
     fn get_display_name(&self) -> pumpkin_util::text::TextComponent {
@@ -99,13 +96,8 @@ impl BlockBehaviour for BlastFurnaceBlock {
                 property_delegate,
                 experience_container,
             );
-            let player = Arc::clone(args.player);
-            let pos = *args.position;
-            tokio::spawn(async move {
-                player
-                    .open_handled_screen(&blasting_furnace_screen_factory, Some(pos))
-                    .await;
-            });
+            args.player
+                .open_handled_screen(&blasting_furnace_screen_factory, Some(*args.position));
         }
         crate::block::registry::BlockActionResult::Consume
     }
