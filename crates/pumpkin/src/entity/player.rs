@@ -4457,7 +4457,7 @@ impl Player {
         !state.tool_required() || self.inventory().held_item().is_correct_for_drops(block)
     }
 
-    /// The id under which Pumpkin will store it's mining_efficiency modifier value
+    /// The id under which Pumpkin will store it's `mining_efficiency` modifier value
     const EFFICIENCY_ATTRIBUTE_MODIFIER_ID: &'static str = "minecraft:enchantment.efficiency";
 
     fn sync_mining_efficiency(&self) {
