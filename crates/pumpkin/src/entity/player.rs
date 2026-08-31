@@ -4453,7 +4453,16 @@ impl Player {
     }
 
     pub fn get_mining_speed(&self, block: &'static Block) -> f32 {
-        let mut speed = self.inventory().held_item().get_speed(block);
+        let held_item = self.inventory.held_item();
+        let mut speed = held_item.get_speed(block);
+        // Effi only gets applied if tool's break speed for block is alreadyabove 1 (meaning it's
+        // the correct tool)
+        if speed > 1.0 {
+            let efficiency_level = held_item.get_enchantment_level(&Enchantment::EFFICIENCY);
+            if efficiency_level > 0 {
+                speed += (efficiency_level * efficiency_level + 1) as f32;
+            }
+        }
         // Haste
         if self.living_entity.has_effect(&StatusEffect::HASTE)
             || self.living_entity.has_effect(&StatusEffect::CONDUIT_POWER)
