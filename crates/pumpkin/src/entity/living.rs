@@ -1386,7 +1386,7 @@ impl LivingEntity {
         //     }
 
         //     if name == "OakTrapdoorLikeProperties" {
-        //         let trapdoor = OakTrapdoorLikeProperties::from_state_id(state.id, &block);
+        //         let trapdoor = OakTrapdoorLikeProperties::from_state_id(state.id);
 
         //         pos.0.y -= 1;
 
@@ -1397,7 +1397,7 @@ impl LivingEntity {
         //             .is_some_and(|down_props| down_props.name() == "LadderLikeProperties");
 
         //         if is_ladder {
-        //             let ladder = LadderLikeProperties::from_state_id(down_state.id, &down_block);
+        //             let ladder = LadderLikeProperties::from_state_id(down_state.id);
 
         //             if trapdoor.r#facing == ladder.r#facing {
         //                 self.climbing.store(true, Relaxed);
