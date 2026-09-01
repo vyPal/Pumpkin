@@ -13,7 +13,7 @@ use pumpkin_util::{
 use super::noise::perlin::DoublePerlinNoiseSampler;
 use crate::generation::block_predicate::BlockPredicate;
 use crate::generation::proto_chunk::GenerationCache;
-use crate::world::WorldPortalExt;
+use crate::world::{BlockAccessor, WorldPortalExt};
 
 pub enum BlockStateProvider {
     Simple(SimpleStateProvider),
@@ -40,6 +40,36 @@ impl BlockStateProvider {
             Self::DualNoise(provider) => Some(provider.get(pos)),
             Self::Pillar(provider) => Some(provider.get(pos)),
             Self::RandomizedInt(_) | Self::Rule(_) => None,
+        }
+    }
+
+    pub fn get_state_for_world(
+        &self,
+        world: &dyn BlockAccessor,
+        random: &mut RandomGenerator,
+        pos: BlockPos,
+    ) -> &'static BlockState {
+        match self {
+            Self::Simple(provider) => provider.get(pos),
+            Self::Weighted(provider) => provider.get(random),
+            Self::NoiseThreshold(provider) => provider.get(random, pos),
+            Self::NoiseProvider(provider) => provider.get(pos),
+            Self::DualNoise(provider) => provider.get(pos),
+            Self::Pillar(provider) => provider.get(pos),
+            Self::RandomizedInt(provider) => {
+                provider.source.get_state_for_world(world, random, pos)
+            }
+            Self::Rule(provider) => {
+                for rule in &provider.rules {
+                    if rule.if_true.test_world(world, None, &pos) {
+                        return rule.then.get_state_for_world(world, random, pos);
+                    }
+                }
+                provider.fallback.as_ref().map_or_else(
+                    || world.get_block_state(&pos),
+                    |f| f.get_state_for_world(world, random, pos),
+                )
+            }
         }
     }
 
@@ -157,6 +187,7 @@ pub struct PillarBlockStateProvider {
 }
 
 impl PillarBlockStateProvider {
+    #[must_use]
     pub const fn get(&self, _pos: BlockPos) -> &'static BlockState {
         // TODO: random axis
         self.state
@@ -171,6 +202,7 @@ pub struct DualNoiseBlockStateProvider {
 }
 
 impl DualNoiseBlockStateProvider {
+    #[must_use]
     pub fn get(&self, pos: BlockPos) -> &'static BlockState {
         let sampler = DoublePerlinNoiseSampler::new(
             &mut RandomGenerator::Legacy(LegacyRand::from_seed(self.base.base.seed as u64)),
@@ -226,6 +258,7 @@ pub struct SimpleStateProvider {
 }
 
 impl SimpleStateProvider {
+    #[must_use]
     pub const fn get(&self, _pos: BlockPos) -> &'static BlockState {
         self.state
     }
@@ -238,6 +271,7 @@ pub struct NoiseBlockStateProviderBase {
 }
 
 impl NoiseBlockStateProviderBase {
+    #[must_use]
     pub fn get_noise(&self, pos: BlockPos) -> f64 {
         let sampler = DoublePerlinNoiseSampler::new(
             &mut RandomGenerator::Legacy(LegacyRand::from_seed(self.seed as u64)),
@@ -260,6 +294,7 @@ pub struct NoiseBlockStateProvider {
 }
 
 impl NoiseBlockStateProvider {
+    #[must_use]
     pub fn get(&self, pos: BlockPos) -> &'static BlockState {
         let value = self.base.get_noise(pos);
         Self::get_state_by_value(&self.states, value)

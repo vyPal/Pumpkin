@@ -5323,7 +5323,7 @@ impl World {
                 killed_by_player: Some(cause.is_some()),
                 ..Default::default()
             };
-            crate::block::drop_loot(self, broken_block, position, true, params);
+            crate::block::drop_loot(self, broken_block, position, true, &params);
         }
 
         let new_state_id = if broken_block
@@ -5442,12 +5442,16 @@ impl World {
     }
 
     pub fn drop_stack(self: &Arc<Self>, pos: &BlockPos, stack: ItemStack) {
-        let height = EntityType::ITEM.dimension[1] / 2.0;
+        if stack.is_empty() {
+            return;
+        }
+
+        let half_height = f64::from(EntityType::ITEM.dimension[1]) / 2.0;
         let spawn_pos = {
             let mut r = rand::rng();
             Vector3::new(
                 f64::from(pos.0.x) + 0.5 + r.random_range(-0.25..0.25),
-                f64::from(pos.0.y) + 0.5 + r.random_range(-0.25..0.25) - f64::from(height),
+                f64::from(pos.0.y) + 0.5 + r.random_range(-0.25..0.25) - half_height,
                 f64::from(pos.0.z) + 0.5 + r.random_range(-0.25..0.25),
             )
         };
@@ -5468,6 +5472,90 @@ impl World {
         }
 
         let item_entity = Arc::new(ItemEntity::new(entity, stack));
+        self.spawn_entity(item_entity);
+    }
+
+    pub fn drop_stack_from_face(
+        self: &Arc<Self>,
+        pos: &BlockPos,
+        face: BlockDirection,
+        stack: ItemStack,
+    ) {
+        if stack.is_empty() {
+            return;
+        }
+
+        let offset = face.to_offset();
+        let step_x = offset.x;
+        let step_y = offset.y;
+        let step_z = offset.z;
+
+        let half_width = f64::from(EntityType::ITEM.dimension[0]) / 2.0;
+        let half_height = f64::from(EntityType::ITEM.dimension[1]) / 2.0;
+
+        let (spawn_pos, velocity) = {
+            let mut r = rand::rng();
+            let x = f64::from(pos.0.x)
+                + 0.5
+                + if step_x == 0 {
+                    r.random_range(-0.25..0.25)
+                } else {
+                    f64::from(step_x) * (0.5 + half_width)
+                };
+            let y = f64::from(pos.0.y)
+                + 0.5
+                + if step_y == 0 {
+                    r.random_range(-0.25..0.25)
+                } else {
+                    f64::from(step_y) * (0.5 + half_height)
+                }
+                - half_height;
+            let z = f64::from(pos.0.z)
+                + 0.5
+                + if step_z == 0 {
+                    r.random_range(-0.25..0.25)
+                } else {
+                    f64::from(step_z) * (0.5 + half_width)
+                };
+
+            let delta_x = if step_x == 0 {
+                r.random_range(-0.1..0.1)
+            } else {
+                f64::from(step_x) * 0.1
+            };
+            let delta_y = if step_y == 0 {
+                r.random_range(0.0..0.1)
+            } else {
+                f64::from(step_y) * 0.1 + 0.1
+            };
+            let delta_z = if step_z == 0 {
+                r.random_range(-0.1..0.1)
+            } else {
+                f64::from(step_z) * 0.1
+            };
+
+            (
+                Vector3::new(x, y, z),
+                Vector3::new(delta_x, delta_y, delta_z),
+            )
+        };
+
+        let entity = Entity::new(self.clone(), spawn_pos, &EntityType::ITEM);
+        let mut item_event = crate::plugin::api::events::entity::item_spawn::ItemSpawnEvent::new(
+            entity.entity_id,
+            spawn_pos,
+            stack.item.registry_key.to_string(),
+        );
+        if let Some(server) = self.server.upgrade() {
+            server
+                .plugin_manager
+                .fire_blocking(&server, &mut item_event);
+        }
+        if item_event.cancelled {
+            return;
+        }
+
+        let item_entity = Arc::new(ItemEntity::new_with_velocity(entity, stack, velocity, 10));
         self.spawn_entity(item_entity);
     }
 

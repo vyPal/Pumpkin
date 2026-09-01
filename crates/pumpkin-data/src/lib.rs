@@ -16,8 +16,9 @@
 pub mod chunk_view_lut;
 
 #[rustfmt::skip]
-#[path = "generated/chest_loot.rs"]
-pub mod chest_loot_table;
+#[path = "generated/loot_table.rs"]
+pub mod loot_table;
+pub use loot_table as chest_loot_table;
 
 #[cfg(feature = "item")]
 #[rustfmt::skip]

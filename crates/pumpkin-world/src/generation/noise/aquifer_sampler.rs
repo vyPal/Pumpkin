@@ -1042,7 +1042,7 @@ mod random_positions_and_hypot {
     }
 
     #[test]
-    #[expect(clippy::too_many_lines, clippy::large_stack_arrays)]
+    #[expect(clippy::too_many_lines)]
     fn get_fluid_block_state() {
         let (_, mut router, _, options) = create_aquifer(&PROTO_ROUTER);
         let level = FluidLevel::new(0, &WATER_BLOCK);
@@ -1634,7 +1634,7 @@ mod random_positions_and_hypot {
     }
 
     #[test]
-    #[expect(clippy::too_many_lines, clippy::large_stack_arrays)]
+    #[expect(clippy::too_many_lines)]
     fn get_fluid_level() {
         let (aquifer, mut router, mut height_estimator, env) = create_aquifer(&PROTO_ROUTER);
         let values = [

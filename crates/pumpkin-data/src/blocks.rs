@@ -40,8 +40,6 @@ pub struct Block {
     pub states: &'static [BlockState],
     /// Fire behavior settings. If `None`, the block is not flammable.
     pub flammable: Option<Flammable>,
-    /// Defines the items dropped when this block is destroyed.
-    pub loot_table: Option<LootTable>,
     /// Defines the amount of XP dropped when the block is mined (e.g., Coal or Diamond).
     pub experience: Option<Experience>,
 }

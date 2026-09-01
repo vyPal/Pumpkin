@@ -33,7 +33,6 @@ mod biome;
 mod bitsets;
 mod block;
 mod carver;
-pub mod chest_loot;
 mod chunk_gen_settings;
 mod chunk_status;
 mod chunk_view_lut;
@@ -55,7 +54,7 @@ mod game_event;
 mod game_rules;
 mod item;
 mod jukebox_song;
-pub mod loot;
+pub mod loot_table;
 mod map_color;
 mod map_decoration;
 mod message_type;
@@ -163,7 +162,7 @@ pub fn main() {
             "configured_features_generated.rs",
         ),
         (carver::build, "carver.rs"),
-        (chest_loot::build, "chest_loot.rs"),
+        (loot_table::build, "loot_table.rs"),
         (map_color::build, "map_color.rs"),
         (map_decoration::build, "map_decoration.rs"),
         (dye_color::build, "dye_color.rs"),
