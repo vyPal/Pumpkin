@@ -34299,6 +34299,24 @@ static SPAWNERS_TRIAL_CHAMBER_KEY_POOLS: &[LootPool] = &[LootPool {
 pub static SPAWNERS_TRIAL_CHAMBER_KEY: LootTable = LootTable {
     pools: SPAWNERS_TRIAL_CHAMBER_KEY_POOLS,
 };
+static TILL_ROOTED_DIRT_POOL0_ENTRIES: &[LootEntry] = &[LootEntry {
+    item: "minecraft:hanging_roots",
+    weight: 1i32,
+    min_count: 1i32,
+    max_count: 1i32,
+    condition: LootCondition::None,
+    bonus_formula: None,
+}];
+static TILL_ROOTED_DIRT_POOLS: &[LootPool] = &[LootPool {
+    entries: TILL_ROOTED_DIRT_POOL0_ENTRIES,
+    min_rolls: 1i32,
+    max_rolls: 1i32,
+    empty_weight: 0i32,
+    condition: LootCondition::None,
+}];
+pub static TILL_ROOTED_DIRT: LootTable = LootTable {
+    pools: TILL_ROOTED_DIRT_POOLS,
+};
 #[must_use]
 pub fn get_loot_table(key: &str) -> Option<&'static LootTable> {
     match key {
@@ -37026,6 +37044,7 @@ pub fn get_loot_table(key: &str) -> Option<&'static LootTable> {
         "minecraft:spawners/trial_chamber/key" | "spawners/trial_chamber/key" => {
             Some(&SPAWNERS_TRIAL_CHAMBER_KEY)
         }
+        "minecraft:till/rooted_dirt" | "till/rooted_dirt" => Some(&TILL_ROOTED_DIRT),
         _ => None,
     }
 }

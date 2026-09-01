@@ -2,9 +2,9 @@ use crate::entity::player::Player;
 use crate::item::{ItemBehaviour, ItemMetadata};
 use crate::server::Server;
 use pumpkin_data::BlockDirection;
-use pumpkin_data::item::Item;
+use pumpkin_data::block_transformer::{DropStrategy, HOE};
 use pumpkin_data::item_stack::ItemStack;
-use pumpkin_data::sound::{Sound, SoundCategory};
+use pumpkin_data::sound::SoundCategory;
 use pumpkin_data::{Block, tag};
 use pumpkin_util::GameMode;
 use pumpkin_util::math::position::BlockPos;
@@ -31,51 +31,40 @@ impl ItemBehaviour for HoeItem {
         _server: &Server,
     ) {
         let world = player.world();
-
-        let only_if_air_above =
-            || face != BlockDirection::Down && world.get_block_state(&location.up()).is_air();
-
-        let (future_block, drop_item) = if block == &Block::GRASS_BLOCK
-            || block == &Block::DIRT_PATH
-            || block == &Block::DIRT
-        {
-            if only_if_air_above() {
-                (Some(&Block::FARMLAND), None)
-            } else {
-                (None, None)
-            }
-        } else if block == &Block::COARSE_DIRT {
-            if only_if_air_above() {
-                (Some(&Block::DIRT), None)
-            } else {
-                (None, None)
-            }
-        } else if block == &Block::ROOTED_DIRT {
-            (Some(&Block::DIRT), Some(&Item::HANGING_ROOTS))
-        } else {
-            (None, None)
+        let get_block = |dx: i8, dy: i8, dz: i8| {
+            let check_pos = BlockPos(location.0 + Vector3::new(dx as i32, dy as i32, dz as i32));
+            world.get_block(&check_pos)
         };
 
-        if let Some(target_block) = future_block {
-            world.play_sound(
-                Sound::ItemHoeTill,
-                SoundCategory::Blocks,
-                &location.to_f64(),
-            );
+        if let Some(result) =
+            HOE.transform(block, world.get_block_state_id(&location), face, &get_block)
+        {
+            if let Some(sound) = result.entry.sound {
+                world.play_sound(sound, SoundCategory::Blocks, &location.to_f64());
+            }
+            if let Some(particle) = result.entry.particle {
+                world.sync_world_event(particle, location, 0);
+            }
 
-            world.set_block_state(
-                &location,
-                target_block.default_state.id,
-                BlockFlags::NOTIFY_ALL,
-            );
+            world.set_block_state(&location, result.new_state_id, BlockFlags::NOTIFY_ALL);
 
-            if let Some(drop_item) = drop_item {
-                world.drop_stack_from_face(&location, face, ItemStack::new(1, drop_item));
+            if let Some(loot_key) = result.entry.loot
+                && let Some(loot_table) = pumpkin_data::loot_table::get_loot_table(loot_key)
+            {
+                let seed = rand::random::<i64>();
+                let drops = crate::world::loot::generate_loot(loot_table, seed);
+                for drop_stack in drops {
+                    if result.entry.drop_strategy == Some(DropStrategy::ClickedFace) {
+                        world.drop_stack_from_face(&location, face, drop_stack);
+                    } else {
+                        world.drop_stack(&location, drop_stack);
+                    }
+                }
             }
 
             if player.gamemode.load() != GameMode::Creative {
                 // TODO: Handle DamageResult::Broken to broadcast item break and update player slot.
-                let _ = item.damage_item(1);
+                let _ = item.damage_item(i32::from(result.entry.item_damage_per_use));
             }
         }
     }

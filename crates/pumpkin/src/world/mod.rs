@@ -56,12 +56,12 @@ pub use explosion::{
 use pumpkin_config::BasicConfiguration;
 use pumpkin_data::block_properties::{blocks_movement, is_air};
 use pumpkin_data::block_rotation::{Mirror, Rotation};
-use pumpkin_data::chunk_gen_settings::GenerationSettings;
 use pumpkin_data::data_component_impl::EquipmentSlot;
 use pumpkin_data::dimension::Dimension;
 use pumpkin_data::entity::MobCategory;
 use pumpkin_data::fluid::FluidState;
 use pumpkin_data::game_rules::{GameRule, GameRuleValue};
+use pumpkin_data::noise_settings::NoiseSettings;
 use pumpkin_data::{
     Block, BlockStateId,
     entity::{EntityStatus, EntityType},
@@ -351,7 +351,7 @@ impl World {
         server: Weak<Server>,
     ) -> Self {
         // TODO
-        let generation_settings = GenerationSettings::from_dimension(&dimension);
+        let generation_settings = NoiseSettings::from_dimension(&dimension);
 
         // Load portal POI from disk (PoiStorage::new automatically loads from disk if files exist)
         let portal_poi = portal::PortalPoiStorage::new(level.level_folder.poi_folder.clone());

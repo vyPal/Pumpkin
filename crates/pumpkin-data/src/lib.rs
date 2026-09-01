@@ -409,10 +409,18 @@ pub use block_state::{BlockState, BlockStateId};
 #[cfg(feature = "block")]
 pub use blocks::{Block, BlockId};
 
-#[cfg(feature = "chunk_gen_settings")]
+#[cfg(feature = "material_rule")]
 #[rustfmt::skip]
-#[path = "generated/chunk_gen_settings.rs"]
-pub mod chunk_gen_settings;
+#[path = "generated/material_rule.rs"]
+pub mod material_rule;
+
+#[cfg(feature = "noise_settings")]
+#[rustfmt::skip]
+#[path = "generated/noise_settings.rs"]
+pub mod noise_settings;
+
+#[cfg(feature = "chunk_gen_settings")]
+pub use noise_settings as chunk_gen_settings;
 
 #[cfg(feature = "carver")]
 #[rustfmt::skip]
@@ -443,3 +451,8 @@ pub mod map_decoration;
 #[rustfmt::skip]
 #[path = "generated/dye_color.rs"]
 pub mod dye_color;
+
+#[cfg(feature = "block_transformer")]
+#[rustfmt::skip]
+#[path = "generated/block_transformer.rs"]
+pub mod block_transformer;
