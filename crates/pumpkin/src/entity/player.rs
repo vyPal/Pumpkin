@@ -4159,6 +4159,12 @@ impl Player {
 
     pub async fn respawn(self: &Arc<Self>) {
         self.world().respawn_player(self, false).await;
+        // The client rebuilt its attribute state on respawn, so send the held
+        // weapon modifiers again.
+        crate::entity::attributes::send_attribute_updates_for_living(
+            &self.living_entity,
+            vec![Attributes::ATTACK_SPEED, Attributes::ATTACK_DAMAGE],
+        );
     }
 
     pub fn ban(&self, server: &Server, reason: Option<TextComponent>) {
