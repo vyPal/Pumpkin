@@ -6,7 +6,7 @@ use crate::block::registry::BlockActionResult;
 use crate::block::{
     BlockBehaviour, BrokenArgs, EmitsRedstonePowerArgs, GetComparatorOutputArgs,
     GetRedstonePowerArgs, NormalUseArgs, OnPlaceArgs, OnScheduledTickArgs, OnStateReplacedArgs,
-    PlacedArgs, UseWithItemArgs,
+    PathComputationType, PlacedArgs, UseWithItemArgs,
 };
 use crate::entity::Entity;
 use crate::entity::item::ItemEntity;
@@ -16,7 +16,7 @@ use pumpkin_data::entity::EntityType;
 use pumpkin_data::sound::{Sound, SoundCategory};
 use pumpkin_data::tag::Taggable;
 use pumpkin_data::world::WorldEvent;
-use pumpkin_data::{Block, BlockDirection, BlockStateId, tag, translation};
+use pumpkin_data::{Block, BlockDirection, BlockState, BlockStateId, tag, translation};
 use pumpkin_inventory::lectern_screen_handler::{LecternController, LecternScreenHandler};
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
 use pumpkin_inventory::screen_handler::{
@@ -295,5 +295,9 @@ impl BlockBehaviour for LecternBlock {
         } else {
             Some(0)
         }
+    }
+
+    fn is_pathfindable(&self, _state: &BlockState, _computation_type: PathComputationType) -> bool {
+        false
     }
 }

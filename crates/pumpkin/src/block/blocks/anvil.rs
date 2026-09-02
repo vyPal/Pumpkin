@@ -2,12 +2,12 @@ use crate::block::blocks::falling::FallingBlock;
 use crate::block::registry::BlockActionResult;
 use crate::block::{
     BlockBehaviour, GetStateForNeighborUpdateArgs, NormalUseArgs, OnPlaceArgs, OnScheduledTickArgs,
-    PlacedArgs,
+    PathComputationType, PlacedArgs,
 };
 
 use pumpkin_data::block_properties::WallTorchLikeProperties;
 use pumpkin_data::translation;
-use pumpkin_data::{Block, BlockStateId};
+use pumpkin_data::{Block, BlockState, BlockStateId};
 use pumpkin_inventory::anvil::AnvilScreenHandler;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
 use pumpkin_inventory::screen_handler::{
@@ -78,6 +78,10 @@ impl BlockBehaviour for AnvilBlock {
         args: GetStateForNeighborUpdateArgs<'_>,
     ) -> BlockStateId {
         FallingBlock::get_state_for_neighbor_update(&FallingBlock, args)
+    }
+
+    fn is_pathfindable(&self, _state: &BlockState, _computation_type: PathComputationType) -> bool {
+        false
     }
 }
 

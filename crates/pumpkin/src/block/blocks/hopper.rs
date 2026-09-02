@@ -2,7 +2,9 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use crate::block::blocks::redstone::block_receives_redstone_power;
-use crate::block::{GetComparatorOutputArgs, OnNeighborUpdateArgs, OnPlaceArgs, PlacedArgs};
+use crate::block::{
+    GetComparatorOutputArgs, OnNeighborUpdateArgs, OnPlaceArgs, PathComputationType, PlacedArgs,
+};
 use crate::block::{
     registry::BlockActionResult,
     {BlockBehaviour, NormalUseArgs},
@@ -10,9 +12,8 @@ use crate::block::{
 use crate::world::World;
 
 use crate::block::entities::hopper::HopperBlockEntity;
-use pumpkin_data::BlockStateId;
 use pumpkin_data::block_properties::FacingHopper;
-use pumpkin_data::{Block, BlockDirection, translation};
+use pumpkin_data::{Block, BlockDirection, BlockState, BlockStateId, translation};
 use pumpkin_inventory::generic_container_screen_handler::create_hopper;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
 use pumpkin_inventory::screen_handler::{
@@ -110,6 +111,10 @@ impl BlockBehaviour for HopperBlock {
         } else {
             None
         }
+    }
+
+    fn is_pathfindable(&self, _state: &BlockState, _computation_type: PathComputationType) -> bool {
+        false
     }
 }
 

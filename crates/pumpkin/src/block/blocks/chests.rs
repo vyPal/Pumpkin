@@ -22,17 +22,15 @@ use pumpkin_world::world::BlockFlags;
 use std::sync::Mutex;
 
 use crate::block::{
-    BrokenArgs, EmitsRedstonePowerArgs, GetComparatorOutputArgs, GetRedstonePowerArgs,
-    NormalUseArgs, OnPlaceArgs, OnSyncedBlockEventArgs, PlacedArgs, PlayerPlacedArgs,
-    RandomTickArgs,
+    BlockBehaviour, BrokenArgs, EmitsRedstonePowerArgs, GetComparatorOutputArgs,
+    GetRedstonePowerArgs, NormalUseArgs, OnPlaceArgs, OnSyncedBlockEventArgs, PathComputationType,
+    PlacedArgs, PlayerPlacedArgs, RandomTickArgs, registry::BlockActionResult,
 };
 use crate::entity::EntityBase;
+use crate::entity::player::Player;
 use crate::world::World;
 use crate::world::loot::fill_chest_inventory;
-use crate::{
-    block::{BlockBehaviour, registry::BlockActionResult},
-    entity::player::Player,
-};
+use pumpkin_data::BlockState;
 
 struct ChestScreenFactory(Arc<dyn Inventory>);
 
@@ -297,6 +295,10 @@ impl BlockBehaviour for ChestBlock {
     fn get_comparator_output(&self, args: GetComparatorOutputArgs<'_>) -> Option<u8> {
         get_chest_comparator_output(&args)
     }
+
+    fn is_pathfindable(&self, _state: &BlockState, _computation_type: PathComputationType) -> bool {
+        false
+    }
 }
 
 /// Copper chests have the same behavior as wooden chests but also oxidize over time.
@@ -389,6 +391,10 @@ impl BlockBehaviour for CopperChestBlock {
     fn get_comparator_output(&self, args: GetComparatorOutputArgs<'_>) -> Option<u8> {
         get_chest_comparator_output(&args)
     }
+
+    fn is_pathfindable(&self, _state: &BlockState, _computation_type: PathComputationType) -> bool {
+        false
+    }
 }
 
 /// Trapped chests have the same behavior as wooden chests but also emit redstone power based on viewer count.
@@ -454,6 +460,10 @@ impl BlockBehaviour for TrappedChestBlock {
 
     fn get_comparator_output(&self, args: GetComparatorOutputArgs<'_>) -> Option<u8> {
         get_chest_comparator_output(&args)
+    }
+
+    fn is_pathfindable(&self, _state: &BlockState, _computation_type: PathComputationType) -> bool {
+        false
     }
 }
 

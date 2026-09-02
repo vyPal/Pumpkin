@@ -1,13 +1,14 @@
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use crate::block::{GetComparatorOutputArgs, PlacedArgs};
+use crate::block::{GetComparatorOutputArgs, PathComputationType, PlacedArgs};
 use crate::block::{
     registry::BlockActionResult,
     {BlockBehaviour, NormalUseArgs},
 };
 
 use crate::block::entities::brewing_stand::BrewingStandBlockEntity;
+use pumpkin_data::BlockState;
 use pumpkin_data::translation;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
 use pumpkin_inventory::screen_handler::{
@@ -84,5 +85,9 @@ impl BlockBehaviour for BrewingStandBlock {
         } else {
             None
         }
+    }
+
+    fn is_pathfindable(&self, _state: &BlockState, _computation_type: PathComputationType) -> bool {
+        false
     }
 }

@@ -160,7 +160,8 @@ use crate::block::fluid::water::FlowingWater;
 use crate::block::{
     BlockBehaviour, BlockHitResult, BlockMetadata, BonemealArgs, FluidMetadata,
     GetInsideCollisionShapeArgs, OnEntityCollisionArgs, OnEntityStepArgs, OnLandedUponArgs,
-    OnProjectileHitArgs, UpdateEntityMovementAfterFallOnArgs, stop_vertical_movement_after_fall,
+    OnProjectileHitArgs, PathComputationType, UpdateEntityMovementAfterFallOnArgs,
+    stop_vertical_movement_after_fall,
 };
 use crate::entity::EntityBase;
 use crate::entity::player::Player;
@@ -172,6 +173,7 @@ use pumpkin_data::data_component_impl::EquipmentSlot;
 use pumpkin_data::fluid::Fluid;
 use pumpkin_data::item::Item;
 use pumpkin_data::item_stack::ItemStack;
+use pumpkin_data::tag::{self, Taggable};
 use pumpkin_data::{Block, BlockDirection, BlockId, BlockState};
 use pumpkin_protocol::java::server::play::SUseItemOn;
 use pumpkin_util::math::boundingbox::BoundingBox;
@@ -1383,6 +1385,26 @@ impl BlockRegistry {
         self.get_pumpkin_block(block.id).map_or_else(
             || block.rotate(state_id, rotation),
             |pumpkin_block| pumpkin_block.rotate(block, state_id, rotation),
+        )
+    }
+
+    #[must_use]
+    pub fn is_pathfindable(
+        &self,
+        block: &Block,
+        state: &BlockState,
+        computation_type: PathComputationType,
+    ) -> bool {
+        self.get_pumpkin_block(block.id).map_or_else(
+            || match computation_type {
+                PathComputationType::Water => {
+                    state.is_waterlogged()
+                        || Fluid::from_state_id(state.id)
+                            .is_some_and(|f| f.has_tag(&tag::Fluid::MINECRAFT_WATER))
+                }
+                PathComputationType::Land | PathComputationType::Air => !state.is_full_cube(),
+            },
+            |pumpkin_block| pumpkin_block.is_pathfindable(state, computation_type),
         )
     }
 }

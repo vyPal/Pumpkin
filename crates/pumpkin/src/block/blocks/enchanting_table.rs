@@ -3,8 +3,8 @@ use std::sync::Mutex;
 
 use crate::block::entities::enchanting_table::EnchantingTableBlockEntity;
 use crate::block::registry::BlockActionResult;
-use crate::block::{BlockBehaviour, NormalUseArgs, PlacedArgs};
-use pumpkin_data::{Block, BlockStateId, translation};
+use crate::block::{BlockBehaviour, NormalUseArgs, PathComputationType, PlacedArgs};
+use pumpkin_data::{Block, BlockState, BlockStateId, translation};
 use pumpkin_inventory::enchanting::enchanting_screen_handler::EnchantingTableScreenHandler;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
 use pumpkin_inventory::screen_handler::{
@@ -78,6 +78,10 @@ impl BlockBehaviour for EnchantingTableBlock {
             Some(*args.position),
         );
         BlockActionResult::Success
+    }
+
+    fn is_pathfindable(&self, _state: &BlockState, _computation_type: PathComputationType) -> bool {
+        false
     }
 }
 

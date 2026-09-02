@@ -1,6 +1,7 @@
 use pumpkin_data::{
-    Block, BlockDirection, BlockStateId, Enchantment, block_properties::CampfireLikeProperties,
-    damage::DamageType, data_component_impl::EquipmentSlot, effect::StatusEffect, fluid::Fluid,
+    Block, BlockDirection, BlockState, BlockStateId, Enchantment,
+    block_properties::CampfireLikeProperties, damage::DamageType,
+    data_component_impl::EquipmentSlot, effect::StatusEffect, fluid::Fluid,
 };
 use pumpkin_macros::pumpkin_block_from_tag;
 use pumpkin_world::tick::TickPriority;
@@ -9,7 +10,7 @@ use crate::block::entities::campfire::CampfireBlockEntity;
 use crate::{
     block::{
         BlockBehaviour, BlockIsReplacing, GetStateForNeighborUpdateArgs, OnEntityCollisionArgs,
-        OnPlaceArgs, PlacedArgs,
+        OnPlaceArgs, PathComputationType, PlacedArgs,
     },
     entity::EntityBase,
 };
@@ -93,6 +94,10 @@ impl BlockBehaviour for CampfireBlock {
         }
 
         props.to_state_id(args.block)
+    }
+
+    fn is_pathfindable(&self, _state: &BlockState, _computation_type: PathComputationType) -> bool {
+        false
     }
 
     // TODO: onProjectileHit

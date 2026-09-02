@@ -17,10 +17,12 @@ use pumpkin_util::text::TextComponent;
 use pumpkin_world::inventory::SimpleInventory;
 use pumpkin_world::world::BlockAccessor;
 
-use crate::block::BlockBehaviour;
-use crate::block::CanPlaceAtArgs;
 use crate::block::registry::BlockActionResult;
-use crate::block::{GetStateForNeighborUpdateArgs, NormalUseArgs, OnPlaceArgs};
+use crate::block::{
+    BlockBehaviour, CanPlaceAtArgs, GetStateForNeighborUpdateArgs, NormalUseArgs, OnPlaceArgs,
+    PathComputationType,
+};
+use pumpkin_data::BlockState;
 
 use super::abstract_wall_mounting::WallMountedBlock;
 
@@ -62,6 +64,10 @@ impl BlockBehaviour for GrindstoneBlock {
         args: GetStateForNeighborUpdateArgs<'_>,
     ) -> BlockStateId {
         WallMountedBlock::get_state_for_neighbor_update(self, args)
+    }
+
+    fn is_pathfindable(&self, _state: &BlockState, _computation_type: PathComputationType) -> bool {
+        false
     }
 }
 

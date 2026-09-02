@@ -1,7 +1,7 @@
 use crate::block::registry::BlockActionResult;
-use crate::block::{BlockBehaviour, NormalUseArgs};
+use crate::block::{BlockBehaviour, NormalUseArgs, PathComputationType};
 
-use pumpkin_data::translation;
+use pumpkin_data::{BlockState, translation};
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
 use pumpkin_inventory::screen_handler::{
     InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
@@ -27,6 +27,10 @@ impl BlockBehaviour for StonecutterBlock {
             .open_handled_screen(&StonecutterScreenFactory, Some(*args.position));
 
         BlockActionResult::Success
+    }
+
+    fn is_pathfindable(&self, _state: &BlockState, _computation_type: PathComputationType) -> bool {
+        false
     }
 }
 

@@ -92,7 +92,7 @@ impl EntityBase for LlamaSpitEntity {
                 1.0,
                 DamageType::SPIT,
                 Some(hit_pos),
-                None,
+                Some(self.get_entity()),
                 owner.as_deref(),
             );
         }

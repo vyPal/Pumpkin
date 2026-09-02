@@ -1,13 +1,14 @@
 use std::sync::Arc;
 
 use crate::block::registry::BlockActionResult;
-use crate::block::{BlockBehaviour, BlockMetadata, GetComparatorOutputArgs, UseWithItemArgs};
-use pumpkin_data::Block;
-use pumpkin_data::BlockId;
+use crate::block::{
+    BlockBehaviour, BlockMetadata, GetComparatorOutputArgs, PathComputationType, UseWithItemArgs,
+};
 use pumpkin_data::block_properties::WaterCauldronLikeProperties;
 use pumpkin_data::item::Item;
 use pumpkin_data::item_stack::ItemStack;
 use pumpkin_data::sound::{Sound, SoundCategory};
+use pumpkin_data::{Block, BlockId, BlockState};
 use pumpkin_world::world::BlockFlags;
 
 pub struct CauldronBlock;
@@ -215,5 +216,9 @@ impl BlockBehaviour for CauldronBlock {
             BlockId::LAVA_CAULDRON => Some(3),
             _ => Some(0),
         }
+    }
+
+    fn is_pathfindable(&self, _state: &BlockState, _computation_type: PathComputationType) -> bool {
+        false
     }
 }

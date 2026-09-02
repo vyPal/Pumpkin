@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use crate::block::{
     BlockBehaviour, EmitsRedstonePowerArgs, GetRedstonePowerArgs, OnPlaceArgs, OnScheduledTickArgs,
+    PathComputationType,
 };
 use crate::world::World;
 use pumpkin_data::block_properties::LightningRodLikeProperties;
-use pumpkin_data::{BlockStateId, FacingExt};
+use pumpkin_data::{BlockState, BlockStateId, FacingExt};
 use pumpkin_macros::pumpkin_block;
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_world::tick::TickPriority;
@@ -74,5 +75,9 @@ impl BlockBehaviour for LightningRodBlock {
                 BlockFlags::NOTIFY_ALL,
             );
         }
+    }
+
+    fn is_pathfindable(&self, _state: &BlockState, _computation_type: PathComputationType) -> bool {
+        false
     }
 }

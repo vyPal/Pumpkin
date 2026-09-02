@@ -3,13 +3,12 @@ use std::sync::Mutex;
 
 use crate::block::entities::ender_chest::EnderChestBlockEntity;
 use crate::block::{
-    BlockBehaviour, NormalUseArgs, OnPlaceArgs, OnSyncedBlockEventArgs, PlacedArgs,
-    registry::BlockActionResult,
+    BlockBehaviour, NormalUseArgs, OnPlaceArgs, OnSyncedBlockEventArgs, PathComputationType,
+    PlacedArgs, registry::BlockActionResult,
 };
 use crate::world::World;
-use pumpkin_data::BlockStateId;
 use pumpkin_data::block_properties::LadderLikeProperties;
-use pumpkin_data::translation;
+use pumpkin_data::{BlockState, BlockStateId, translation};
 use pumpkin_inventory::{
     generic_container_screen_handler::create_generic_9x3,
     player::ender_chest_inventory::EnderChestInventory,
@@ -111,6 +110,10 @@ impl BlockBehaviour for EnderChestBlock {
     fn placed(&self, args: PlacedArgs<'_>) {
         let block_entity = EnderChestBlockEntity::new(*args.position);
         args.world.add_block_entity(Arc::new(block_entity));
+    }
+
+    fn is_pathfindable(&self, _state: &BlockState, _computation_type: PathComputationType) -> bool {
+        false
     }
 }
 

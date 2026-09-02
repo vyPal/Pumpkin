@@ -1,9 +1,9 @@
-use pumpkin_data::BlockStateId;
 use pumpkin_data::block_properties::AcaciaShelfLikeProperties;
+use pumpkin_data::{BlockState, BlockStateId};
 use pumpkin_macros::pumpkin_block_from_tag;
 
 use crate::block::entities::shelf::ShelfBlockEntity;
-use crate::block::{BlockBehaviour, OnPlaceArgs, PlacedArgs};
+use crate::block::{BlockBehaviour, OnPlaceArgs, PathComputationType, PlacedArgs};
 use crate::entity::EntityBase;
 use std::sync::Arc;
 
@@ -25,5 +25,9 @@ impl BlockBehaviour for ShelfBlock {
             let entity = ShelfBlockEntity::new(*args.position);
             args.world.add_block_entity(Arc::new(entity));
         }
+    }
+
+    fn is_pathfindable(&self, state: &BlockState, computation_type: PathComputationType) -> bool {
+        computation_type == PathComputationType::Water && state.is_waterlogged()
     }
 }
