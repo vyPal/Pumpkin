@@ -1,8 +1,8 @@
 use crate::block::blocks::falling::FallingBlock;
 use crate::block::registry::BlockActionResult;
 use crate::block::{
-    BlockBehaviour, GetStateForNeighborUpdateArgs, NormalUseArgs, OnPlaceArgs, OnScheduledTickArgs,
-    PathComputationType, PlacedArgs,
+    BlockBehaviour, GetScreenHandlerFactoryArgs, GetStateForNeighborUpdateArgs, NormalUseArgs,
+    OnPlaceArgs, OnScheduledTickArgs, PathComputationType, PlacedArgs,
 };
 
 use pumpkin_data::block_properties::WallTorchLikeProperties;
@@ -40,15 +40,30 @@ impl AnvilBlock {
 
 impl BlockBehaviour for AnvilBlock {
     fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
-        args.player.increment_stat(
-            pumpkin_data::statistic::StatisticCategory::Custom,
-            pumpkin_data::statistic::CustomStatistic::InteractWithAnvil as i32,
-            1,
-        );
-        args.player
-            .open_handled_screen(&AnvilScreenFactory, Some(*args.position));
+        if let Some(factory) = self.get_screen_handler_factory(GetScreenHandlerFactoryArgs {
+            server: args.server,
+            world: args.world,
+            block: args.block,
+            position: args.position,
+            player: args.player,
+        }) {
+            args.player.increment_stat(
+                pumpkin_data::statistic::StatisticCategory::Custom,
+                pumpkin_data::statistic::CustomStatistic::InteractWithAnvil as i32,
+                1,
+            );
+            args.player
+                .open_handled_screen(factory.as_ref(), Some(*args.position));
+        }
 
         BlockActionResult::Success
+    }
+
+    fn get_screen_handler_factory(
+        &self,
+        _args: GetScreenHandlerFactoryArgs<'_>,
+    ) -> Option<Box<dyn ScreenHandlerFactory>> {
+        Some(Box::new(AnvilScreenFactory))
     }
 
     fn placed(&self, args: PlacedArgs<'_>) {

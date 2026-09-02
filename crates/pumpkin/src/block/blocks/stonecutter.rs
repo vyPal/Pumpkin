@@ -1,5 +1,7 @@
 use crate::block::registry::BlockActionResult;
-use crate::block::{BlockBehaviour, NormalUseArgs, OnPlaceArgs, PathComputationType};
+use crate::block::{
+    BlockBehaviour, GetScreenHandlerFactoryArgs, NormalUseArgs, OnPlaceArgs, PathComputationType,
+};
 
 use pumpkin_data::block_properties::WallTorchLikeProperties;
 use pumpkin_data::{BlockState, BlockStateId, translation};
@@ -30,15 +32,30 @@ impl BlockBehaviour for StonecutterBlock {
     }
 
     fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
-        args.player.increment_stat(
-            pumpkin_data::statistic::StatisticCategory::Custom,
-            pumpkin_data::statistic::CustomStatistic::InteractWithStonecutter as i32,
-            1,
-        );
-        args.player
-            .open_handled_screen(&StonecutterScreenFactory, Some(*args.position));
+        if let Some(factory) = self.get_screen_handler_factory(GetScreenHandlerFactoryArgs {
+            server: args.server,
+            world: args.world,
+            block: args.block,
+            position: args.position,
+            player: args.player,
+        }) {
+            args.player.increment_stat(
+                pumpkin_data::statistic::StatisticCategory::Custom,
+                pumpkin_data::statistic::CustomStatistic::InteractWithStonecutter as i32,
+                1,
+            );
+            args.player
+                .open_handled_screen(factory.as_ref(), Some(*args.position));
+        }
 
         BlockActionResult::Success
+    }
+
+    fn get_screen_handler_factory(
+        &self,
+        _args: GetScreenHandlerFactoryArgs<'_>,
+    ) -> Option<Box<dyn ScreenHandlerFactory>> {
+        Some(Box::new(StonecutterScreenFactory))
     }
 
     fn is_pathfindable(&self, _state: &BlockState, _computation_type: PathComputationType) -> bool {

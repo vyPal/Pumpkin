@@ -171,9 +171,9 @@ use crate::block::fluid::lava::FlowingLava;
 use crate::block::fluid::water::FlowingWater;
 use crate::block::{
     BlockBehaviour, BlockHitResult, BlockMetadata, BonemealArgs, FluidMetadata,
-    GetInsideCollisionShapeArgs, OnEntityCollisionArgs, OnEntityStepArgs, OnLandedUponArgs,
-    OnProjectileHitArgs, PathComputationType, UpdateEntityMovementAfterFallOnArgs,
-    stop_vertical_movement_after_fall,
+    GetInsideCollisionShapeArgs, GetScreenHandlerFactoryArgs, OnEntityCollisionArgs,
+    OnEntityStepArgs, OnLandedUponArgs, OnProjectileHitArgs, PathComputationType,
+    UpdateEntityMovementAfterFallOnArgs, stop_vertical_movement_after_fall,
 };
 use crate::entity::EntityBase;
 use crate::entity::player::Player;
@@ -187,6 +187,7 @@ use pumpkin_data::item::Item;
 use pumpkin_data::item_stack::ItemStack;
 use pumpkin_data::tag::{self, Taggable};
 use pumpkin_data::{Block, BlockDirection, BlockId, BlockState};
+use pumpkin_inventory::screen_handler::ScreenHandlerFactory;
 use pumpkin_protocol::java::server::play::SUseItemOn;
 use pumpkin_util::math::boundingbox::BoundingBox;
 use pumpkin_util::math::position::BlockPos;
@@ -903,6 +904,27 @@ impl BlockRegistry {
             });
         }
         BlockActionResult::Pass
+    }
+
+    pub fn get_screen_handler_factory(
+        &self,
+        block: &Block,
+        player: &Arc<Player>,
+        position: &BlockPos,
+        server: &Server,
+        world: &Arc<World>,
+    ) -> Option<Box<dyn ScreenHandlerFactory>> {
+        let pumpkin_block = self.get_pumpkin_block(block.id);
+        if let Some(pumpkin_block) = pumpkin_block {
+            return pumpkin_block.get_screen_handler_factory(GetScreenHandlerFactoryArgs {
+                server,
+                world,
+                block,
+                position,
+                player,
+            });
+        }
+        None
     }
 
     pub fn explode(&self, block: &Block, world: &Arc<World>, position: &BlockPos) {

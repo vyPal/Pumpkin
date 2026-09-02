@@ -7135,6 +7135,10 @@ impl InventoryPlayer for Player {
         self.gamemode.load() == GameMode::Creative
     }
 
+    fn is_spectator(&self) -> bool {
+        self.gamemode.load() == GameMode::Spectator
+    }
+
     fn experience_level(&self) -> i32 {
         self.experience_level
             .load(std::sync::atomic::Ordering::Relaxed)

@@ -19,8 +19,8 @@ use pumpkin_world::world::BlockAccessor;
 
 use crate::block::registry::BlockActionResult;
 use crate::block::{
-    BlockBehaviour, CanPlaceAtArgs, GetStateForNeighborUpdateArgs, NormalUseArgs, OnPlaceArgs,
-    PathComputationType,
+    BlockBehaviour, CanPlaceAtArgs, GetScreenHandlerFactoryArgs, GetStateForNeighborUpdateArgs,
+    NormalUseArgs, OnPlaceArgs, PathComputationType,
 };
 use pumpkin_data::BlockState;
 
@@ -31,15 +31,30 @@ pub struct GrindstoneBlock;
 
 impl BlockBehaviour for GrindstoneBlock {
     fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
-        args.player.increment_stat(
-            pumpkin_data::statistic::StatisticCategory::Custom,
-            pumpkin_data::statistic::CustomStatistic::InteractWithGrindstone as i32,
-            1,
-        );
-        args.player
-            .open_handled_screen(&GrindstoneScreenFactory, Some(*args.position));
+        if let Some(factory) = self.get_screen_handler_factory(GetScreenHandlerFactoryArgs {
+            server: args.server,
+            world: args.world,
+            block: args.block,
+            position: args.position,
+            player: args.player,
+        }) {
+            args.player.increment_stat(
+                pumpkin_data::statistic::StatisticCategory::Custom,
+                pumpkin_data::statistic::CustomStatistic::InteractWithGrindstone as i32,
+                1,
+            );
+            args.player
+                .open_handled_screen(factory.as_ref(), Some(*args.position));
+        }
 
         BlockActionResult::Success
+    }
+
+    fn get_screen_handler_factory(
+        &self,
+        _args: GetScreenHandlerFactoryArgs<'_>,
+    ) -> Option<Box<dyn ScreenHandlerFactory>> {
+        Some(Box::new(GrindstoneScreenFactory))
     }
 
     fn on_place(&self, args: OnPlaceArgs<'_>) -> BlockStateId {

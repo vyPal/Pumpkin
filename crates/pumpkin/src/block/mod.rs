@@ -25,6 +25,7 @@ use pumpkin_data::BlockDirection;
 use pumpkin_data::block_rotation::{Mirror, Rotation};
 use pumpkin_data::data_component_impl::EquipmentSlot;
 use pumpkin_data::item_stack::ItemStack;
+use pumpkin_inventory::screen_handler::ScreenHandlerFactory;
 use pumpkin_protocol::java::server::play::SUseItemOn;
 use pumpkin_util::math::boundingbox::BoundingBox;
 use pumpkin_util::math::vector3::Vector3;
@@ -83,6 +84,13 @@ pub trait BlockBehaviour: Send + Sync {
 
     fn normal_use(&self, _args: NormalUseArgs<'_>) -> BlockActionResult {
         BlockActionResult::Pass
+    }
+
+    fn get_screen_handler_factory(
+        &self,
+        _args: GetScreenHandlerFactoryArgs<'_>,
+    ) -> Option<Box<dyn ScreenHandlerFactory>> {
+        None
     }
 
     fn use_with_item(&self, _args: UseWithItemArgs<'_>) -> BlockActionResult {
@@ -222,6 +230,15 @@ pub struct NormalUseArgs<'a> {
     pub position: &'a BlockPos,
     pub player: &'a Arc<Player>,
     pub hit: &'a BlockHitResult<'a>,
+}
+
+#[derive(Clone, Copy)]
+pub struct GetScreenHandlerFactoryArgs<'a> {
+    pub server: &'a Server,
+    pub world: &'a Arc<World>,
+    pub block: &'a Block,
+    pub position: &'a BlockPos,
+    pub player: &'a Arc<Player>,
 }
 
 pub struct UseWithItemArgs<'a> {

@@ -3,8 +3,8 @@ use std::sync::Mutex;
 
 use crate::block::entities::ender_chest::EnderChestBlockEntity;
 use crate::block::{
-    BlockBehaviour, NormalUseArgs, OnPlaceArgs, OnSyncedBlockEventArgs, PathComputationType,
-    PlacedArgs, registry::BlockActionResult,
+    BlockBehaviour, GetScreenHandlerFactoryArgs, NormalUseArgs, OnPlaceArgs,
+    OnSyncedBlockEventArgs, PathComputationType, PlacedArgs, registry::BlockActionResult,
 };
 use crate::world::World;
 use pumpkin_data::block_properties::LadderLikeProperties;
@@ -30,12 +30,14 @@ impl ScreenHandlerFactory for EnderChestScreenFactory {
         &self,
         sync_id: u8,
         player_inventory: &Arc<PlayerInventory>,
-        _player: &dyn InventoryPlayer,
+        player: &dyn InventoryPlayer,
     ) -> Option<SharedScreenHandler> {
-        if let Some(tracker) = &self.tracker {
+        if !player.is_spectator()
+            && let Some(tracker) = &self.tracker
+        {
             self.inventory.set_tracker(tracker.clone());
         }
-        let handler = create_generic_9x3(sync_id, player_inventory, self.inventory.clone());
+        let handler = create_generic_9x3(sync_id, player_inventory, self.inventory.clone(), player);
         let concrete_arc = Arc::new(Mutex::new(handler));
 
         Some(concrete_arc as SharedScreenHandler)
@@ -71,8 +73,32 @@ impl BlockBehaviour for EnderChestBlock {
     }
 
     fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
+        if let Some(factory) = self.get_screen_handler_factory(GetScreenHandlerFactoryArgs {
+            server: args.server,
+            world: args.world,
+            block: args.block,
+            position: args.position,
+            player: args.player,
+        }) {
+            args.player.increment_stat(
+                pumpkin_data::statistic::StatisticCategory::Custom,
+                pumpkin_data::statistic::CustomStatistic::OpenEnderchest as i32,
+                1,
+            );
+            args.player
+                .open_handled_screen(factory.as_ref(), Some(*args.position));
+            // TODO: PiglinBrain.onGuardedBlockInteracted(serverWorld, player, true);
+        }
+
+        BlockActionResult::Success
+    }
+
+    fn get_screen_handler_factory(
+        &self,
+        args: GetScreenHandlerFactoryArgs<'_>,
+    ) -> Option<Box<dyn ScreenHandlerFactory>> {
         if is_chest_blocked(args.world, args.position) {
-            return BlockActionResult::Success;
+            return None;
         }
 
         let block_entity = if let Some(be) = args.world.get_block_entity(args.position) {
@@ -83,28 +109,16 @@ impl BlockBehaviour for EnderChestBlock {
             be
         };
 
-        if let Some(block_entity) = block_entity
+        let block_entity = block_entity
             .as_any()
-            .downcast_ref::<EnderChestBlockEntity>()
-        {
-            args.player.increment_stat(
-                pumpkin_data::statistic::StatisticCategory::Custom,
-                pumpkin_data::statistic::CustomStatistic::OpenEnderchest as i32,
-                1,
-            );
-            let tracker = block_entity.get_tracker();
-            let inventory = args.player.ender_chest_inventory();
-            args.player.open_handled_screen(
-                &EnderChestScreenFactory {
-                    inventory: inventory.clone(),
-                    tracker: Some(tracker),
-                },
-                Some(*args.position),
-            );
-            // TODO: PiglinBrain.onGuardedBlockInteracted(serverWorld, player, true);
-        }
+            .downcast_ref::<EnderChestBlockEntity>()?;
 
-        BlockActionResult::Success
+        let tracker = block_entity.get_tracker();
+        let inventory = args.player.ender_chest_inventory();
+        Some(Box::new(EnderChestScreenFactory {
+            inventory: inventory.clone(),
+            tracker: Some(tracker),
+        }))
     }
 
     fn placed(&self, args: PlacedArgs<'_>) {

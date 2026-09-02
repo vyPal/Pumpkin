@@ -3,7 +3,8 @@ use std::sync::Mutex;
 
 use crate::block::blocks::redstone::block_receives_redstone_power;
 use crate::block::{
-    GetComparatorOutputArgs, OnNeighborUpdateArgs, OnPlaceArgs, PathComputationType, PlacedArgs,
+    GetComparatorOutputArgs, GetScreenHandlerFactoryArgs, OnNeighborUpdateArgs, OnPlaceArgs,
+    PathComputationType, PlacedArgs,
 };
 use crate::block::{
     registry::BlockActionResult,
@@ -32,9 +33,9 @@ impl ScreenHandlerFactory for HopperBlockScreenFactory {
         &self,
         sync_id: u8,
         player_inventory: &Arc<PlayerInventory>,
-        _player: &dyn InventoryPlayer,
+        player: &dyn InventoryPlayer,
     ) -> Option<SharedScreenHandler> {
-        let concrete_handler = create_hopper(sync_id, player_inventory, self.0.clone());
+        let concrete_handler = create_hopper(sync_id, player_inventory, self.0.clone(), player);
         let concrete_arc = Arc::new(Mutex::new(concrete_handler));
 
         Some(concrete_arc as SharedScreenHandler)
@@ -55,19 +56,32 @@ type HopperLikeProperties = pumpkin_data::block_properties::HopperLikeProperties
 
 impl BlockBehaviour for HopperBlock {
     fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
-        if let Some(block_entity) = args.world.get_block_entity(args.position)
-            && let Some(inventory) = block_entity.get_inventory()
-        {
+        if let Some(factory) = self.get_screen_handler_factory(GetScreenHandlerFactoryArgs {
+            server: args.server,
+            world: args.world,
+            block: args.block,
+            position: args.position,
+            player: args.player,
+        }) {
             args.player.increment_stat(
                 pumpkin_data::statistic::StatisticCategory::Custom,
                 pumpkin_data::statistic::CustomStatistic::InspectHopper as i32,
                 1,
             );
             args.player
-                .open_handled_screen(&HopperBlockScreenFactory(inventory), Some(*args.position));
+                .open_handled_screen(factory.as_ref(), Some(*args.position));
         }
 
         BlockActionResult::Success
+    }
+
+    fn get_screen_handler_factory(
+        &self,
+        args: GetScreenHandlerFactoryArgs<'_>,
+    ) -> Option<Box<dyn ScreenHandlerFactory>> {
+        let block_entity = args.world.get_block_entity(args.position)?;
+        let inventory = block_entity.get_inventory()?;
+        Some(Box::new(HopperBlockScreenFactory(inventory)))
     }
 
     fn on_place(&self, args: OnPlaceArgs<'_>) -> BlockStateId {

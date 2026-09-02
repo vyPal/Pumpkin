@@ -159,7 +159,15 @@ impl BedrockClient {
                 };
 
                 if player.gamemode.load() == GameMode::Spectator {
-                    // TODO: openMenu ?
+                    if let Some(factory) = server.block_registry.get_screen_handler_factory(
+                        block,
+                        player,
+                        &data.block_position,
+                        &server,
+                        &world,
+                    ) {
+                        player.open_handled_screen(factory.as_ref(), Some(data.block_position));
+                    }
                     return;
                 }
 
