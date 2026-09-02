@@ -734,7 +734,7 @@ impl ToTokens for ItemComponents {
             });
         }
         if self.banner_patterns.is_some() {
-            tokens.extend(quote! { (BannerPatterns, &BannerPatternsImpl), });
+            tokens.extend(quote! { (BannerPatterns, &BannerPatternsImpl::EMPTY), });
         }
         if self.bees.is_some() {
             tokens.extend(quote! { (Bees, &BeesImpl), });

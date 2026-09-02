@@ -577,6 +577,7 @@ pub fn read_data(id: DataComponent, data: &NbtTag) -> Option<Box<dyn DataCompone
         DataComponent::RepairCost => Some(RepairCostImpl::read_data(data)?.to_dyn()),
         DataComponent::Repairable => Some(RepairableImpl::read_data(data)?.to_dyn()),
         DataComponent::MapId => Some(MapIdImpl::read_data(data)?.to_dyn()),
+        DataComponent::MapPostProcessing => Some(MapPostProcessingImpl::read_data(data)?.to_dyn()),
         DataComponent::ChargedProjectiles => {
             Some(ChargedProjectilesImpl::read_data(data)?.to_dyn())
         }
@@ -650,6 +651,7 @@ pub fn read_data(id: DataComponent, data: &NbtTag) -> Option<Box<dyn DataCompone
         DataComponent::CanBreak => Some(CanBreakImpl::read_data(data)?.to_dyn()),
         DataComponent::SwingAnimation => Some(SwingAnimationImpl::read_data(data)?.to_dyn()),
         DataComponent::Rarity => Some(RarityImpl::read_data(data)?.to_dyn()),
+        DataComponent::BannerPatterns => Some(BannerPatternsImpl::read_data(data)?.to_dyn()),
         _ => None,
     }
 }
