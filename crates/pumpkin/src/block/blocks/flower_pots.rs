@@ -22,6 +22,11 @@ impl BlockBehaviour for FlowerPotBlock {
                         Block::from_id(potted_block_id).default_state.id,
                         BlockFlags::NOTIFY_ALL,
                     );
+                    args.player.increment_stat(
+                        pumpkin_data::statistic::StatisticCategory::Custom,
+                        pumpkin_data::statistic::CustomStatistic::PotFlower as i32,
+                        1,
+                    );
                 }
                 return BlockActionResult::Success;
             } else if potted_block_id != BlockId::AIR {

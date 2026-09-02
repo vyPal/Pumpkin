@@ -1,7 +1,8 @@
 use crate::block::registry::BlockActionResult;
-use crate::block::{BlockBehaviour, NormalUseArgs, PathComputationType};
+use crate::block::{BlockBehaviour, NormalUseArgs, OnPlaceArgs, PathComputationType};
 
-use pumpkin_data::{BlockState, translation};
+use pumpkin_data::block_properties::WallTorchLikeProperties;
+use pumpkin_data::{BlockState, BlockStateId, translation};
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
 use pumpkin_inventory::screen_handler::{
     InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
@@ -17,6 +18,17 @@ use pumpkin_inventory::stonecutter_screen_handler::StonecutterScreenHandler;
 pub struct StonecutterBlock;
 
 impl BlockBehaviour for StonecutterBlock {
+    fn on_place(&self, args: OnPlaceArgs<'_>) -> BlockStateId {
+        let mut props = WallTorchLikeProperties::default(args.block);
+        props.facing = args
+            .player
+            .living_entity
+            .entity
+            .get_horizontal_facing()
+            .opposite();
+        props.to_state_id(args.block)
+    }
+
     fn normal_use(&self, args: NormalUseArgs<'_>) -> BlockActionResult {
         args.player.increment_stat(
             pumpkin_data::statistic::StatisticCategory::Custom,

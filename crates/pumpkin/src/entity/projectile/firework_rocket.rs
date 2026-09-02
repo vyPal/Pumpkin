@@ -84,6 +84,10 @@ impl FireworkRocketEntity {
 }
 
 impl EntityBase for FireworkRocketEntity {
+    fn get_owner_id(&self) -> Option<i32> {
+        self.entity.owner_id
+    }
+
     fn tick(&self, caller: &dyn EntityBase, _server: &Server) {
         self.entity.process_tick(caller);
 

@@ -115,6 +115,10 @@ impl WindChargeEntity {
 }
 
 impl EntityBase for WindChargeEntity {
+    fn get_owner_id(&self) -> Option<i32> {
+        self.thrown_item_entity.owner_id
+    }
+
     fn tick(&self, caller: &dyn EntityBase, _server: &Server) {
         self.thrown_item_entity.process_tick(caller);
 

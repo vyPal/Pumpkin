@@ -166,9 +166,14 @@ fn get_chest_comparator_output(args: &GetComparatorOutputArgs<'_>) -> Option<u8>
 }
 
 fn normal_use_chest_impl(args: &NormalUseArgs<'_>) -> BlockActionResult {
+    let stat = if args.block.id == Block::TRAPPED_CHEST.id {
+        pumpkin_data::statistic::CustomStatistic::TriggerTrappedChest
+    } else {
+        pumpkin_data::statistic::CustomStatistic::OpenChest
+    };
     args.player.increment_stat(
         pumpkin_data::statistic::StatisticCategory::Custom,
-        pumpkin_data::statistic::CustomStatistic::OpenChest as i32,
+        stat as i32,
         1,
     );
     let state = args.world.get_block_state_id(args.position);

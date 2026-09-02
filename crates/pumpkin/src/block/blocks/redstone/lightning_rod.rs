@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::block::{
     BlockBehaviour, EmitsRedstonePowerArgs, GetRedstonePowerArgs, OnPlaceArgs, OnScheduledTickArgs,
-    PathComputationType,
+    OnStateReplacedArgs, PathComputationType,
 };
 use crate::world::World;
 use pumpkin_data::block_properties::LightningRodLikeProperties;
@@ -74,6 +74,16 @@ impl BlockBehaviour for LightningRodBlock {
                 props.to_state_id(args.block),
                 BlockFlags::NOTIFY_ALL,
             );
+            Self::update_neighbors(args.world, args.position, props);
+        }
+    }
+
+    fn on_state_replaced(&self, args: OnStateReplacedArgs<'_>) {
+        if !args.moved {
+            let props = LightningRodLikeProperties::from_state_id(args.old_state_id);
+            if props.powered {
+                Self::update_neighbors(args.world, args.position, props);
+            }
         }
     }
 

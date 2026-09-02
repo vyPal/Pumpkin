@@ -89,6 +89,11 @@ impl BlockBehaviour for DropperBlock {
         if let Some(block_entity) = args.world.get_block_entity(args.position)
             && let Some(inventory) = block_entity.get_inventory()
         {
+            args.player.increment_stat(
+                pumpkin_data::statistic::StatisticCategory::Custom,
+                pumpkin_data::statistic::CustomStatistic::InspectDropper as i32,
+                1,
+            );
             args.player
                 .open_handled_screen(&DropperScreenFactory(inventory), Some(*args.position));
         }

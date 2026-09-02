@@ -146,6 +146,9 @@ impl JavaClient {
             } else {
                 &EquipmentSlot::OFF_HAND
             };
+            if before.is_damageable() {
+                player.increment_stat(StatisticCategory::Broken, before.item.id as i32, 1);
+            }
             player.world().send_entity_status(
                 player.get_entity(),
                 equipment_break_status(slot),

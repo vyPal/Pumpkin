@@ -5,7 +5,7 @@ use crate::block::entities::bell::BellBlockEntity;
 use crate::block::registry::BlockActionResult;
 use crate::block::{
     BlockBehaviour, BlockHitResult, BrokenArgs, CanPlaceAtArgs, NormalUseArgs,
-    OnNeighborUpdateArgs, OnPlaceArgs, PathComputationType, PlacedArgs,
+    OnNeighborUpdateArgs, OnPlaceArgs, OnProjectileHitArgs, PathComputationType, PlacedArgs,
 };
 use crate::world::World;
 use pumpkin_data::block_properties::HorizontalFacing;
@@ -212,6 +212,28 @@ impl BlockBehaviour for BellBlock {
             if is_receiving_power {
                 ring_bell(*args.position, args.world, None, None);
             }
+        }
+    }
+
+    fn on_projectile_hit(&self, args: OnProjectileHitArgs<'_>) {
+        let player = args
+            .projectile
+            .get_owner_id()
+            .and_then(|id| args.world.get_player_by_id(id));
+        if ring_bell(
+            *args.position,
+            args.world,
+            None,
+            player
+                .as_ref()
+                .map(|p| p.clone() as Arc<dyn crate::entity::EntityBase>),
+        ) && let Some(player) = player
+        {
+            player.increment_stat(
+                pumpkin_data::statistic::StatisticCategory::Custom,
+                pumpkin_data::statistic::CustomStatistic::BellRing as i32,
+                1,
+            );
         }
     }
 

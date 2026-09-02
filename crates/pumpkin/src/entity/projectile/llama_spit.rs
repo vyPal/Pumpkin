@@ -56,6 +56,10 @@ impl LlamaSpitEntity {
 }
 
 impl EntityBase for LlamaSpitEntity {
+    fn get_owner_id(&self) -> Option<i32> {
+        self.thrown.owner_id
+    }
+
     fn tick(&self, caller: &dyn EntityBase, _server: &Server) {
         if self.get_entity().touching_water.load(Ordering::Relaxed) {
             self.get_entity().remove();

@@ -127,6 +127,11 @@ impl BlockBehaviour for DispenserBlock {
         if let Some(block_entity) = args.world.get_block_entity(args.position)
             && let Some(inventory) = block_entity.get_inventory()
         {
+            args.player.increment_stat(
+                pumpkin_data::statistic::StatisticCategory::Custom,
+                pumpkin_data::statistic::CustomStatistic::InspectDispenser as i32,
+                1,
+            );
             args.player
                 .open_handled_screen(&DispenserScreenFactory(inventory), Some(*args.position));
         }

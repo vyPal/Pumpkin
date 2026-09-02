@@ -463,10 +463,17 @@ pub fn drop_loot(
         }
     }
 
-    if experience && let Some(experience) = &block.experience {
+    let has_silk_touch = params.tool.as_ref().is_some_and(|tool| {
+        pumpkin_data::Enchantment::from_name("silk_touch")
+            .is_some_and(|e| tool.get_enchantment_level(e) > 0)
+    });
+
+    if experience
+        && !has_silk_touch
+        && let Some(experience) = &block.experience
+    {
         let mut random = RandomGenerator::Xoroshiro(Xoroshiro::from_seed(get_seed()));
         let amount = experience.experience.get(&mut random);
-        // TODO: Silk touch gives no exp
         if amount > 0 {
             let mut event = crate::plugin::block::block_exp::BlockExpEvent {
                 block_pos: *pos,
