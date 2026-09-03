@@ -465,7 +465,8 @@ impl crate::block::entities::BlockEntity for BrewingStandBlockEntity {
                     if fuel_event.cancelled {
                         false
                     } else {
-                        self.fuel.store(fuel_event.fuel_power as i32, Ordering::Relaxed);
+                        self.fuel
+                            .store(fuel_event.fuel_power as i32, Ordering::Relaxed);
                         items[4].decrement(1);
                         true
                     }
@@ -506,12 +507,15 @@ impl crate::block::entities::BlockEntity for BrewingStandBlockEntity {
             }
         } else if brewable && self.fuel.load(Ordering::Relaxed) > 0 {
             let brew_time = if let Some(server) = world.server.upgrade() {
-                let mut start_event = crate::plugin::api::events::block::brewing_start::BrewingStartEvent::new(
-                    self.position,
-                    world.clone(),
-                    400,
-                );
-                server.plugin_manager.fire_blocking(&server, &mut start_event);
+                let mut start_event =
+                    crate::plugin::api::events::block::brewing_start::BrewingStartEvent::new(
+                        self.position,
+                        world.clone(),
+                        400,
+                    );
+                server
+                    .plugin_manager
+                    .fire_blocking(&server, &mut start_event);
                 if start_event.cancelled {
                     return;
                 }

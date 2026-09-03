@@ -930,4 +930,3 @@ pub(crate) fn from_wit_entity_type(
         .copied()
         .ok_or_else(|| wasmtime::Error::msg(format!("Invalid entity type index: {index}")))
 }
-

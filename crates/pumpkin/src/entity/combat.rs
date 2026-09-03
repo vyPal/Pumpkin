@@ -606,7 +606,8 @@ impl CombatTracker {
                 )
             }
         } else if let Some(killer_name) = kill_credit_name.or_else(|| {
-            self.get_killer_entry().and_then(|k| k.attacker_name.clone())
+            self.get_killer_entry()
+                .and_then(|k| k.attacker_name.clone())
         }) {
             pumpkin_util::text::TextComponent::translate_cross(
                 format!("death.attack.{msg_id}.player"),

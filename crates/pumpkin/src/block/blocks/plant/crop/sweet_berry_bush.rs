@@ -56,10 +56,7 @@ impl BlockBehaviour for SweetBerryBushBlock {
                 }
                 props.age = 1;
                 for stack in drops {
-                    args.world.drop_stack(
-                        args.position,
-                        stack,
-                    );
+                    args.world.drop_stack(args.position, stack);
                 }
                 args.world.set_block_state(
                     args.position,

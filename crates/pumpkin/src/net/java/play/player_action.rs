@@ -169,7 +169,9 @@ impl JavaClient {
                             world.clone(),
                             player.inventory().held_item(),
                         );
-                        server_arc.plugin_manager.fire_blocking(&server_arc, &mut abort_event);
+                        server_arc
+                            .plugin_manager
+                            .fire_blocking(&server_arc, &mut abort_event);
                     }
 
                     player.mining.store(false, Ordering::Relaxed);

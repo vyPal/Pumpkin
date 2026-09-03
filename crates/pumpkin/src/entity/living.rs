@@ -1666,9 +1666,7 @@ impl LivingEntity {
         source: Option<&dyn EntityBase>,
         cause: Option<&dyn EntityBase>,
     ) -> TextComponent {
-        let kill_credit = dyn_self
-            .get_living_entity()
-            .and_then(Self::get_kill_credit);
+        let kill_credit = dyn_self.get_living_entity().and_then(Self::get_kill_credit);
         let kill_credit_name = kill_credit.as_ref().map(|c| c.get_display_name());
 
         if let Some(living) = dyn_self.get_living_entity() {
@@ -1687,7 +1685,11 @@ impl LivingEntity {
                 format!("death.attack.{}", damage_type.message_id),
                 [dyn_self.get_display_name(), cause.get_display_name()],
             )
-        } else if let Some(killer) = cause.or(source).map(|c| c.get_display_name()).or(kill_credit_name) {
+        } else if let Some(killer) = cause
+            .or(source)
+            .map(|c| c.get_display_name())
+            .or(kill_credit_name)
+        {
             TextComponent::translate_cross(
                 format!("death.attack.{}.player", damage_type.message_id),
                 format!("death.attack.{}.player", damage_type.message_id),
@@ -1887,11 +1889,12 @@ impl LivingEntity {
                 if let Some(player_arc) = world.get_player_by_uuid(player.gameprofile.id)
                     && let Some(server) = world.server.upgrade()
                 {
-                    let mut event = crate::plugin::api::events::entity::entity_death::PlayerDeathEvent::new(
-                        player_arc,
-                        final_death_message.clone(),
-                        0,
-                    );
+                    let mut event =
+                        crate::plugin::api::events::entity::entity_death::PlayerDeathEvent::new(
+                            player_arc,
+                            final_death_message.clone(),
+                            0,
+                        );
                     server.plugin_manager.fire_blocking(&server, &mut event);
                     if event.cancelled {
                         return;
@@ -1902,9 +1905,7 @@ impl LivingEntity {
                 player.handle_killed(&final_death_message);
             }
 
-            if show_death_messages
-                && let Some(server) = world.server.upgrade()
-            {
+            if show_death_messages && let Some(server) = world.server.upgrade() {
                 for player in server.get_all_players() {
                     player.send_system_message(&final_death_message);
                 }
@@ -2639,7 +2640,13 @@ impl LivingEntity {
                     | DamageType::STALAGMITE
             )
         {
-            let damager_pos = position.map(|p| BlockPos(Vector3::new(p.x.floor() as i32, p.y.floor() as i32, p.z.floor() as i32)));
+            let damager_pos = position.map(|p| {
+                BlockPos(Vector3::new(
+                    p.x.floor() as i32,
+                    p.y.floor() as i32,
+                    p.z.floor() as i32,
+                ))
+            });
             let mut by_block_event =
                 crate::plugin::api::events::entity::entity_damage_by_block::EntityDamageByBlockEvent {
                     entity_id: self.entity.entity_id,
@@ -2897,8 +2904,7 @@ impl LivingEntity {
 
             if let Some(attacker) = cause.or(source) {
                 let attacker_id = attacker.get_entity().entity_id;
-                self.last_attacker_id
-                    .store(attacker_id, Relaxed);
+                self.last_attacker_id.store(attacker_id, Relaxed);
                 self.last_attacked_time
                     .store(self.entity.age.load(Relaxed), Relaxed);
 

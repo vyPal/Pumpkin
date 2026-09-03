@@ -59,11 +59,12 @@ impl BlockBehaviour for FarmlandBlock {
             let mut props = FarmlandProperties::default(args.block);
             let mut new_moisture = 7;
             if let Some(server) = args.world.server.upgrade() {
-                let mut event = crate::plugin::api::events::block::moisture_change::MoistureChangeEvent::new(
-                    *args.position,
-                    args.world.clone(),
-                    new_moisture,
-                );
+                let mut event =
+                    crate::plugin::api::events::block::moisture_change::MoistureChangeEvent::new(
+                        *args.position,
+                        args.world.clone(),
+                        new_moisture,
+                    );
                 server.plugin_manager.fire_blocking(&server, &mut event);
                 if event.cancelled {
                     return;

@@ -3371,12 +3371,13 @@ impl Entity {
             && let Some(player) = holder.get_player()
             && let Some(player_arc) = world.get_player_by_uuid(player.gameprofile.id)
         {
-            let mut event = crate::plugin::api::events::player::player_leash_entity::PlayerLeashEntityEvent {
-                player: player_arc,
-                entity_id: self.entity_id,
-                holder_id: holder_entity_id,
-                cancelled: false,
-            };
+            let mut event =
+                crate::plugin::api::events::player::player_leash_entity::PlayerLeashEntityEvent {
+                    player: player_arc,
+                    entity_id: self.entity_id,
+                    holder_id: holder_entity_id,
+                    cancelled: false,
+                };
             server.plugin_manager.fire_blocking(&server, &mut event);
             if event.cancelled {
                 return;
@@ -3416,10 +3417,11 @@ impl Entity {
     pub fn unleash(&self) {
         let world = self.world.load();
         if let Some(server) = world.server.upgrade() {
-            let mut event = crate::plugin::api::events::entity::entity_unleash::EntityUnleashEvent::new(
-                self.entity_id,
-                "unleashed".to_string(),
-            );
+            let mut event =
+                crate::plugin::api::events::entity::entity_unleash::EntityUnleashEvent::new(
+                    self.entity_id,
+                    "unleashed".to_string(),
+                );
             server.plugin_manager.fire_blocking(&server, &mut event);
             if event.cancelled {
                 return;

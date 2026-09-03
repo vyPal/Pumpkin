@@ -160,8 +160,7 @@ impl ChunkSender {
         epoch: u32,
         version: JavaMinecraftVersion,
     ) -> Option<PreparedBatch> {
-        if version >= JavaMinecraftVersion::V_1_20_2
-            && self.in_flight_batches >= self.max_in_flight
+        if version >= JavaMinecraftVersion::V_1_20_2 && self.in_flight_batches >= self.max_in_flight
         {
             return None;
         }

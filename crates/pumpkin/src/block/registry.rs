@@ -527,12 +527,13 @@ impl BlockRegistry {
         }
         if behaviour.is_bonemeal_success(args) {
             if let Some(server) = world.server.upgrade() {
-                let mut event = crate::plugin::api::events::block::block_fertilize::BlockFertilizeEvent::new(
-                    *position,
-                    world.clone(),
-                    None,
-                    vec![],
-                );
+                let mut event =
+                    crate::plugin::api::events::block::block_fertilize::BlockFertilizeEvent::new(
+                        *position,
+                        world.clone(),
+                        None,
+                        vec![],
+                    );
                 server.plugin_manager.fire_blocking(&server, &mut event);
                 if event.cancelled {
                     return false;

@@ -1024,8 +1024,7 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
         let world_ref = self.get_world_res(&world)?;
         let world_provider = world_ref.provider.clone();
 
-        let internal_type =
-            super::entity::from_wit_entity_type(entity_type)?;
+        let internal_type = super::entity::from_wit_entity_type(entity_type)?;
 
         let internal_pos = pumpkin_util::math::vector3::Vector3::new(pos.0, pos.1, pos.2);
         let entity = crate::entity::r#type::from_type(

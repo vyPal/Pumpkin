@@ -1183,7 +1183,9 @@ impl JavaClient {
                                 player.clone(),
                                 ch.to_string(),
                             );
-                            server.plugin_manager.fire_blocking(server, &mut unreg_event);
+                            server
+                                .plugin_manager
+                                .fire_blocking(server, &mut unreg_event);
                         }
                     }
                 }

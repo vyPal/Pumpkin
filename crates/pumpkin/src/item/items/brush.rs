@@ -120,12 +120,13 @@ impl ItemBehaviour for BrushItem {
             if let Some(player_arc) = player.world().get_player_by_uuid(player.gameprofile.id)
                 && let Some(server) = player.world().server.upgrade()
             {
-                let mut event = crate::plugin::api::events::block::block_brush::BlockBrushEvent::new(
-                    location,
-                    world.clone(),
-                    player_arc,
-                    player.inventory().held_item(),
-                );
+                let mut event =
+                    crate::plugin::api::events::block::block_brush::BlockBrushEvent::new(
+                        location,
+                        world.clone(),
+                        player_arc,
+                        player.inventory().held_item(),
+                    );
                 server.plugin_manager.fire_blocking(&server, &mut event);
                 if event.cancelled {
                     return;

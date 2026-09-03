@@ -379,4 +379,3 @@ impl ClientPacket for CSpawnLivingEntity {
         Ok(())
     }
 }
-
