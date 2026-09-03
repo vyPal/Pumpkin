@@ -5357,8 +5357,10 @@ impl World {
             }
 
             if flags.contains(BlockFlags::NOTIFY_NEIGHBORS) {
-                self.update_neighbors(position, None);
-                // TODO: updateNeighbourForOutputSignal if blockState.hasAnalogOutputSignal()
+                self.update_neighbors_at(position, old_block, None);
+                if block_state_id.has_analog_output_signal() {
+                    self.update_neighbour_for_output_signal(position, new_block);
+                }
             }
 
             if !flags.contains(BlockFlags::MOVED) {
@@ -5402,9 +5404,15 @@ impl World {
             }
         }
 
-        self.level
-            .light_engine
-            .update_lighting_at(&self.level, *position);
+        let old_state = replaced_block_state_id.to_state();
+        let new_state = block_state_id.to_state();
+        if pumpkin_world::lighting::LightEngine::has_different_light_properties(
+            old_state, new_state,
+        ) {
+            self.level
+                .light_engine
+                .update_lighting_at(&self.level, *position);
+        }
 
         replaced_block_state_id
     }
@@ -5896,13 +5904,13 @@ impl World {
         (Block::from_state_id(id), id)
     }
 
-    /// Updates neighboring blocks of a block
-    pub fn update_neighbors(
+    /// Updates neighboring blocks of a block with a specified source block
+    pub fn update_neighbors_at(
         self: &Arc<Self>,
         block_pos: &BlockPos,
+        source_block: &Block,
         except: Option<BlockDirection>,
     ) {
-        let source_block = self.get_block(block_pos);
         for direction in BlockDirection::update_order() {
             if except.is_some_and(|d| d == direction) {
                 continue;
@@ -5948,6 +5956,16 @@ impl World {
         }
     }
 
+    /// Updates neighboring blocks of a block
+    pub fn update_neighbors(
+        self: &Arc<Self>,
+        block_pos: &BlockPos,
+        except: Option<BlockDirection>,
+    ) {
+        let source_block = self.get_block(block_pos);
+        self.update_neighbors_at(block_pos, source_block, except);
+    }
+
     pub fn update_neighbor(self: &Arc<Self>, neighbor_block_pos: &BlockPos, source_block: &Block) {
         let neighbor_block = self.get_block(neighbor_block_pos);
 
@@ -5972,6 +5990,30 @@ impl World {
                 source_block,
                 notify: false,
             });
+        }
+    }
+
+    pub fn update_neighbour_for_output_signal(
+        self: &Arc<Self>,
+        pos: &BlockPos,
+        changed_block: &Block,
+    ) {
+        for direction in BlockDirection::horizontal() {
+            let mut relative_pos = pos.offset(direction.to_offset());
+            if self.is_loaded(&relative_pos) {
+                let state = self.get_block_state(&relative_pos);
+                if state.id.to_block() == &Block::COMPARATOR {
+                    self.update_neighbor(&relative_pos, changed_block);
+                } else if state.is_solid_block() {
+                    relative_pos = relative_pos.offset(direction.to_offset());
+                    if self.is_loaded(&relative_pos) {
+                        let second_state = self.get_block_state(&relative_pos);
+                        if second_state.id.to_block() == &Block::COMPARATOR {
+                            self.update_neighbor(&relative_pos, changed_block);
+                        }
+                    }
+                }
+            }
         }
     }
 
