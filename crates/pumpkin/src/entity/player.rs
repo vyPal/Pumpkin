@@ -2673,7 +2673,7 @@ impl Player {
                     state,
                     p.start_mining_time.load(Ordering::Relaxed),
                 );
-                if finished {
+                if finished && matches!(p.client.as_ref(), ClientPlatform::Bedrock(_)) {
                     p.stop_mining();
 
                     let block = Block::from_state_id(state.id);
@@ -2697,12 +2697,6 @@ impl Player {
                         let item_id = p.inventory().held_item().item.id;
                         p.increment_stat(StatisticCategory::Used, item_id as i32, 1);
                         p.increment_stat(StatisticCategory::Mined, state.id.as_u16() as i32, 1);
-                    }
-
-                    // Java clients decide completion on their own local timer, if the block is
-                    // broken earlier the server must reset the state
-                    if matches!(p.client.as_ref(), ClientPlatform::Java(_)) {
-                        p.reset_block_change(pos);
                     }
                 }
             }
