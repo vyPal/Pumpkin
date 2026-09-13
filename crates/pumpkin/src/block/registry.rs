@@ -711,6 +711,17 @@ impl BlockRegistry {
                 }
             };
 
+        if world.is_in_spawn_protection(player, &final_block_pos) {
+            player.send_system_message(&pumpkin_util::text::TextComponent::translate_cross(
+                pumpkin_data::translation::java::BUILD_SPAWN_PROTECTION,
+                pumpkin_data::translation::java::BUILD_SPAWN_PROTECTION,
+                [pumpkin_util::text::TextComponent::text(
+                    player.gameprofile.name.clone(),
+                )],
+            ));
+            return Ok(None);
+        }
+
         if !self.can_place_at(
             Some(server),
             Some(&*world),

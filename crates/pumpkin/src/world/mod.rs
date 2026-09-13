@@ -547,6 +547,29 @@ impl World {
         )
     }
 
+    #[must_use]
+    pub fn is_in_spawn_protection(&self, player: &Player, position: &BlockPos) -> bool {
+        if player.permission_lvl.load() == pumpkin_util::permission::PermissionLvl::Four {
+            return false;
+        }
+
+        let Some(server) = self.server.upgrade() else {
+            return false;
+        };
+
+        let radius = server.basic_config.spawn_protection;
+        if radius == 0 {
+            return false;
+        }
+
+        let radius = i32::try_from(radius).unwrap_or(i32::MAX);
+        let spawn = self.get_spawn_location().0;
+        let dx = (spawn.0.x - position.0.x).abs();
+        let dz = (spawn.0.z - position.0.z).abs();
+
+        dx <= radius && dz <= radius
+    }
+
     pub async fn shutdown(&self) {
         for entity in self.entities.load().iter() {
             self.save_entity(entity).await;
@@ -5516,6 +5539,17 @@ impl World {
         cause: Option<&Arc<Player>>,
         flags: BlockFlags,
     ) -> Option<BlockStateId> {
+        if let Some(player) = cause
+            && self.is_in_spawn_protection(player, position)
+        {
+            player.send_system_message(&TextComponent::translate_cross(
+                pumpkin_data::translation::java::BUILD_SPAWN_PROTECTION,
+                pumpkin_data::translation::java::BUILD_SPAWN_PROTECTION,
+                [TextComponent::text(player.gameprofile.name.clone())],
+            ));
+            return None;
+        }
+
         let (broken_block, broken_block_state) = self.get_block_and_state(position);
         if broken_block_state.is_air() {
             return None;
