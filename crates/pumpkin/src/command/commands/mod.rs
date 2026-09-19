@@ -14,6 +14,7 @@ mod banlist;
 mod bossbar;
 mod clear;
 mod clone;
+mod compute;
 mod damage;
 mod data;
 mod datapack;
@@ -174,6 +175,7 @@ pub fn default_dispatcher(
     effect::register(&mut dispatcher, registry);
     summon::register(&mut dispatcher, registry);
     swing::register(&mut dispatcher, registry);
+    compute::register(&mut dispatcher, registry);
     damage::register(&mut dispatcher, registry);
     rotate::register(&mut dispatcher, registry);
     tellraw::register(&mut dispatcher, registry);
