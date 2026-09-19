@@ -76,6 +76,7 @@ mod stop;
 mod stopsound;
 mod stopwatch;
 mod summon;
+mod swing;
 mod tag;
 mod team;
 mod teammsg;
@@ -172,6 +173,7 @@ pub fn default_dispatcher(
     enchant::register(&mut dispatcher, registry);
     effect::register(&mut dispatcher, registry);
     summon::register(&mut dispatcher, registry);
+    swing::register(&mut dispatcher, registry);
     damage::register(&mut dispatcher, registry);
     rotate::register(&mut dispatcher, registry);
     tellraw::register(&mut dispatcher, registry);
