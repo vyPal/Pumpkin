@@ -52,6 +52,7 @@ mod place;
 mod playsound;
 mod plugin;
 mod plugins;
+mod posteffect;
 mod pumpkin;
 mod raid;
 mod random;
@@ -176,6 +177,7 @@ pub fn default_dispatcher(
     summon::register(&mut dispatcher, registry);
     swing::register(&mut dispatcher, registry);
     compute::register(&mut dispatcher, registry);
+    posteffect::register(&mut dispatcher, registry);
     damage::register(&mut dispatcher, registry);
     rotate::register(&mut dispatcher, registry);
     tellraw::register(&mut dispatcher, registry);
